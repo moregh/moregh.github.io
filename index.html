@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EVE War Eligibility Checker</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+      color: #e0e0e0;
+      min-height: 100vh;
+      padding: 2rem;
+    }
+    .container { max-width: 1200px; margin: 0 auto; }
+    h1 {
+      text-align: center;
+      font-size: 2.5rem;
+      margin-bottom: 2rem;
+      background: linear-gradient(45deg, #00d4ff, #0099cc);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      text-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
+    }
+    .input-section {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(10px);
+      border-radius: 15px;
+      padding: 2rem;
+      margin-bottom: 2rem;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+    textarea {
+      width: 100%;
+      min-height: 150px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 2px solid rgba(0, 212, 255, 0.3);
+      border-radius: 10px;
+      padding: 1rem;
+      color: #e0e0e0;
+      font-size: 14px;
+      font-family: 'Consolas', 'Monaco', monospace;
+      resize: vertical;
+      transition: all 0.3s ease;
+    }
+    textarea:focus {
+      outline: none;
+      border-color: #00d4ff;
+      box-shadow: 0 0 20px rgba(0, 212, 255, 0.2);
+    }
+    textarea::placeholder { color: rgba(224, 224, 224, 0.5); }
+    .check-button {
+      display: block;
+      margin: 1.5rem auto 0;
+      padding: 12px 30px;
+      background: linear-gradient(45deg, #00d4ff, #0099cc);
+      color: white;
+      border: none;
+      border-radius: 25px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 15px rgba(0, 212, 255, 0.3);
+    }
+    .check-button:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0, 212, 255, 0.4); }
+    .check-button:active { transform: translateY(0); }
+    .check-button:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+    .loading-container {
+      text-align: center;
+      margin: 2rem 0;
+      opacity: 0;
+      transition: opacity 0.3s ease, height 0.3s ease;
+      height: 0;
+      overflow: hidden;
+    }
+    .loading-container.show { opacity: 1; height: auto; }
+    .loading-spinner {
+      display: inline-block;
+      width: 40px;
+      height: 40px;
+      border: 3px solid rgba(0, 212, 255, 0.3);
+      border-radius: 50%;
+      border-top-color: #00d4ff;
+      animation: spin 1s linear infinite;
+      margin-bottom: 1rem;
+    }
+    .loading-text { font-size: 18px; font-weight: 500; color: #00d4ff; }
+    .timer { font-size: 14px; color: rgba(224, 224, 224, 0.7); margin-top: 0.5rem; }
+    .progress-container {
+      width: 100%;
+      max-width: 400px;
+      margin: 1rem auto;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      overflow: hidden;
+      height: 8px;
+    }
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(45deg, #00d4ff, #0099cc);
+      width: 0%;
+      transition: width 0.3s ease;
+      border-radius: 10px;
+    }
+    .progress-text { font-size: 14px; color: rgba(224, 224, 224, 0.7); margin-top: 0.5rem; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .results-section { opacity: 0; transition: opacity 0.5s ease; }
+    .results-section.show { opacity: 1; }
+    .results-header { text-align: center; font-size: 2rem; margin-bottom: 2rem; color: #00d4ff; }
+    .stats-bar {
+      display: flex;
+      justify-content: center;
+      gap: 2rem;
+      margin-bottom: 2rem;
+      padding: 1rem;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 10px;
+    }
+    .stat-item { text-align: center; }
+    .stat-number { font-size: 1.5rem; font-weight: 700; display: block; }
+    .stat-label { font-size: 0.9rem; color: rgba(224, 224, 224, 0.7); }
+    .eligible-stat .stat-number { color: #4ade80; }
+    .ineligible-stat .stat-number { color: #f87171; }
+    .total-stat .stat-number { color: #00d4ff; }
+    .results-container { display: flex; flex-direction: column; gap: 2rem; }
+    .result-column { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); border-radius: 15px; padding: 1.5rem; border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3); }
+    .result-column h3 { text-align: center; font-size: 1.5rem; margin-bottom: 1.5rem; padding-bottom: 0.5rem; border-bottom: 2px solid; }
+    .eligible h3 { color: #4ade80; border-bottom-color: #4ade80; }
+    .ineligible h3 { color: #f87171; border-bottom-color: #f87171; }
+    .result-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 1rem;
+    }
+    .result-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      padding: 1rem;
+      border-left: 4px solid;
+      transition: all 0.3s ease;
+    }
+    .result-item:hover { transform: translateY(-2px); background: rgba(255, 255, 255, 0.12); }
+    .eligible .result-item { border-left-color: #4ade80; }
+    .ineligible .result-item { border-left-color: #f87171; }
+    .character-avatar { flex-shrink: 0; width: 64px; height: 64px; border-radius: 5px; object-fit: cover; }
+    .corp-alliance-logos { display: flex; gap: 0.25rem; margin-top: 0.25rem; }
+    .corp-alliance-logos img { width: 24px; height: 24px; border-radius: 3px; object-fit: cover; }
+    .character-name { font-size: 1.1rem; font-weight: 600; display: block; margin-bottom: 0.25rem; }
+    .eligible .character-name { color: #4ade80; }
+    .ineligible .character-name { color: #f87171; }
+    .character-details { font-size: 0.9rem; color: rgba(224, 224, 224, 0.7); line-height: 1.4; }
+    .character-link { color: #00d4ff; text-decoration: none; transition: all 0.2s ease; }
+    .character-link:hover { color: #66e0ff; text-decoration: underline; }
+    .corp-alliance-info { display: flex; flex-direction: column; gap: 0.25rem; }
+    .no-results { text-align: center; color: rgba(224, 224, 224, 0.5); font-style: italic; padding: 2rem; border: 2px dashed rgba(224, 224, 224, 0.2); border-radius: 8px; background: rgba(255, 255, 255, 0.02); }
+    .error-message { background: rgba(248, 113, 113, 0.1); border: 1px solid rgba(248, 113, 113, 0.3); border-radius: 10px; padding: 1rem; margin: 1rem 0; color: #f87171; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>EVE War Eligibility Checker</h1>
+    <div class="input-section">
+      <textarea id="names" placeholder="Paste character names here, one per line&#10;&#10;Example:&#10;Chribba&#10;CCP Falcon&#10;The Mittani"></textarea>
+      <button class="check-button" id="checkButton" onclick="validateNames()">Check War Eligibility</button>
+    </div>
+    <div id="loading-container" class="loading-container">
+      <div class="loading-spinner"></div>
+      <div class="loading-text">Checking EVE ESI...</div>
+      <div class="progress-container"><div class="progress-bar" id="progressBar"></div></div>
+      <div class="progress-text" id="progressText">Processed: 0 / 0</div>
+      <div id="timer" class="timer">Elapsed: 0.0s</div>
+    </div>
+    <div id="error-container"></div>
+    <div id="results-section" class="results-section">
+      <h2 class="results-header">Results</h2>
+      <div class="stats-bar">
+        <div class="stat-item eligible-stat"><span id="eligible-count" class="stat-number">0</span><div class="stat-label">War Eligible</div></div>
+        <div class="stat-item total-stat"><span id="total-count" class="stat-number">0</span><div class="stat-label">Total Checked</div></div>
+        <div class="stat-item ineligible-stat"><span id="ineligible-count" class="stat-number">0</span><div class="stat-label">Not Eligible</div></div>
+      </div>
+      <div class="results-container">
+        <div class="result-column eligible">
+          <h3>War Eligible</h3>
+          <div id="eligible-grid" class="result-grid"><div class="no-results">No data yet</div></div>
+        </div>
+        <div class="result-column ineligible">
+          <h3>Not Eligible</h3>
+          <div id="ineligible-grid" class="result-grid"><div class="no-results">No data yet</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    const ESI_BASE = "https://esi.evetech.net/latest";
+    const characterInfoCache = new Map();
+    const corporationInfoCache = new Map();
+    const allianceInfoCache = new Map();
+    let timerInterval = null, startTime = 0;
+
+    function clientValidate(name) {
+      name = name.trim();
+      if(name.length < 3 || name.length > 37) return false;
+      let pattern = /^[A-Za-z0-9.''-]+( [A-Za-z0-9.''-]+)*$/;
+      if(!pattern.test(name)) return false;
+      if(/^[ '-]|[ '-]$/.test(name)) return false;
+      let parts = name.split(" ");
+      if(parts.length===1 && name.length>24) return false;
+      if(parts.length>1){
+        let firstAndMiddle = parts.slice(0,-1).join(" ");
+        let familyName = parts[parts.length-1];
+        if(firstAndMiddle.length>24 || familyName.length>12) return false;
+      }
+      return true;
+    }
+
+    async function getCharacterIds(names){
+      const res = await fetch(`${ESI_BASE}/universe/ids/`,{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(names)});
+      if(!res.ok) throw new Error(`Failed to get character IDs: ${res.status}`);
+      const data = await res.json();
+      return data.characters||[];
+    }
+
+    async function getCharacterInfo(id){
+      if(characterInfoCache.has(id)) return characterInfoCache.get(id);
+      const res = await fetch(`${ESI_BASE}/characters/${id}/`);
+      if(!res.ok) throw new Error(`Failed to get character info for ${id}: ${res.status}`);
+      const data = await res.json();
+      characterInfoCache.set(id,data);
+      return data;
+    }
+
+    async function getCorporationInfo(id){
+      if(corporationInfoCache.has(id)) return corporationInfoCache.get(id);
+      const res = await fetch(`${ESI_BASE}/corporations/${id}/`);
+      if(!res.ok) throw new Error(`Failed to get corporation info for ${id}: ${res.status}`);
+      const data = await res.json();
+      corporationInfoCache.set(id,data);
+      return data;
+    }
+
+    async function getAllianceInfo(id){
+      if(allianceInfoCache.has(id)) return allianceInfoCache.get(id);
+      const res = await fetch(`${ESI_BASE}/alliances/${id}/`);
+      if(!res.ok) throw new Error(`Failed to get alliance info for ${id}: ${res.status}`);
+      const data = await res.json();
+      allianceInfoCache.set(id,data);
+      return data;
+    }
+
+    async function validator(names){
+      const characters = await getCharacterIds(names);
+      const results=[];
+      updateProgress(0,characters.length);
+      for(let i=0;i<characters.length;i++){
+        const char=characters[i];
+        try{
+          const charInfo = await getCharacterInfo(char.id);
+          const corpInfo = await getCorporationInfo(charInfo.corporation_id);
+          let result={character_name:char.name,character_id:char.id,corporation_name:corpInfo.name,corporation_id:charInfo.corporation_id,alliance_name:null,alliance_id:null,war_eligible:false};
+          if(charInfo.alliance_id){ const allianceInfo = await getAllianceInfo(charInfo.alliance_id); result.alliance_name = allianceInfo.name; result.alliance_id = charInfo.alliance_id; }
+          else if(corpInfo.alliance_id){ const allianceInfo = await getAllianceInfo(corpInfo.alliance_id); result.alliance_name = allianceInfo.name; result.alliance_id = corpInfo.alliance_id; }
+          if(corpInfo.war_eligible!==undefined) result.war_eligible = corpInfo.war_eligible;
+          results.push(result);
+        }catch(e){
+          console.error(`Error processing character ${char.name}:`,e);
+          results.push({character_name:char.name,character_id:char.id,corporation_name:'Error loading',corporation_id:null,alliance_name:null,alliance_id:null,war_eligible:false});
+        }
+        updateProgress(i+1,characters.length);
+      }
+      return results;
+    }
+
+    function updateProgress(current,total){ const p = total>0?(current/total)*100:0; document.getElementById('progressBar').style.width = p+'%'; document.getElementById('progressText').textContent=`Processed: ${current} / ${total}`; }
+
+    function createCharacterItem(character){
+      const item=document.createElement("div"); item.className="result-item";
+      const charAvatar=document.createElement("img"); charAvatar.src=`https://images.evetech.net/characters/${character.character_id}/portrait?size=64`; charAvatar.alt=character.character_name; charAvatar.className="character-avatar"; item.appendChild(charAvatar);
+      const textContainer=document.createElement("div"); textContainer.style.flex="1";
+      const charName=document.createElement("span"); charName.className="character-name"; charName.innerHTML=`<a href="https://zkillboard.com/character/${character.character_id}/" target="_blank" class="character-link">${character.character_name}</a>`; textContainer.appendChild(charName);
+      const details=document.createElement("div"); details.className="character-details";
+      const corpAllianceInfo=document.createElement("div"); corpAllianceInfo.className="corp-alliance-info";
+      if(character.corporation_id){
+        const corpDiv=document.createElement("div");
+        const corpLogo=document.createElement("img"); corpLogo.src=`https://images.evetech.net/corporations/${character.corporation_id}/logo?size=64`; corpLogo.alt=character.corporation_name; corpLogo.className="character-avatar"; corpLogo.style.width="24px"; corpLogo.style.height="24px";
+        corpDiv.innerHTML=`<a href="https://zkillboard.com/corporation/${character.corporation_id}/" target="_blank" class="character-link">${character.corporation_name}</a>`; corpDiv.prepend(corpLogo);
+        corpAllianceInfo.appendChild(corpDiv);
+      }
+      if(character.alliance_name && character.alliance_id){
+        const allianceDiv=document.createElement("div");
+        const allianceLogo=document.createElement("img"); allianceLogo.src=`https://images.evetech.net/alliances/${character.alliance_id}/logo?size=64`; allianceLogo.alt=character.alliance_name; allianceLogo.className="character-avatar"; allianceLogo.style.width="24px"; allianceLogo.style.height="24px";
+        allianceDiv.innerHTML=`<a href="https://zkillboard.com/alliance/${character.alliance_id}/" target="_blank" class="character-link">${character.alliance_name}</a>`; allianceDiv.prepend(allianceLogo);
+        corpAllianceInfo.appendChild(allianceDiv);
+      }
+      details.appendChild(corpAllianceInfo); textContainer.appendChild(details); item.appendChild(textContainer); return item;
+    }
+
+    function renderGrid(containerId,characters){ const container=document.getElementById(containerId); container.innerHTML=""; if(characters.length===0){ const noResults=document.createElement("div"); noResults.className="no-results"; noResults.textContent="No results found"; container.appendChild(noResults); return; } characters.forEach(c=>container.appendChild(createCharacterItem(c))); }
+
+    function updateTimer(){ const elapsed=((Date.now()-startTime)/1000).toFixed(1); document.getElementById("timer").textContent=`Elapsed: ${elapsed}s`; }
+    function startLoading(){ const lc=document.getElementById("loading-container"); const rs=document.getElementById("results-section"); const cb=document.getElementById("checkButton"); const ec=document.getElementById("error-container"); lc.classList.add("show"); rs.classList.remove("show"); cb.disabled=true; ec.innerHTML=""; startTime=Date.now(); timerInterval=setInterval(updateTimer,100); }
+    function stopLoading(){ const lc=document.getElementById("loading-container"); const rs=document.getElementById("results-section"); const cb=document.getElementById("checkButton"); lc.classList.remove("show"); cb.disabled=false; if(timerInterval){clearInterval(timerInterval); timerInterval=null;} setTimeout(()=>{rs.classList.add("show");},100); }
+    function showError(message){ document.getElementById("error-container").innerHTML=`<div class="error-message">${message}</div>`; }
+    function updateStats(eligible,ineligible){ document.getElementById("eligible-count").textContent=eligible.length; document.getElementById("ineligible-count").textContent=ineligible.length; document.getElementById("total-count").textContent=eligible.length+ineligible.length; }
+
+    async function validateNames(){
+      const names=document.getElementById("names").value.split("\n").map(n=>n.trim()).filter(n=>n&&clientValidate(n));
+      if(names.length===0){ showError("No valid names entered. Please check the format of your character names."); return; }
+      startLoading();
+      try{
+        const results=await validator(names);
+        results.sort((a,b)=>b.war_eligible-a.war_eligible);
+        const eligible=results.filter(r=>r.war_eligible);
+        const ineligible=results.filter(r=>!r.war_eligible);
+        renderGrid("eligible-grid",eligible);
+        renderGrid("ineligible-grid",ineligible);
+        updateStats(eligible,ineligible);
+      }catch(err){ showError("Error contacting EVE ESI servers. Please try again later."); console.error("Validation error:",err); }
+      finally{ stopLoading(); }
+    }
+
+    document.getElementById('names').addEventListener('keydown',function(e){ if(e.ctrlKey && e.key==='Enter'){ validateNames(); }});
+  </script>
+</body>
+</html>
+<!-- Copyright 2025 moregh -->
