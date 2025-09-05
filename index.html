@@ -109,6 +109,76 @@
     @keyframes spin { to { transform: rotate(360deg); } }
     .results-section { opacity: 0; transition: opacity 0.5s ease; }
     .results-section.show { opacity: 1; margin-top: 0.5rem; }
+    .summary-section {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(10px);
+      border-radius: 10px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+    .summary-section h3 {
+      text-align: center;
+      font-size: 1.5rem;
+      margin-bottom: 1rem;
+      color: #4ade80;
+    }
+    .summary-container {
+      display: flex;
+      gap: 2rem;
+      justify-content: center;
+    }
+    .summary-column {
+      flex: 1;
+      max-width: 400px;
+    }
+    .summary-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      padding: 0.75rem;
+      margin-bottom: 0.5rem;
+      border-left: 4px solid #4ade80;
+      transition: all 0.3s ease;
+    }
+    .summary-item:hover {
+      transform: translateY(-2px);
+      background: rgba(255, 255, 255, 0.12);
+    }
+    .summary-logo {
+      width: 32px;
+      height: 32px;
+      border-radius: 5px;
+      object-fit: cover;
+    }
+    .summary-name {
+      flex: 1;
+      font-size: 1rem;
+      font-weight: 500;
+      color: #e0e0e0;
+    }
+    .summary-name a {
+      color: #00d4ff;
+      text-decoration: none;
+    }
+    .summary-name a:hover {
+      color: #66e0ff;
+      text-decoration: underline;
+    }
+    .summary-count {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #4ade80;
+    }
+    .no-summary {
+      text-align: center;
+      color: rgba(224, 224, 224, 0.5);
+      font-style: italic;
+      padding: 1rem;
+    }
     .stats-bar {
       display: flex;
       justify-content: center;
@@ -177,6 +247,19 @@
     </div>
     <div id="error-container"></div>
     <div id="results-section" class="results-section">
+      <div class="summary-section">
+        <h3>Top War-Eligible Entities</h3>
+        <div class="summary-container">
+          <div class="summary-column" id="top-corporations">
+            <h4>Corporations</h4>
+            <div id="top-corp-grid" class="no-summary">No war-eligible corporations found</div>
+          </div>
+          <div class="summary-column" id="top-alliances">
+            <h4>Alliances</h4>
+            <div id="top-alliance-grid" class="no-summary">No war-eligible alliances found</div>
+          </div>
+        </div>
+      </div>
       <div class="stats-bar">
         <div class="stat-item eligible-stat"><span id="eligible-count" class="stat-number">0</span><div class="stat-label">War Eligible</div></div>
         <div class="stat-item total-stat"><span id="total-count" class="stat-number">0</span><div class="stat-label">Total Checked</div></div>
@@ -352,17 +435,36 @@
       return item;
     }
 
-    function renderGrid(containerId, characters) {
+    function createSummaryItem({ id, name, count, type }) {
+      const item = document.createElement("div");
+      item.className = "summary-item";
+      const logo = document.createElement("img");
+      logo.src = `https://images.evetech.net/${type}s/${id}/logo?size=32`;
+      logo.alt = name;
+      logo.className = "summary-logo";
+      item.appendChild(logo);
+      const nameDiv = document.createElement("div");
+      nameDiv.className = "summary-name";
+      nameDiv.innerHTML = `<a href="https://zkillboard.com/${type}/${id}/" target="_blank" class="character-link">${name}</a>`;
+      item.appendChild(nameDiv);
+      const countDiv = document.createElement("div");
+      countDiv.className = "summary-count";
+      countDiv.textContent = count;
+      item.appendChild(countDiv);
+      return item;
+    }
+
+    function renderGrid(containerId, items, type = 'character') {
       const container = document.getElementById(containerId);
       container.innerHTML = "";
-      if (characters.length === 0) {
+      if (items.length === 0) {
         const noResults = document.createElement("div");
-        noResults.className = "no-results";
-        noResults.textContent = "No results found";
+        noResults.className = type === 'character' ? "no-results" : "no-summary";
+        noResults.textContent = type === 'character' ? "No results found" : `No war-eligible ${type}s found`;
         container.appendChild(noResults);
         return;
       }
-      characters.forEach(c => container.appendChild(createCharacterItem(c)));
+      items.forEach(item => container.appendChild(type === 'character' ? createCharacterItem(item) : createSummaryItem(item)));
     }
 
     function updateTimer() {
@@ -375,6 +477,13 @@
       const rs = document.getElementById("results-section");
       const cb = document.getElementById("checkButton");
       const ec = document.getElementById("error-container");
+      // Reset loading container styles to allow it to show
+      lc.style.opacity = '';
+      lc.style.height = '';
+      lc.style.overflow = '';
+      // Reset progress bar and text
+      document.getElementById('progressBar').style.width = '0%';
+      document.getElementById('progressText').textContent = 'Processed: 0 / 0';
       lc.classList.add("show");
       rs.classList.remove("show");
       cb.disabled = true;
@@ -412,6 +521,38 @@
       document.getElementById("total-count").textContent = eligible.length + ineligible.length;
     }
 
+    function summarizeEntities(results) {
+      const corpCounts = new Map();
+      const allianceCounts = new Map();
+      results.forEach(result => {
+        if (result.war_eligible) {
+          if (result.corporation_id) {
+            corpCounts.set(result.corporation_id, {
+              id: result.corporation_id,
+              name: result.corporation_name,
+              count: (corpCounts.get(result.corporation_id)?.count || 0) + 1,
+              type: 'corporation'
+            });
+          }
+          if (result.alliance_id) {
+            allianceCounts.set(result.alliance_id, {
+              id: result.alliance_id,
+              name: result.alliance_name,
+              count: (allianceCounts.get(result.alliance_id)?.count || 0) + 1,
+              type: 'alliance'
+            });
+          }
+        }
+      });
+      const topCorps = Array.from(corpCounts.values())
+        .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+        .slice(0, 5);
+      const topAlliances = Array.from(allianceCounts.values())
+        .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+        .slice(0, 5);
+      return { topCorps, topAlliances };
+    }
+
     async function validateNames() {
       const names = document.getElementById("names").value.split("\n").map(n => n.trim()).filter(n => n && clientValidate(n));
       if (names.length === 0) {
@@ -424,8 +565,11 @@
         results.sort((a, b) => b.war_eligible - a.war_eligible);
         const eligible = results.filter(r => r.war_eligible);
         const ineligible = results.filter(r => !r.war_eligible);
-        renderGrid("eligible-grid", eligible);
-        renderGrid("ineligible-grid", ineligible);
+        const { topCorps, topAlliances } = summarizeEntities(results);
+        renderGrid("eligible-grid", eligible, 'character');
+        renderGrid("ineligible-grid", ineligible, 'character');
+        renderGrid("top-corp-grid", topCorps, 'corporation');
+        renderGrid("top-alliance-grid", topAlliances, 'alliance');
         updateStats(eligible, ineligible);
       } catch (err) {
         showError("Error contacting EVE ESI servers. Please try again later.");
