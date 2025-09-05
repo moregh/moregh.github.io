@@ -109,7 +109,6 @@
     @keyframes spin { to { transform: rotate(360deg); } }
     .results-section { opacity: 0; transition: opacity 0.5s ease; }
     .results-section.show { opacity: 1; }
-    .results-header { text-align: center; font-size: 2rem; margin-bottom: 2rem; color: #00d4ff; }
     .stats-bar {
       display: flex;
       justify-content: center;
@@ -178,7 +177,6 @@
     </div>
     <div id="error-container"></div>
     <div id="results-section" class="results-section">
-      <h2 class="results-header">Results</h2>
       <div class="stats-bar">
         <div class="stat-item eligible-stat"><span id="eligible-count" class="stat-number">0</span><div class="stat-label">War Eligible</div></div>
         <div class="stat-item total-stat"><span id="total-count" class="stat-number">0</span><div class="stat-label">Total Checked</div></div>
@@ -255,76 +253,187 @@
 
     async function validator(names){
       const characters = await getCharacterIds(names);
-      const results=[];
-      updateProgress(0,characters.length);
-      for(let i=0;i<characters.length;i++){
-        const char=characters[i];
+      const results = [];
+      updateProgress(0, characters.length);
+      for(let i = 0; i < characters.length; i++){
+        const char = characters[i];
         try{
           const charInfo = await getCharacterInfo(char.id);
           const corpInfo = await getCorporationInfo(charInfo.corporation_id);
-          let result={character_name:char.name,character_id:char.id,corporation_name:corpInfo.name,corporation_id:charInfo.corporation_id,alliance_name:null,alliance_id:null,war_eligible:false};
-          if(charInfo.alliance_id){ const allianceInfo = await getAllianceInfo(charInfo.alliance_id); result.alliance_name = allianceInfo.name; result.alliance_id = charInfo.alliance_id; }
-          else if(corpInfo.alliance_id){ const allianceInfo = await getAllianceInfo(corpInfo.alliance_id); result.alliance_name = allianceInfo.name; result.alliance_id = corpInfo.alliance_id; }
-          if(corpInfo.war_eligible!==undefined) result.war_eligible = corpInfo.war_eligible;
+          let result = {
+            character_name: char.name,
+            character_id: char.id,
+            corporation_name: corpInfo.name,
+            corporation_id: charInfo.corporation_id,
+            alliance_name: null,
+            alliance_id: null,
+            war_eligible: false
+          };
+          if(charInfo.alliance_id){
+            const allianceInfo = await getAllianceInfo(charInfo.alliance_id);
+            result.alliance_name = allianceInfo.name;
+            result.alliance_id = charInfo.alliance_id;
+          }
+          else if(corpInfo.alliance_id){
+            const allianceInfo = await getAllianceInfo(corpInfo.alliance_id);
+            result.alliance_name = allianceInfo.name;
+            result.alliance_id = corpInfo.alliance_id;
+          }
+          if(corpInfo.war_eligible !== undefined) result.war_eligible = corpInfo.war_eligible;
           results.push(result);
         }catch(e){
-          console.error(`Error processing character ${char.name}:`,e);
-          results.push({character_name:char.name,character_id:char.id,corporation_name:'Error loading',corporation_id:null,alliance_name:null,alliance_id:null,war_eligible:false});
+          console.error(`Error processing character ${char.name}:`, e);
+          results.push({
+            character_name: char.name,
+            character_id: char.id,
+            corporation_name: 'Error loading',
+            corporation_id: null,
+            alliance_name: null,
+            alliance_id: null,
+            war_eligible: false
+          });
         }
-        updateProgress(i+1,characters.length);
+        updateProgress(i + 1, characters.length);
       }
       return results;
     }
 
-    function updateProgress(current,total){ const p = total>0?(current/total)*100:0; document.getElementById('progressBar').style.width = p+'%'; document.getElementById('progressText').textContent=`Processed: ${current} / ${total}`; }
+    function updateProgress(current, total) {
+      const p = total > 0 ? (current / total) * 100 : 0;
+      document.getElementById('progressBar').style.width = p + '%';
+      document.getElementById('progressText').textContent = `Processed: ${current} / ${total}`;
+    }
 
     function createCharacterItem(character){
-      const item=document.createElement("div"); item.className="result-item";
-      const charAvatar=document.createElement("img"); charAvatar.src=`https://images.evetech.net/characters/${character.character_id}/portrait?size=64`; charAvatar.alt=character.character_name; charAvatar.className="character-avatar"; item.appendChild(charAvatar);
-      const textContainer=document.createElement("div"); textContainer.style.flex="1";
-      const charName=document.createElement("span"); charName.className="character-name"; charName.innerHTML=`<a href="https://zkillboard.com/character/${character.character_id}/" target="_blank" class="character-link">${character.character_name}</a>`; textContainer.appendChild(charName);
-      const details=document.createElement("div"); details.className="character-details";
-      const corpAllianceInfo=document.createElement("div"); corpAllianceInfo.className="corp-alliance-info";
+      const item = document.createElement("div");
+      item.className = "result-item";
+      const charAvatar = document.createElement("img");
+      charAvatar.src = `https://images.evetech.net/characters/${character.character_id}/portrait?size=64`;
+      charAvatar.alt = character.character_name;
+      charAvatar.className = "character-avatar";
+      item.appendChild(charAvatar);
+      const textContainer = document.createElement("div");
+      textContainer.style.flex = "1";
+      const charName = document.createElement("span");
+      charName.className = "character-name";
+      charName.innerHTML = `<a href="https://zkillboard.com/character/${character.character_id}/" target="_blank" class="character-link">${character.character_name}</a>`;
+      textContainer.appendChild(charName);
+      const details = document.createElement("div");
+      details.className = "character-details";
+      const corpAllianceInfo = document.createElement("div");
+      corpAllianceInfo.className = "corp-alliance-info";
       if(character.corporation_id){
-        const corpDiv=document.createElement("div");
-        const corpLogo=document.createElement("img"); corpLogo.src=`https://images.evetech.net/corporations/${character.corporation_id}/logo?size=64`; corpLogo.alt=character.corporation_name; corpLogo.className="character-avatar"; corpLogo.style.width="24px"; corpLogo.style.height="24px";
-        corpDiv.innerHTML=`<a href="https://zkillboard.com/corporation/${character.corporation_id}/" target="_blank" class="character-link">${character.corporation_name}</a>`; corpDiv.prepend(corpLogo);
+        const corpDiv = document.createElement("div");
+        const corpLogo = document.createElement("img");
+        corpLogo.src = `https://images.evetech.net/corporations/${character.corporation_id}/logo?size=64`;
+        corpLogo.alt = character.corporation_name;
+        corpLogo.className = "character-avatar";
+        corpLogo.style.width = "24px";
+        corpLogo.style.height = "24px";
+        corpDiv.innerHTML = `<a href="https://zkillboard.com/corporation/${character.corporation_id}/" target="_blank" class="character-link">${character.corporation_name}</a>`;
+        corpDiv.prepend(corpLogo);
         corpAllianceInfo.appendChild(corpDiv);
       }
       if(character.alliance_name && character.alliance_id){
-        const allianceDiv=document.createElement("div");
-        const allianceLogo=document.createElement("img"); allianceLogo.src=`https://images.evetech.net/alliances/${character.alliance_id}/logo?size=64`; allianceLogo.alt=character.alliance_name; allianceLogo.className="character-avatar"; allianceLogo.style.width="24px"; allianceLogo.style.height="24px";
-        allianceDiv.innerHTML=`<a href="https://zkillboard.com/alliance/${character.alliance_id}/" target="_blank" class="character-link">${character.alliance_name}</a>`; allianceDiv.prepend(allianceLogo);
+        const allianceDiv = document.createElement("div");
+        const allianceLogo = document.createElement("img");
+        allianceLogo.src = `https://images.evetech.net/alliances/${character.alliance_id}/logo?size=64`;
+        allianceLogo.alt = character.alliance_name;
+        allianceLogo.className = "character-avatar";
+        allianceLogo.style.width = "24px";
+        allianceLogo.style.height = "24px";
+        allianceDiv.innerHTML = `<a href="https://zkillboard.com/alliance/${character.alliance_id}/" target="_blank" class="character-link">${character.alliance_name}</a>`;
+        allianceDiv.prepend(allianceLogo);
         corpAllianceInfo.appendChild(allianceDiv);
       }
-      details.appendChild(corpAllianceInfo); textContainer.appendChild(details); item.appendChild(textContainer); return item;
+      details.appendChild(corpAllianceInfo);
+      textContainer.appendChild(details);
+      item.appendChild(textContainer);
+      return item;
     }
 
-    function renderGrid(containerId,characters){ const container=document.getElementById(containerId); container.innerHTML=""; if(characters.length===0){ const noResults=document.createElement("div"); noResults.className="no-results"; noResults.textContent="No results found"; container.appendChild(noResults); return; } characters.forEach(c=>container.appendChild(createCharacterItem(c))); }
+    function renderGrid(containerId, characters) {
+      const container = document.getElementById(containerId);
+      container.innerHTML = "";
+      if (characters.length === 0) {
+        const noResults = document.createElement("div");
+        noResults.className = "no-results";
+        noResults.textContent = "No results found";
+        container.appendChild(noResults);
+        return;
+      }
+      characters.forEach(c => container.appendChild(createCharacterItem(c)));
+    }
 
-    function updateTimer(){ const elapsed=((Date.now()-startTime)/1000).toFixed(1); document.getElementById("timer").textContent=`Elapsed: ${elapsed}s`; }
-    function startLoading(){ const lc=document.getElementById("loading-container"); const rs=document.getElementById("results-section"); const cb=document.getElementById("checkButton"); const ec=document.getElementById("error-container"); lc.classList.add("show"); rs.classList.remove("show"); cb.disabled=true; ec.innerHTML=""; startTime=Date.now(); timerInterval=setInterval(updateTimer,100); }
-    function stopLoading(){ const lc=document.getElementById("loading-container"); const rs=document.getElementById("results-section"); const cb=document.getElementById("checkButton"); lc.classList.remove("show"); cb.disabled=false; if(timerInterval){clearInterval(timerInterval); timerInterval=null;} setTimeout(()=>{rs.classList.add("show");},100); }
-    function showError(message){ document.getElementById("error-container").innerHTML=`<div class="error-message">${message}</div>`; }
-    function updateStats(eligible,ineligible){ document.getElementById("eligible-count").textContent=eligible.length; document.getElementById("ineligible-count").textContent=ineligible.length; document.getElementById("total-count").textContent=eligible.length+ineligible.length; }
+    function updateTimer() {
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+      document.getElementById("timer").textContent = `Elapsed: ${elapsed}s`;
+    }
 
-    async function validateNames(){
-      const names=document.getElementById("names").value.split("\n").map(n=>n.trim()).filter(n=>n&&clientValidate(n));
-      if(names.length===0){ showError("No valid names entered. Please check the format of your character names."); return; }
+    function startLoading() {
+      const lc = document.getElementById("loading-container");
+      const rs = document.getElementById("results-section");
+      const cb = document.getElementById("checkButton");
+      const ec = document.getElementById("error-container");
+      lc.classList.add("show");
+      rs.classList.remove("show");
+      cb.disabled = true;
+      ec.innerHTML = "";
+      startTime = Date.now();
+      timerInterval = setInterval(updateTimer, 100);
+    }
+
+    function stopLoading() {
+      const lc = document.getElementById("loading-container");
+      const rs = document.getElementById("results-section");
+      const cb = document.getElementById("checkButton");
+      lc.classList.remove("show");
+      cb.disabled = false;
+      if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+      }
+      setTimeout(() => { rs.classList.add("show"); }, 100);
+    }
+
+    function showError(message) {
+      document.getElementById("error-container").innerHTML = `<div class="error-message">${message}</div>`;
+    }
+
+    function updateStats(eligible, ineligible) {
+      document.getElementById("eligible-count").textContent = eligible.length;
+      document.getElementById("ineligible-count").textContent = ineligible.length;
+      document.getElementById("total-count").textContent = eligible.length + ineligible.length;
+    }
+
+    async function validateNames() {
+      const names = document.getElementById("names").value.split("\n").map(n => n.trim()).filter(n => n && clientValidate(n));
+      if (names.length === 0) {
+        showError("No valid names entered. Please check the format of your character names.");
+        return;
+      }
       startLoading();
-      try{
-        const results=await validator(names);
-        results.sort((a,b)=>b.war_eligible-a.war_eligible);
-        const eligible=results.filter(r=>r.war_eligible);
-        const ineligible=results.filter(r=>!r.war_eligible);
-        renderGrid("eligible-grid",eligible);
-        renderGrid("ineligible-grid",ineligible);
-        updateStats(eligible,ineligible);
-      }catch(err){ showError("Error contacting EVE ESI servers. Please try again later."); console.error("Validation error:",err); }
-      finally{ stopLoading(); }
+      try {
+        const results = await validator(names);
+        results.sort((a, b) => b.war_eligible - a.war_eligible);
+        const eligible = results.filter(r => r.war_eligible);
+        const ineligible = results.filter(r => !r.war_eligible);
+        renderGrid("eligible-grid", eligible);
+        renderGrid("ineligible-grid", ineligible);
+        updateStats(eligible, ineligible);
+      } catch (err) {
+        showError("Error contacting EVE ESI servers. Please try again later.");
+        console.error("Validation error:", err);
+      } finally {
+        stopLoading();
+      }
     }
 
-    document.getElementById('names').addEventListener('keydown',function(e){ if(e.ctrlKey && e.key==='Enter'){ validateNames(); }});
+    document.getElementById('names').addEventListener('keydown', function(e) {
+      if (e.ctrlKey && e.key === 'Enter') {
+        validateNames();
+      }
+    });
   </script>
 </body>
 </html>
