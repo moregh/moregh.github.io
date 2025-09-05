@@ -279,10 +279,77 @@
   </div>
   <script>
     const ESI_BASE = "https://esi.evetech.net/latest";
+    const CACHE_EXPIRY_HOURS = 12;
     const characterInfoCache = new Map();
     const corporationInfoCache = new Map();
     const allianceInfoCache = new Map();
     let timerInterval = null, startTime = 0;
+
+    // Cache management functions
+    function getCacheKey(type, id) {
+      return `eve_${type}_${id}`;
+    }
+
+    function getCachedData(type, id) {
+      try {
+        const cacheKey = getCacheKey(type, id);
+        const cached = localStorage.getItem(cacheKey);
+        if (!cached) return null;
+        
+        const { data, timestamp } = JSON.parse(cached);
+        const now = Date.now();
+        const expiryTime = timestamp + (CACHE_EXPIRY_HOURS * 60 * 60 * 1000);
+        
+        if (now > expiryTime) {
+          localStorage.removeItem(cacheKey);
+          return null;
+        }
+        
+        return data;
+      } catch (e) {
+        console.warn(`Error reading cache for ${type}:${id}`, e);
+        return null;
+      }
+    }
+
+    function setCachedData(type, id, data) {
+      try {
+        const cacheKey = getCacheKey(type, id);
+        const cacheData = {
+          data: data,
+          timestamp: Date.now()
+        };
+        localStorage.setItem(cacheKey, JSON.stringify(cacheData));
+      } catch (e) {
+        console.warn(`Error writing cache for ${type}:${id}`, e);
+      }
+    }
+
+    function clearExpiredCache() {
+      try {
+        const keys = Object.keys(localStorage);
+        const now = Date.now();
+        const expiryMs = CACHE_EXPIRY_HOURS * 60 * 60 * 1000;
+        
+        keys.forEach(key => {
+          if (key.startsWith('eve_')) {
+            try {
+              const cached = JSON.parse(localStorage.getItem(key));
+              if (now > cached.timestamp + expiryMs) {
+                localStorage.removeItem(key);
+              }
+            } catch (e) {
+              localStorage.removeItem(key);
+            }
+          }
+        });
+      } catch (e) {
+        console.warn('Error clearing expired cache', e);
+      }
+    }
+
+    // Clear expired cache on page load
+    clearExpiredCache();
 
     function clientValidate(name) {
       name = name.trim();
@@ -308,29 +375,68 @@
     }
 
     async function getCharacterInfo(id){
+      // Check memory cache first
       if(characterInfoCache.has(id)) return characterInfoCache.get(id);
+      
+      // Check localStorage cache
+      const cached = getCachedData('character', id);
+      if (cached) {
+        characterInfoCache.set(id, cached);
+        return cached;
+      }
+      
+      // Fetch from ESI
       const res = await fetch(`${ESI_BASE}/characters/${id}/`);
       if(!res.ok) throw new Error(`Failed to get character info for ${id}: ${res.status}`);
       const data = await res.json();
-      characterInfoCache.set(id,data);
+      
+      // Cache in both memory and localStorage
+      characterInfoCache.set(id, data);
+      setCachedData('character', id, data);
       return data;
     }
 
     async function getCorporationInfo(id){
+      // Check memory cache first
       if(corporationInfoCache.has(id)) return corporationInfoCache.get(id);
+      
+      // Check localStorage cache
+      const cached = getCachedData('corporation', id);
+      if (cached) {
+        corporationInfoCache.set(id, cached);
+        return cached;
+      }
+      
+      // Fetch from ESI
       const res = await fetch(`${ESI_BASE}/corporations/${id}/`);
       if(!res.ok) throw new Error(`Failed to get corporation info for ${id}: ${res.status}`);
       const data = await res.json();
-      corporationInfoCache.set(id,data);
+      
+      // Cache in both memory and localStorage
+      corporationInfoCache.set(id, data);
+      setCachedData('corporation', id, data);
       return data;
     }
 
     async function getAllianceInfo(id){
+      // Check memory cache first
       if(allianceInfoCache.has(id)) return allianceInfoCache.get(id);
+      
+      // Check localStorage cache
+      const cached = getCachedData('alliance', id);
+      if (cached) {
+        allianceInfoCache.set(id, cached);
+        return cached;
+      }
+      
+      // Fetch from ESI
       const res = await fetch(`${ESI_BASE}/alliances/${id}/`);
       if(!res.ok) throw new Error(`Failed to get alliance info for ${id}: ${res.status}`);
       const data = await res.json();
-      allianceInfoCache.set(id,data);
+      
+      // Cache in both memory and localStorage
+      allianceInfoCache.set(id, data);
+      setCachedData('alliance', id, data);
       return data;
     }
 
