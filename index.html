@@ -260,6 +260,16 @@ textarea::placeholder { color: var(--text-muted); line-height: 1.62; }
 .error-title { font-weight: 600; color: var(--danger-color); margin-bottom: 0.27rem; }
 .error-text { color: var(--text-secondary); font-size: 0.855rem; }
 
+/* Warning message */
+.warning-message {
+    display: flex; align-items: center; gap: 0.9rem; background: rgba(251, 191, 36, 0.1); border: 0.9px solid rgba(251, 191, 36, 0.3);
+    border-left: 3.6px solid var(--warning-color); border-radius: 13.5px; padding: 1.35rem; margin: 0.9rem 0; animation: slideIn 0.45s ease;
+}
+.warning-icon { font-size: 1.35rem; color: var(--warning-color); flex-shrink: 0; }
+.warning-content { flex: 1; }
+.warning-title { font-weight: 600; color: var(--warning-color); margin-bottom: 0.27rem; }
+.warning-text { color: var(--text-secondary); font-size: 0.855rem; }
+
 /* Animations */
 @keyframes slideIn { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
 .result-item:nth-child(1) { animation-delay: 0.09s; }
@@ -706,7 +716,7 @@ async function getCharacterIds(names){
   let fetchedCharacters = [];
   if (uncachedNames.length > MAX_ESI_CALL_SIZE) {
     console.warn(`Warning: Attempting to fetch ${uncachedNames.length} names exceeds ESI limit of ${MAX_ESI_CALL_SIZE}. Truncating to first ${MAX_ESI_CALL_SIZE}.`);
-    showError(`Warning: Attempting to fetch ${uncachedNames.length} names exceeds ESI limit of ${MAX_ESI_CALL_SIZE}. Only the first ${MAX_ESI_CALL_SIZE} names will be processed.`);
+    showWarning(`Warning: Attempting to fetch ${uncachedNames.length} names exceeds ESI limit of ${MAX_ESI_CALL_SIZE}. Only the first ${MAX_ESI_CALL_SIZE} names will be processed. Try running the check multiple times.`);
     uncachedNames.splice(MAX_ESI_CALL_SIZE);
   }
 
@@ -1100,6 +1110,17 @@ function stopLoading() {
     }, 500);
   }, 300);
 }
+function showWarning(message) {
+    document.getElementById("error-container").innerHTML = `
+        <div class="warning-message glass-card">
+        <div class="warning-icon">⚠️</div>
+        <div class="warning-content">
+            <div class="warning-title">Warning</div>
+            <div class="warning-text">${message}</div>
+        </div>
+        </div>
+    `;
+}
 
 function showError(message) {
   document.getElementById("error-container").innerHTML = `
@@ -1411,5 +1432,5 @@ document.addEventListener('DOMContentLoaded', function() {
   </script>
 </body>
 </html>
-<!-- Version: 1.0.0 -->
+<!-- Version: 1.0.1 -->
 <!-- Copyright 2025 moregh -->
