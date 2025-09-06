@@ -8,47 +8,158 @@
   <script type="text/javascript" src="script.js"></script>
 </head>
 <body>
+  <div class="background-effects">
+    <div class="floating-orb orb-1"></div>
+    <div class="floating-orb orb-2"></div>
+    <div class="floating-orb orb-3"></div>
+    <div class="grid-overlay"></div>
+  </div>
+  
   <div class="container">
-    <a href="#" onclick="window.location.reload(true); document.querySelectorAll('form').forEach(form => form.reset());"><h1>EVE War Eligibility Checker</h1></a>
-    <div class="input-section">
-      <textarea id="names" placeholder="Paste character names here, one per line&#10;&#10;Example:&#10;Chribba&#10;CCP Falcon&#10;The Mittani"></textarea>
-      <button class="check-button" id="checkButton" onclick="validateNames()">Check War Eligibility</button>
-    </div>
-    <div id="loading-container" class="loading-container">
-      <div class="loading-spinner"></div>
-      <div class="loading-text">Checking EVE ESI...</div>
-      <div class="progress-container"><div class="progress-bar" id="progressBar"></div></div>
-      <div class="progress-text" id="progressText">Processed: 0 / 0</div>
-      <div id="timer" class="timer">Elapsed: 0.0s</div>
-    </div>
-    <div id="error-container"></div>
-    <div id="results-section" class="results-section">
-      <div class="stats-bar">
-        <div class="stat-item eligible-stat"><span id="eligible-count" class="stat-number">0</span><div class="stat-label">War Eligible</div></div>
-        <div class="stat-item total-stat"><span id="total-count" class="stat-number">0</span><div class="stat-label">Total Checked</div></div>
-        <div class="stat-item ineligible-stat"><span id="ineligible-count" class="stat-number">0</span><div class="stat-label">Not Eligible</div></div>
+    <header>
+      <a href="#" onclick="window.location.reload(true); document.querySelectorAll('form').forEach(form => form.reset());" class="title-link">
+        <h1>EVE War Eligibility Checker</h1>
+        <p class="subtitle">Discover which characters can engage in corporation warfare</p>
+      </a>
+    </header>
+    
+    <div class="input-section glass-card">
+      <div class="input-header">
+        <h2>Character Names</h2>
+        <div class="input-info">
+          <span class="info-badge">Paste one name per line</span>
+          <span class="shortcut-hint">Ctrl+Enter to check</span>
+        </div>
       </div>
-      <div class="summary-section">
-        <h3>Top War-Eligible Entities</h3>
+      <div class="textarea-container">
+        <textarea id="names" placeholder="Paste character names here, one per line&#10;&#10;Example:&#10;Chribba&#10;CCP Falcon&#10;The Mittani" rows="8"></textarea>
+        <div class="textarea-footer">
+          <span id="character-count" class="character-count">0 characters entered</span>
+        </div>
+      </div>
+      <button class="check-button" id="checkButton" onclick="validateNames()">
+        <span class="button-text">Check War Eligibility</span>
+        <span class="button-icon">🚀</span>
+      </button>
+    </div>
+    
+    <div id="loading-container" class="loading-container glass-card">
+      <div class="loading-content">
+        <div class="loading-spinner-container">
+          <div class="loading-spinner"></div>
+          <div class="pulse-ring"></div>
+        </div>
+        <h3 class="loading-text">Scanning EVE Universe</h3>
+        <p class="loading-subtitle">Connecting to EVE ESI servers...</p>
+        <div class="progress-container">
+          <div class="progress-bar" id="progressBar"></div>
+          <div class="progress-glow"></div>
+        </div>
+        <div class="loading-stats">
+          <span class="progress-text" id="progressText">Processed: 0 / 0</span>
+          <span id="timer" class="timer">Elapsed: 0.0s</span>
+        </div>
+      </div>
+    </div>
+    
+    <div id="error-container"></div>
+    
+    <div id="results-section" class="results-section">
+      <div class="stats-dashboard glass-card">
+        <div class="stats-grid">
+          <div class="stat-card eligible-stat">
+            <div class="stat-icon">⚔️</div>
+            <div class="stat-content">
+              <span id="eligible-count" class="stat-number">0</span>
+              <div class="stat-label">War Eligible</div>
+            </div>
+          </div>
+          <div class="stat-card total-stat">
+            <div class="stat-icon">👥</div>
+            <div class="stat-content">
+              <span id="total-count" class="stat-number">0</span>
+              <div class="stat-label">Total Checked</div>
+            </div>
+          </div>
+          <div class="stat-card ineligible-stat">
+            <div class="stat-icon">🛡️</div>
+            <div class="stat-content">
+              <span id="ineligible-count" class="stat-number">0</span>
+              <div class="stat-label">Protected</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="summary-section glass-card">
+        <h3>Top War-Eligible Organizations</h3>
         <div class="summary-container">
           <div class="summary-column" id="top-alliances">
-            <h4>Alliances</h4>
-            <div id="top-alliance-grid" class="no-summary">No war-eligible alliances found</div>
+            <h4><span class="entity-icon">🏛️</span>Alliances</h4>
+            <div id="top-alliance-grid" class="summary-grid">
+              <div class="no-summary">No war-eligible alliances found</div>
+            </div>
           </div>
           <div class="summary-column" id="top-corporations">
-            <h4>Corporations</h4>
-            <div id="top-corp-grid" class="no-summary">No war-eligible corporations found</div>
+            <h4><span class="entity-icon">🏢</span>Corporations</h4>
+            <div id="top-corp-grid" class="summary-grid">
+              <div class="no-summary">No war-eligible corporations found</div>
+            </div>
           </div>
         </div>
       </div>
-      <div class="results-container">
-        <div class="result-column eligible">
-          <h3>War Eligible</h3>
-          <div id="eligible-grid" class="result-grid"><div class="no-results">No data yet</div></div>
+      
+      <div class="results-controls">
+        <div class="view-options">
+          <button id="grid-view-btn" class="view-btn active" onclick="toggleView('grid')">
+            <span class="view-icon">⊞</span> Grid
+          </button>
+          <button id="list-view-btn" class="view-btn" onclick="toggleView('list')">
+            <span class="view-icon">☰</span> List
+          </button>
         </div>
-        <div class="result-column ineligible">
-          <h3>Not Eligible</h3>
-          <div id="ineligible-grid" class="result-grid"><div class="no-results">No data yet</div></div>
+        <div class="results-info">
+          <span id="showing-count">Showing all results</span>
+        </div>
+      </div>
+      
+      <div class="results-container">
+        <div class="result-column eligible glass-card">
+          <div class="column-header">
+            <h3><span class="status-icon">⚔️</span>War Eligible</h3>
+            <div class="column-controls">
+              <button class="expand-btn" id="eligible-expand" onclick="toggleExpanded('eligible')">
+                Show All (<span id="eligible-total">0</span>)
+              </button>
+            </div>
+          </div>
+          <div id="eligible-grid" class="result-grid">
+            <div class="no-results">No data yet</div>
+          </div>
+          <div class="load-more-container" id="eligible-load-more" style="display: none;">
+            <button class="load-more-btn" onclick="loadMoreResults('eligible')">
+              Load More Results
+            </button>
+          </div>
+        </div>
+        
+        <div class="result-column ineligible glass-card">
+          <div class="column-header">
+            <h3><span class="status-icon">🛡️</span>Protected from Wars</h3>
+            <div class="column-controls">
+              <button class="expand-btn" id="ineligible-expand" onclick="toggleExpanded('ineligible')">
+                Show All (<span id="ineligible-total">0</span>)
+              </button>
+            </div>
+          </div>
+          <div id="ineligible-grid" class="result-grid">
+            <div class="no-results">No data yet</div>
+          </div>
+          <div class="load-more-container" id="ineligible-load-more" style="display: none;">
+            <button class="load-more-btn" onclick="loadMoreResults('ineligible')">
+              Load More Results
+            </button>
+          </div>
         </div>
       </div>
     </div>
