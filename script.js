@@ -3,11 +3,16 @@ const ESI_BASE = "https://esi.evetech.net/latest";
     const characterInfoCache = new Map();
     const corporationInfoCache = new Map();
     const allianceInfoCache = new Map();
+    const characterNameToIdCache = new Map(); // New cache for name->ID mapping
     let timerInterval = null, startTime = 0;
 
     // Cache management functions
     function getCacheKey(type, id) {
       return `eve_${type}_${id}`;
+    }
+
+    function getNameCacheKey(name) {
+      return `eve_name_${name.toLowerCase()}`;
     }
 
     function getCachedData(type, id) {
@@ -32,6 +37,28 @@ const ESI_BASE = "https://esi.evetech.net/latest";
       }
     }
 
+    function getCachedNameToId(name) {
+      try {
+        const cacheKey = getNameCacheKey(name);
+        const cached = localStorage.getItem(cacheKey);
+        if (!cached) return null;
+        
+        const { data, timestamp } = JSON.parse(cached);
+        const now = Date.now();
+        const expiryTime = timestamp + (CACHE_EXPIRY_HOURS * 60 * 60 * 1000);
+        
+        if (now > expiryTime) {
+          localStorage.removeItem(cacheKey);
+          return null;
+        }
+        
+        return data;
+      } catch (e) {
+        console.warn(`Error reading name cache for ${name}`, e);
+        return null;
+      }
+    }
+
     function setCachedData(type, id, data) {
       try {
         const cacheKey = getCacheKey(type, id);
@@ -42,6 +69,21 @@ const ESI_BASE = "https://esi.evetech.net/latest";
         localStorage.setItem(cacheKey, JSON.stringify(cacheData));
       } catch (e) {
         console.warn(`Error writing cache for ${type}:${id}`, e);
+      }
+    }
+
+    function setCachedNameToId(name, characterData) {
+      try {
+        const cacheKey = getNameCacheKey(name);
+        const cacheData = {
+          data: { id: characterData.id, name: characterData.name },
+          timestamp: Date.now()
+        };
+        localStorage.setItem(cacheKey, JSON.stringify(cacheData));
+        // Also cache in memory
+        characterNameToIdCache.set(name.toLowerCase(), { id: characterData.id, name: characterData.name });
+      } catch (e) {
+        console.warn(`Error writing name cache for ${name}`, e);
       }
     }
 
@@ -88,10 +130,54 @@ const ESI_BASE = "https://esi.evetech.net/latest";
     }
 
     async function getCharacterIds(names){
-      const res = await fetch(`${ESI_BASE}/universe/ids/`,{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(names)});
-      if(!res.ok) throw new Error(`Failed to get character IDs: ${res.status}`);
-      const data = await res.json();
-      return data.characters||[];
+      // Check which names we already have cached
+      const cachedCharacters = [];
+      const uncachedNames = [];
+      
+      for (const name of names) {
+        // Check memory cache first
+        const lowerName = name.toLowerCase();
+        if (characterNameToIdCache.has(lowerName)) {
+          cachedCharacters.push(characterNameToIdCache.get(lowerName));
+          continue;
+        }
+        
+        // Check localStorage cache
+        const cached = getCachedNameToId(name);
+        if (cached) {
+          characterNameToIdCache.set(lowerName, cached);
+          cachedCharacters.push(cached);
+          continue;
+        }
+        
+        // This name needs to be fetched
+        uncachedNames.push(name);
+      }
+      
+      let fetchedCharacters = [];
+      
+      // Only call ESI if we have uncached names
+      if (uncachedNames.length > 0) {
+        console.log(`Fetching ${uncachedNames.length} uncached names from ESI, using ${cachedCharacters.length} from cache`);
+        const res = await fetch(`${ESI_BASE}/universe/ids/`,{
+          method:'POST',
+          headers:{'Content-Type':'application/json','Accept':'application/json'},
+          body:JSON.stringify(uncachedNames)
+        });
+        if(!res.ok) throw new Error(`Failed to get character IDs: ${res.status}`);
+        const data = await res.json();
+        fetchedCharacters = data.characters || [];
+        
+        // Cache the newly fetched name->ID mappings
+        fetchedCharacters.forEach(char => {
+          setCachedNameToId(char.name, char);
+        });
+      } else {
+        console.log(`Using all ${cachedCharacters.length} names from cache, no ESI calls needed`);
+      }
+      
+      // Combine cached and fetched results
+      return [...cachedCharacters, ...fetchedCharacters];
     }
 
     async function getCharacterInfo(id){
