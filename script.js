@@ -3,7 +3,8 @@ const ESI_BASE = "https://esi.evetech.net/latest";
     const characterInfoCache = new Map();
     const corporationInfoCache = new Map();
     const allianceInfoCache = new Map();
-    const characterNameToIdCache = new Map(); // New cache for name->ID mapping
+    const characterNameToIdCache = new Map();
+    const characterAffiliationCache = new Map(); // New cache for affiliations
     let timerInterval = null, startTime = 0;
 
     // Cache management functions
@@ -13,6 +14,10 @@ const ESI_BASE = "https://esi.evetech.net/latest";
 
     function getNameCacheKey(name) {
       return `eve_name_${name.toLowerCase()}`;
+    }
+
+    function getAffiliationCacheKey(id) {
+      return `eve_affiliation_${id}`;
     }
 
     function getCachedData(type, id) {
@@ -59,6 +64,28 @@ const ESI_BASE = "https://esi.evetech.net/latest";
       }
     }
 
+    function getCachedAffiliation(id) {
+      try {
+        const cacheKey = getAffiliationCacheKey(id);
+        const cached = localStorage.getItem(cacheKey);
+        if (!cached) return null;
+        
+        const { data, timestamp } = JSON.parse(cached);
+        const now = Date.now();
+        const expiryTime = timestamp + (CACHE_EXPIRY_HOURS * 60 * 60 * 1000);
+        
+        if (now > expiryTime) {
+          localStorage.removeItem(cacheKey);
+          return null;
+        }
+        
+        return data;
+      } catch (e) {
+        console.warn(`Error reading affiliation cache for ${id}`, e);
+        return null;
+      }
+    }
+
     function setCachedData(type, id, data) {
       try {
         const cacheKey = getCacheKey(type, id);
@@ -84,6 +111,21 @@ const ESI_BASE = "https://esi.evetech.net/latest";
         characterNameToIdCache.set(name.toLowerCase(), { id: characterData.id, name: characterData.name });
       } catch (e) {
         console.warn(`Error writing name cache for ${name}`, e);
+      }
+    }
+
+    function setCachedAffiliation(id, affiliationData) {
+      try {
+        const cacheKey = getAffiliationCacheKey(id);
+        const cacheData = {
+          data: affiliationData,
+          timestamp: Date.now()
+        };
+        localStorage.setItem(cacheKey, JSON.stringify(cacheData));
+        // Also cache in memory
+        characterAffiliationCache.set(id, affiliationData);
+      } catch (e) {
+        console.warn(`Error writing affiliation cache for ${id}`, e);
       }
     }
 
@@ -180,26 +222,53 @@ const ESI_BASE = "https://esi.evetech.net/latest";
       return [...cachedCharacters, ...fetchedCharacters];
     }
 
-    async function getCharacterInfo(id){
-      // Check memory cache first
-      if(characterInfoCache.has(id)) return characterInfoCache.get(id);
+    async function getCharacterAffiliations(characterIds) {
+      // Check which affiliations we already have cached
+      const cachedAffiliations = [];
+      const uncachedIds = [];
       
-      // Check localStorage cache
-      const cached = getCachedData('character', id);
-      if (cached) {
-        characterInfoCache.set(id, cached);
-        return cached;
+      for (const id of characterIds) {
+        // Check memory cache first
+        if (characterAffiliationCache.has(id)) {
+          cachedAffiliations.push(characterAffiliationCache.get(id));
+          continue;
+        }
+        
+        // Check localStorage cache
+        const cached = getCachedAffiliation(id);
+        if (cached) {
+          characterAffiliationCache.set(id, cached);
+          cachedAffiliations.push(cached);
+          continue;
+        }
+        
+        // This ID needs to be fetched
+        uncachedIds.push(id);
       }
       
-      // Fetch from ESI
-      const res = await fetch(`${ESI_BASE}/characters/${id}/`);
-      if(!res.ok) throw new Error(`Failed to get character info for ${id}: ${res.status}`);
-      const data = await res.json();
+      let fetchedAffiliations = [];
       
-      // Cache in both memory and localStorage
-      characterInfoCache.set(id, data);
-      setCachedData('character', id, data);
-      return data;
+      // Only call ESI if we have uncached IDs
+      if (uncachedIds.length > 0) {
+        console.log(`Fetching ${uncachedIds.length} uncached affiliations from ESI, using ${cachedAffiliations.length} from cache`);
+        const res = await fetch(`${ESI_BASE}/characters/affiliation/`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+          body: JSON.stringify(uncachedIds)
+        });
+        if (!res.ok) throw new Error(`Failed to get character affiliations: ${res.status}`);
+        fetchedAffiliations = await res.json();
+        
+        // Cache the newly fetched affiliations
+        fetchedAffiliations.forEach(affiliation => {
+          setCachedAffiliation(affiliation.character_id, affiliation);
+        });
+      } else {
+        console.log(`Using all ${cachedAffiliations.length} affiliations from cache, no ESI calls needed`);
+      }
+      
+      // Combine cached and fetched results
+      return [...cachedAffiliations, ...fetchedAffiliations];
     }
 
     async function getCorporationInfo(id){
@@ -248,32 +317,90 @@ const ESI_BASE = "https://esi.evetech.net/latest";
 
     async function validator(names){
       const characters = await getCharacterIds(names);
+      const characterIds = characters.map(char => char.id);
+      
+      // Get all character affiliations in bulk
+      const affiliations = await getCharacterAffiliations(characterIds);
+      
+      // Create a map for quick affiliation lookups
+      const affiliationMap = new Map();
+      affiliations.forEach(affiliation => {
+        affiliationMap.set(affiliation.character_id, affiliation);
+      });
+      
       const results = [];
       updateProgress(0, characters.length);
+      
+      // Get unique corporation and alliance IDs to minimize API calls
+      const uniqueCorpIds = new Set();
+      const uniqueAllianceIds = new Set();
+      
+      affiliations.forEach(affiliation => {
+        uniqueCorpIds.add(affiliation.corporation_id);
+        if (affiliation.alliance_id) {
+          uniqueAllianceIds.add(affiliation.alliance_id);
+        }
+      });
+      
+      // Fetch all corporation info in parallel
+      const corpPromises = Array.from(uniqueCorpIds).map(id => 
+        getCorporationInfo(id).catch(e => {
+          console.error(`Error fetching corporation ${id}:`, e);
+          return { name: 'Unknown Corporation', war_eligible: false };
+        })
+      );
+      const corpInfos = await Promise.all(corpPromises);
+      const corpMap = new Map();
+      Array.from(uniqueCorpIds).forEach((id, index) => {
+        corpMap.set(id, corpInfos[index]);
+      });
+      
+      // Fetch all alliance info in parallel
+      const alliancePromises = Array.from(uniqueAllianceIds).map(id => 
+        getAllianceInfo(id).catch(e => {
+          console.error(`Error fetching alliance ${id}:`, e);
+          return { name: 'Unknown Alliance' };
+        })
+      );
+      const allianceInfos = await Promise.all(alliancePromises);
+      const allianceMap = new Map();
+      Array.from(uniqueAllianceIds).forEach((id, index) => {
+        allianceMap.set(id, allianceInfos[index]);
+      });
+      
+      // Process each character
       for(let i = 0; i < characters.length; i++){
         const char = characters[i];
         try{
-          const charInfo = await getCharacterInfo(char.id);
-          const corpInfo = await getCorporationInfo(charInfo.corporation_id);
+          const affiliation = affiliationMap.get(char.id);
+          if (!affiliation) {
+            throw new Error(`No affiliation found for character ${char.name}`);
+          }
+          
+          const corpInfo = corpMap.get(affiliation.corporation_id);
+          if (!corpInfo) {
+            throw new Error(`No corporation info found for corporation ${affiliation.corporation_id}`);
+          }
+          
           let result = {
             character_name: char.name,
             character_id: char.id,
             corporation_name: corpInfo.name,
-            corporation_id: charInfo.corporation_id,
+            corporation_id: affiliation.corporation_id,
             alliance_name: null,
             alliance_id: null,
             war_eligible: false
           };
-          if(charInfo.alliance_id){
-            const allianceInfo = await getAllianceInfo(charInfo.alliance_id);
-            result.alliance_name = allianceInfo.name;
-            result.alliance_id = charInfo.alliance_id;
+          
+          // Check for alliance ID from affiliation
+          if(affiliation.alliance_id){
+            const allianceInfo = allianceMap.get(affiliation.alliance_id);
+            if (allianceInfo) {
+              result.alliance_name = allianceInfo.name;
+              result.alliance_id = affiliation.alliance_id;
+            }
           }
-          else if(corpInfo.alliance_id){
-            const allianceInfo = await getAllianceInfo(corpInfo.alliance_id);
-            result.alliance_name = allianceInfo.name;
-            result.alliance_id = corpInfo.alliance_id;
-          }
+          
           if(corpInfo.war_eligible !== undefined) result.war_eligible = corpInfo.war_eligible;
           results.push(result);
         }catch(e){
@@ -466,7 +593,7 @@ const ESI_BASE = "https://esi.evetech.net/latest";
     }
 
     async function validateNames() {
-            const rawNames = document.getElementById("names").value.split("\n").map(n => n.trim()).filter(n => n && clientValidate(n));
+      const rawNames = document.getElementById("names").value.split("\n").map(n => n.trim()).filter(n => n && clientValidate(n));
       
       // Deduplicate names (case-insensitive)
       const seenNames = new Set();
