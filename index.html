@@ -660,7 +660,18 @@
     }
 
     async function validateNames() {
-      const names = document.getElementById("names").value.split("\n").map(n => n.trim()).filter(n => n && clientValidate(n));
+            const rawNames = document.getElementById("names").value.split("\n").map(n => n.trim()).filter(n => n && clientValidate(n));
+      
+      // Deduplicate names (case-insensitive)
+      const seenNames = new Set();
+      const names = rawNames.filter(name => {
+        const lowerName = name.toLowerCase();
+        if (seenNames.has(lowerName)) {
+          return false;
+        }
+        seenNames.add(lowerName);
+        return true;
+      });
       if (names.length === 0) {
         showError("No valid names entered. Please check the format of your character names.");
         return;
