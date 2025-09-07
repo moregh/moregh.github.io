@@ -235,6 +235,13 @@ textarea::placeholder { color: var(--text-muted); line-height: 1.62; }
 /* Mouseover card styles */
 .summary-item { position: relative; z-index: 1; }
 
+.stat-details {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-top: 0.3rem;
+  line-height: 1.2;
+}
+
 .mouseover-card {
   position: absolute;
   top: 100%;
@@ -551,8 +558,9 @@ textarea::placeholder { color: var(--text-muted); line-height: 1.62; }
           <div class="stat-card eligible-stat">
             <div class="stat-icon">⚔️</div>
             <div class="stat-content">
-              <span id="eligible-count" class="stat-number">0</span>
-              <div class="stat-label">War Eligible</div>
+                <span id="eligible-count" class="stat-number">0</span>
+                <div class="stat-label">War Eligible</div>
+                <div class="stat-details" id="eligible-details"></div>
             </div>
           </div>
           <div class="stat-card total-stat">
@@ -560,6 +568,7 @@ textarea::placeholder { color: var(--text-muted); line-height: 1.62; }
             <div class="stat-content">
               <span id="total-count" class="stat-number">0</span>
               <div class="stat-label">Total Checked</div>
+              <div class="stat-details" id="total-details"></div>
             </div>
           </div>
           <div class="stat-card ineligible-stat">
@@ -567,6 +576,7 @@ textarea::placeholder { color: var(--text-muted); line-height: 1.62; }
             <div class="stat-content">
               <span id="ineligible-count" class="stat-number">0</span>
               <div class="stat-label">Not Eligible</div>
+              <div class="stat-details" id="ineligible-details"></div>
             </div>
           </div>
         </div>
@@ -684,6 +694,11 @@ const allianceInfoCache = new Map();
 const characterNameToIdCache = new Map();
 const characterAffiliationCache = new Map();
 
+let queryStartTime = 0;
+let queryEndTime = 0;
+let esiLookups = 0;
+let localLookups = 0;
+
 let timerInterval = null, startTime = 0;
 let currentView = 'grid';
 let allResults = { eligible: [], ineligible: [] };
@@ -750,7 +765,7 @@ function getCachedData(type, id) {
       localStorage.removeItem(cacheKey);
       return null;
     }
-    
+    localLookups++;
     return data;
   } catch (e) {
     console.warn(`Error reading cache for ${type}:${id}`, e);
@@ -772,7 +787,7 @@ function getCachedNameToId(name) {
       localStorage.removeItem(cacheKey);
       return null;
     }
-    
+    localLookups++;
     return data;
   } catch (e) {
     console.warn(`Error reading name cache for ${name}`, e);
@@ -794,7 +809,7 @@ function getCachedAffiliation(id) {
       localStorage.removeItem(cacheKey);
       return null;
     }
-    
+    localLookups++;
     return data;
   } catch (e) {
     console.warn(`Error reading affiliation cache for ${id}`, e);
@@ -915,6 +930,7 @@ async function getCharacterIds(names){
 
   if (uncachedNames.length > 0) {
     console.log(`Fetching ${uncachedNames.length} uncached names from ESI, using ${cachedCharacters.length} from cache`);
+    esiLookups++;
     const res = await fetch(`${ESI_BASE}/universe/ids/`,{
       method:'POST',
       headers:{'Content-Type':'application/json','Accept':'application/json'},
@@ -958,6 +974,7 @@ async function getCharacterAffiliations(characterIds) {
   
   if (uncachedIds.length > 0) {
     console.log(`Fetching ${uncachedIds.length} uncached affiliations from ESI, using ${cachedAffiliations.length} from cache`);
+    esiLookups++;
     const res = await fetch(`${ESI_BASE}/characters/affiliation/`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
@@ -984,7 +1001,7 @@ async function getCorporationInfo(id){
     corporationInfoCache.set(id, cached);
     return cached;
   }
-  
+  esiLookups++;
   const res = await fetch(`${ESI_BASE}/corporations/${id}/`);
   if(!res.ok) throw new Error(`Failed to get corporation info for ${id}: ${res.status}`);
   const data = await res.json();
@@ -1002,7 +1019,7 @@ async function getAllianceInfo(id){
     allianceInfoCache.set(id, cached);
     return cached;
   }
-  
+  esiLookups++;
   const res = await fetch(`${ESI_BASE}/alliances/${id}/`);
   if(!res.ok) throw new Error(`Failed to get alliance info for ${id}: ${res.status}`);
   const data = await res.json();
@@ -1108,6 +1125,16 @@ async function validator(names){
     updateProgress(i + 1, characters.length);
   }
   return results;
+}
+
+function getLocalStorageSize() {
+  let total = 0;
+  for (let key in localStorage) {
+    if (localStorage.hasOwnProperty(key)) {
+      total += localStorage[key].length + key.length;
+    }
+  }
+  return (total / 1024).toFixed(1); // Return size in KB
 }
 
 function updateProgress(current, total) {
@@ -1372,6 +1399,10 @@ function startLoading() {
   document.getElementById('progressBar').style.width = '0%';
   document.getElementById('progressText').textContent = 'Processed: 0 / 0';
   
+  esiLookups = 0;
+  localLookups = 0;
+  queryStartTime = performance.now(); // Add this line
+
   startTime = Date.now();
   timerInterval = setInterval(updateTimer, 100);
 }
@@ -1432,6 +1463,14 @@ function updateStats(eligible, ineligible) {
   // Update totals in expand buttons
   document.getElementById("eligible-total").textContent = eligible.length;
   document.getElementById("ineligible-total").textContent = ineligible.length;
+
+  // Add detailed stats
+  const queryTime = (queryEndTime - queryStartTime).toFixed(0);
+  const storageSize = getLocalStorageSize();
+  
+  document.getElementById("eligible-details").innerHTML = `Query: ${queryTime}ms`;
+  document.getElementById("total-details").innerHTML = `ESI: ${esiLookups} | Cache: ${localLookups}`;
+  document.getElementById("ineligible-details").innerHTML = `Storage: ${storageSize}KB`;
 }
 
 function summarizeEntities(results) {
@@ -1651,6 +1690,7 @@ async function validateNames() {
   results = [];
   try {
     const results = await validator(names);
+    queryEndTime = performance.now();
     // Store complete results and build entity maps
     completeResults = results;
     buildEntityMaps(results);
@@ -1728,5 +1768,5 @@ document.addEventListener('DOMContentLoaded', function() {
   </script>
 </body>
 </html>
-<!-- Version: 1.0.4 -->
+<!-- Version: 1.0.5 -->
 <!-- Copyright 2025 moregh -->
