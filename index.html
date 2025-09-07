@@ -614,7 +614,7 @@ textarea::placeholder { color: var(--text-muted); line-height: 1.62; }
     <div class="stat-content">
       <span id="cache-info" class="stat-number">0</span>
       <div class="stat-label">Cache Hits</div>
-          <div class="stat-sublabel" id="cache-size">0 MB</div>
+          <div class="stat-sublabel" id="cache-size">Size: 0 MB</div>
     </div>
   </div>
         </div>
@@ -1181,7 +1181,7 @@ function updatePerformanceStats() {
   document.getElementById("query-time").textContent = queryTime;
   document.getElementById("esi-lookups").textContent = esiLookups;
   document.getElementById("cache-info").textContent = localLookups;
-  document.getElementById("cache-size").textContent = `${storageSize} MB`;
+  document.getElementById("cache-size").textContent = `Size: ${storageSize} MB`;
 }
 
 function updateProgress(current, total) {
