@@ -216,6 +216,13 @@ textarea::placeholder { color: var(--text-muted); line-height: 1.62; }
 .eligible-stat .stat-number { color: var(--secondary-color); }
 .total-stat .stat-number { color: var(--primary-color); }
 .ineligible-stat .stat-number { color: var(--danger-color); }
+.stat-sublabel {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  font-weight: 400;
+  margin-top: 0.2rem;
+  line-height: 1;
+}
 
 /* Summary section */
 .summary-section { padding: 1.2rem 2rem; margin-bottom: 1.5rem; overflow: visible; }
@@ -247,12 +254,6 @@ textarea::placeholder { color: var(--text-muted); line-height: 1.62; }
 /* Mouseover card styles */
 .summary-item { position: relative; z-index: 1; }
 
-.stat-details {
-  font-size: 0.7rem;
-  color: var(--text-muted);
-  margin-top: 0.3rem;
-  line-height: 1.2;
-}
 
 .mouseover-card {
   position: absolute;
@@ -572,13 +573,12 @@ textarea::placeholder { color: var(--text-muted); line-height: 1.62; }
     
     <div id="results-section" class="results-section">
       <div class="stats-dashboard glass-card">
-        <div class="stats-grid">
+        <div class="stats-grid stats-grid-extended">
           <div class="stat-card eligible-stat">
             <div class="stat-icon">⚔️</div>
             <div class="stat-content">
                 <span id="eligible-count" class="stat-number">0</span>
                 <div class="stat-label">War Eligible</div>
-                <div class="stat-details" id="eligible-details"></div>
             </div>
           </div>
           <div class="stat-card total-stat">
@@ -586,7 +586,6 @@ textarea::placeholder { color: var(--text-muted); line-height: 1.62; }
             <div class="stat-content">
               <span id="total-count" class="stat-number">0</span>
               <div class="stat-label">Total Checked</div>
-              <div class="stat-details" id="total-details"></div>
             </div>
           </div>
           <div class="stat-card ineligible-stat">
@@ -594,7 +593,6 @@ textarea::placeholder { color: var(--text-muted); line-height: 1.62; }
             <div class="stat-content">
               <span id="ineligible-count" class="stat-number">0</span>
               <div class="stat-label">Not Eligible</div>
-              <div class="stat-details" id="ineligible-details"></div>
             </div>
           </div>
           <div class="stat-card performance-stat">
@@ -616,6 +614,7 @@ textarea::placeholder { color: var(--text-muted); line-height: 1.62; }
     <div class="stat-content">
       <span id="cache-info" class="stat-number">0</span>
       <div class="stat-label">Cache Hits</div>
+          <div class="stat-sublabel" id="cache-size">0 MB</div>
     </div>
   </div>
         </div>
@@ -1173,7 +1172,7 @@ function getLocalStorageSize() {
       total += localStorage[key].length + key.length;
     }
   }
-  return (total / 1024).toFixed(1); // Return size in KB
+  return (total / 1024 / 1024).toFixed(1); // Return size in MB
 }
 function updatePerformanceStats() {
   const queryTime = Math.round(queryEndTime - queryStartTime);
@@ -1181,7 +1180,8 @@ function updatePerformanceStats() {
   
   document.getElementById("query-time").textContent = queryTime;
   document.getElementById("esi-lookups").textContent = esiLookups;
-  document.getElementById("cache-info").textContent = `${localLookups} (${storageSize}KB)`;
+  document.getElementById("cache-info").textContent = localLookups;
+  document.getElementById("cache-size").textContent = `${storageSize} MB`;
 }
 
 function updateProgress(current, total) {
@@ -1511,13 +1511,6 @@ function updateStats(eligible, ineligible) {
   document.getElementById("eligible-total").textContent = eligible.length;
   document.getElementById("ineligible-total").textContent = ineligible.length;
 
-  // Add detailed stats
-  const queryTime = (queryEndTime - queryStartTime).toFixed(0);
-  const storageSize = getLocalStorageSize();
-  
-  document.getElementById("eligible-details").innerHTML = `Query: ${queryTime}ms`;
-  document.getElementById("total-details").innerHTML = `ESI: ${esiLookups} | Cache: ${localLookups}`;
-  document.getElementById("ineligible-details").innerHTML = `Storage: ${storageSize}KB`;
 }
 
 function summarizeEntities(results) {
@@ -1818,5 +1811,5 @@ document.addEventListener('DOMContentLoaded', function() {
   </script>
 </body>
 </html>
-<!-- Version: 1.0.6 -->
+<!-- Version: 1.0.7 -->
 <!-- Copyright 2025 moregh -->
