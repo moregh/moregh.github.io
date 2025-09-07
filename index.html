@@ -254,6 +254,24 @@ textarea::placeholder { color: var(--text-muted); line-height: 1.62; }
 /* Mouseover card styles */
 .summary-item { position: relative; z-index: 1; }
 
+/* Replace JavaScript hover with CSS - prevents memory leaks */
+.summary-item .mouseover-card {
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.25s ease;
+  pointer-events: none;
+}
+
+.summary-item:hover .mouseover-card {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.summary-item:hover {
+  z-index: 10000;
+}
+
 
 .mouseover-card {
   position: absolute;
@@ -410,6 +428,16 @@ textarea::placeholder { color: var(--text-muted); line-height: 1.62; }
 .character-link { color: var(--primary-color); text-decoration: none; transition: all 0.18s ease; font-weight: 500; }
 .character-link:hover { color: #66e0ff; text-decoration: underline; }
 
+
+.character-avatar, .summary-logo, .org-logo, .mouseover-card-avatar {
+  background: linear-gradient(45deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
+  transition: opacity 0.3s ease;
+}
+
+.character-avatar:not([src]), .summary-logo:not([src]), .org-logo:not([src]) {
+  opacity: 0.5;
+}
+
 /* Load more button */
 .load-more-container { padding: 0.9rem 1.8rem 1.8rem; text-align: center; }
 .load-more-btn {
@@ -519,7 +547,7 @@ textarea::placeholder { color: var(--text-muted); line-height: 1.62; }
   
   <div class="container">
     <header>
-      <a href="#" onclick="window.location.reload(true); document.querySelectorAll('form').forEach(form => form.reset());" class="title-link">
+      <a href="#" data-action="reload-page" class="title-link">
         <h1>War Target Finder</h1>
         <p class="subtitle">Find targets for EVE Online highsec warfare</p>
       </a>
@@ -627,7 +655,7 @@ textarea::placeholder { color: var(--text-muted); line-height: 1.62; }
             <div class="summary-header">
               <h4><span class="entity-icon">🏛️</span>Alliances</h4>
               <div class="summary-controls">
-                <button class="summary-expand-btn" id="alliance-expand" onclick="toggleSummaryExpanded('alliance')">
+                <button class="summary-expand-btn" id="alliance-expand" data-action="toggle-summary-expanded" data-type="alliance">
                   Show All (<span id="alliance-total">0</span>)
                 </button>
               </div>
@@ -636,7 +664,7 @@ textarea::placeholder { color: var(--text-muted); line-height: 1.62; }
               <div class="no-summary">No war-eligible alliances found</div>
             </div>
             <div class="summary-load-more-container" id="alliance-load-more" style="display: none;">
-              <button class="summary-load-more-btn" onclick="loadMoreSummary('alliance')">
+              <button class="summary-load-more-btn" data-action="load-more-summary" data-type="alliance">
                 Load More Alliances
               </button>
             </div>
@@ -645,7 +673,7 @@ textarea::placeholder { color: var(--text-muted); line-height: 1.62; }
             <div class="summary-header">
               <h4><span class="entity-icon">🏢</span>Corporations</h4>
               <div class="summary-controls">
-                <button class="summary-expand-btn" id="corporation-expand" onclick="toggleSummaryExpanded('corporation')">
+                <button class="summary-expand-btn" id="corporation-expand" data-action="toggle-summary-expanded" data-type="corporation">
                   Show All (<span id="corporation-total">0</span>)
                 </button>
               </div>
@@ -654,7 +682,7 @@ textarea::placeholder { color: var(--text-muted); line-height: 1.62; }
               <div class="no-summary">No war-eligible corporations found</div>
             </div>
             <div class="summary-load-more-container" id="corporation-load-more" style="display: none;">
-              <button class="summary-load-more-btn" onclick="loadMoreSummary('corporation')">
+              <button class="summary-load-more-btn" data-action="load-more-summary" data-type="corporation">
                 Load More Corporations
               </button>
             </div>
@@ -664,10 +692,10 @@ textarea::placeholder { color: var(--text-muted); line-height: 1.62; }
       
       <div class="results-controls">
         <div class="view-options">
-          <button id="grid-view-btn" class="view-btn active" onclick="toggleView('grid')">
+          <button id="grid-view-btn" class="view-btn active" data-action="toggle-view" data-view-type="grid">
             <span class="view-icon">⊞</span> Grid
           </button>
-          <button id="list-view-btn" class="view-btn" onclick="toggleView('list')">
+          <button id="list-view-btn" class="view-btn" data-action="toggle-view" data-view-type="list">
             <span class="view-icon">☰</span> List
           </button>
         </div>
@@ -681,7 +709,7 @@ textarea::placeholder { color: var(--text-muted); line-height: 1.62; }
           <div class="column-header">
             <h3><span class="status-icon">⚔️</span>War Eligible</h3>
             <div class="column-controls">
-              <button class="expand-btn" id="eligible-expand" onclick="toggleExpanded('eligible')">
+              <button class="expand-btn" id="eligible-expand" data-action="toggle-expanded" data-type="eligible">
                 Show All (<span id="eligible-total">0</span>)
               </button>
             </div>
@@ -690,7 +718,7 @@ textarea::placeholder { color: var(--text-muted); line-height: 1.62; }
             <div class="no-results">No data yet</div>
           </div>
           <div class="load-more-container" id="eligible-load-more" style="display: none;">
-            <button class="load-more-btn" onclick="loadMoreResults('eligible')">
+            <button class="load-more-btn" data-action="load-more" data-type="eligible">
               Load More Results
             </button>
           </div>
@@ -700,7 +728,7 @@ textarea::placeholder { color: var(--text-muted); line-height: 1.62; }
           <div class="column-header">
             <h3><span class="status-icon">🛡️</span>Not Eligible</h3>
             <div class="column-controls">
-              <button class="expand-btn" id="ineligible-expand" onclick="toggleExpanded('ineligible')">
+              <button class="expand-btn" id="ineligible-expand" data-action="toggle-expanded" data-type="ineligible">
                 Show All (<span id="ineligible-total">0</span>)
               </button>
             </div>
@@ -709,7 +737,7 @@ textarea::placeholder { color: var(--text-muted); line-height: 1.62; }
             <div class="no-results">No data yet</div>
           </div>
           <div class="load-more-container" id="ineligible-load-more" style="display: none;">
-            <button class="load-more-btn" onclick="loadMoreResults('ineligible')">
+            <button class="load-more-btn" data-action="load-more" data-type="ineligible">
               Load More Results
             </button>
           </div>
@@ -719,7 +747,15 @@ textarea::placeholder { color: var(--text-muted); line-height: 1.62; }
   </div>
 
   <script>
+const VERSION = "0.1.9";
 const ESI_BASE = "https://esi.evetech.net/latest";
+const USER_AGENT = `WarTargetFinder/${VERSION} (+https://github.com/moregh/moregh.github.io/)`;
+const ESI_HEADERS = {
+  'Content-Type': 'application/json',
+  'Accept': 'application/json',
+  'User-Agent': USER_AGENT,
+  'X-User-Agent': `WarTargetFinder/${VERSION}`
+};
 const CACHE_EXPIRY_HOURS = 12;
 const INITIAL_USER_RESULTS_COUNT = 6;
 const INITIAL_CORP_ALLIANCE_COUNT = 5;
@@ -762,18 +798,51 @@ function expandInputSection() {
   inputSection.classList.remove('collapsed');
 }
 
-function setupCollapsedIndicatorClick() {
-  const inputSection = document.getElementById('input-section');
-  const collapsedIndicator = inputSection.querySelector('.collapsed-indicator');
+
+// Event delegation handler - prevents memory leaks
+document.addEventListener('click', function(event) {
+  const target = event.target.closest('[data-action]');
+  if (!target) return;
   
-  if (collapsedIndicator) {
-    collapsedIndicator.addEventListener('click', function() {
+  const action = target.dataset.action;
+  const type = target.dataset.type;
+  const viewType = target.dataset.viewType;
+  
+  switch(action) {
+    case 'toggle-view':
+      toggleView(viewType);
+      break;
+    case 'toggle-expanded':
+      toggleExpanded(type);
+      break;
+    case 'load-more':
+      loadMoreResults(type);
+      break;
+    case 'toggle-summary-expanded':
+      toggleSummaryExpanded(type);
+      break;
+    case 'load-more-summary':
+      loadMoreSummary(type);
+      break;
+    case 'reload-page':
+      event.preventDefault();
+      window.location.reload(true);
+      document.querySelectorAll('form').forEach(form => form.reset());
+      break;
+    case 'expand-input':
       expandInputSection();
       setTimeout(() => {
         document.getElementById('names').focus();
       }, 300);
-    });
+      break;
   }
+});
+
+function setupCollapsedIndicatorClick() {
+  const inputSection = document.getElementById('input-section');
+  const collapsedIndicator = inputSection.querySelector('.collapsed-indicator');
+  
+  collapsedIndicator.setAttribute('data-action', 'expand-input');
 }
 
 // Cache management functions
@@ -971,7 +1040,7 @@ async function getCharacterIds(names){
     esiLookups++;
     const res = await fetch(`${ESI_BASE}/universe/ids/`,{
       method:'POST',
-      headers:{'Content-Type':'application/json','Accept':'application/json'},
+      headers: ESI_HEADERS,
       body:JSON.stringify(uncachedNames)
     });
     if(!res.ok) throw new Error(`Failed to get character IDs: ${res.status}`);
@@ -1014,10 +1083,10 @@ async function getCharacterAffiliations(characterIds) {
     console.log(`Fetching ${uncachedIds.length} uncached affiliations from ESI, using ${cachedAffiliations.length} from cache`);
     esiLookups++;
     const res = await fetch(`${ESI_BASE}/characters/affiliation/`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
-      body: JSON.stringify(uncachedIds)
-    });
+  method: 'POST',
+  headers: ESI_HEADERS,
+  body: JSON.stringify(uncachedIds)
+});
     if (!res.ok) throw new Error(`Failed to get character affiliations: ${res.status}`);
     fetchedAffiliations = await res.json();
     
@@ -1040,7 +1109,9 @@ async function getCorporationInfo(id){
     return cached;
   }
   esiLookups++;
-  const res = await fetch(`${ESI_BASE}/corporations/${id}/`);
+  const res = await fetch(`${ESI_BASE}/corporations/${id}/`, {
+  headers: { 'User-Agent': USER_AGENT }
+});
   if(!res.ok) throw new Error(`Failed to get corporation info for ${id}: ${res.status}`);
   const data = await res.json();
   
@@ -1058,7 +1129,9 @@ async function getAllianceInfo(id){
     return cached;
   }
   esiLookups++;
-  const res = await fetch(`${ESI_BASE}/alliances/${id}/`);
+  const res = await fetch(`${ESI_BASE}/alliances/${id}/`, {
+  headers: { 'User-Agent': USER_AGENT }
+});
   if(!res.ok) throw new Error(`Failed to get alliance info for ${id}: ${res.status}`);
   const data = await res.json();
   
@@ -1283,14 +1356,43 @@ function createMouseoverCard(entity, type) {
   return card;
 }
 
+// Progressive image loading - loads placeholder first, then real image when visible
+function createOptimizedImage(src, alt, className) {
+  const img = document.createElement("img");
+  img.className = className;
+  img.alt = alt;
+  img.loading = "lazy";
+  
+  // Start with a 1x1 transparent placeholder
+  img.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'%3E%3C/svg%3E";
+  
+  // Use Intersection Observer for better performance
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        // Load the real image when it comes into view
+        entry.target.src = src;
+        observer.unobserve(entry.target);
+      }
+    });
+  }, {
+    rootMargin: '50px' // Start loading 50px before the image is visible
+  });
+  
+  observer.observe(img);
+  return img;
+}
+
 function createCharacterItem(character, viewType = 'grid'){
   const item = document.createElement("div");
   item.className = `result-item ${viewType}-view`;
   
-  const charAvatar = document.createElement("img");
-  charAvatar.src = `https://images.evetech.net/characters/${character.character_id}/portrait?size=64`;
-  charAvatar.alt = character.character_name;
-  charAvatar.className = "character-avatar";
+  // Optimized image loading
+  const charAvatar = createOptimizedImage(
+    `https://images.evetech.net/characters/${character.character_id}/portrait?size=64`,
+    character.character_name,
+    "character-avatar"
+  );
   item.appendChild(charAvatar);
   
   const textContainer = document.createElement("div");
@@ -1310,11 +1412,13 @@ function createCharacterItem(character, viewType = 'grid'){
   if(character.corporation_id){
     const corpDiv = document.createElement("div");
     corpDiv.className = "org-item";
-    const corpLogo = document.createElement("img");
-    corpLogo.src = `https://images.evetech.net/corporations/${character.corporation_id}/logo?size=32`;
-    corpLogo.alt = character.corporation_name;
-    corpLogo.className = "org-logo";
-    corpLogo.loading = "lazy";
+    
+    // Optimized corp logo
+    const corpLogo = createOptimizedImage(
+      `https://images.evetech.net/corporations/${character.corporation_id}/logo?size=32`,
+      character.corporation_name,
+      "org-logo"
+    );
     
     const corpLink = document.createElement("a");
     corpLink.href = `https://zkillboard.com/corporation/${character.corporation_id}/`;
@@ -1330,11 +1434,13 @@ function createCharacterItem(character, viewType = 'grid'){
   if(character.alliance_name && character.alliance_id){
     const allianceDiv = document.createElement("div");
     allianceDiv.className = "org-item";
-    const allianceLogo = document.createElement("img");
-    allianceLogo.src = `https://images.evetech.net/alliances/${character.alliance_id}/logo?size=32`;
-    allianceLogo.alt = character.alliance_name;
-    allianceLogo.className = "org-logo";
-    allianceLogo.loading = "lazy";
+    
+    // Optimized alliance logo
+    const allianceLogo = createOptimizedImage(
+      `https://images.evetech.net/alliances/${character.alliance_id}/logo?size=32`,
+      character.alliance_name,
+      "org-logo"
+    );
     
     const allianceLink = document.createElement("a");
     allianceLink.href = `https://zkillboard.com/alliance/${character.alliance_id}/`;
@@ -1351,21 +1457,23 @@ function createCharacterItem(character, viewType = 'grid'){
   textContainer.appendChild(details);
   item.appendChild(textContainer);
   
-  // Add animation delay for staggered appearance
-  item.style.animationDelay = `${Math.random() * 0.5}s`;
+  item.appendChild(createMouseoverCard({ id: character.character_id, name: character.character_name, count: 1 }, 'character'));
   
   return item;
 }
+
+
 
 function createSummaryItem({ id, name, count, type }) {
   const item = document.createElement("div");
   item.className = "summary-item";
   
-  const logo = document.createElement("img");
-  logo.src = `https://images.evetech.net/${type}s/${id}/logo?size=32`;
-  logo.alt = name;
-  logo.className = "summary-logo";
-  logo.loading = "lazy";
+  // Use optimized image loading
+  const logo = createOptimizedImage(
+    `https://images.evetech.net/${type}s/${id}/logo?size=32`,
+    name,
+    "summary-logo"
+  );
   item.appendChild(logo);
   
   const content = document.createElement("div");
@@ -1391,37 +1499,46 @@ function renderGrid(containerId, items, type = 'character', limit = null) {
   
   if (type === 'character') {
     const itemsToShow = limit ? items.slice(0, limit) : items;
-    container.innerHTML = "";
     
     if (itemsToShow.length === 0) {
-      const noResults = document.createElement("div");
-      noResults.className = "no-results";
-      noResults.innerHTML = `
-        <div class="no-results-icon">🔍</div>
-        <div class="no-results-text">No results found</div>
+      container.innerHTML = `
+        <div class="no-results">
+          <div class="no-results-icon">🔍</div>
+          <div class="no-results-text">No results found</div>
+        </div>
       `;
-      container.appendChild(noResults);
       return;
     }
+    
+    // Create DocumentFragment for batch DOM updates
+    const fragment = document.createDocumentFragment();
     
     itemsToShow.forEach((item, index) => {
       const element = createCharacterItem(item, currentView);
       element.style.animationDelay = `${index * 0.05}s`;
-      container.appendChild(element);
+      fragment.appendChild(element); // Add to fragment, not DOM
     });
-  } else {
+    
+    // Single DOM update instead of hundreds
     container.innerHTML = "";
+    container.appendChild(fragment);
+    
+  } else {
     if (items.length === 0) {
-      const noResults = document.createElement("div");
-      noResults.className = "no-summary";
-      noResults.innerHTML = `
-        <div class="no-results-icon">📊</div>
-        <div class="no-results-text">No war-eligible ${type}s found</div>
+      container.innerHTML = `
+        <div class="no-summary">
+          <div class="no-results-icon">📊</div>
+          <div class="no-results-text">No war-eligible ${type}s found</div>
+        </div>
       `;
-      container.appendChild(noResults);
       return;
     }
-    items.forEach(item => container.appendChild(createSummaryItem(item)));
+    
+    const fragment = document.createDocumentFragment();
+    items.forEach(item => fragment.appendChild(createSummaryItem(item)));
+    
+    container.innerHTML = "";
+    container.appendChild(fragment);
   }
 }
 
@@ -1503,14 +1620,18 @@ function showError(message) {
 }
 
 function updateStats(eligible, ineligible) {
-  document.getElementById("eligible-count").textContent = eligible.length;
-  document.getElementById("ineligible-count").textContent = ineligible.length;
-  document.getElementById("total-count").textContent = eligible.length + ineligible.length;
+  // Add null checks to prevent errors
+  const eligibleCount = document.getElementById("eligible-count");
+  const ineligibleCount = document.getElementById("ineligible-count");
+  const totalCount = document.getElementById("total-count");
+  const eligibleTotal = document.getElementById("eligible-total");
+  const ineligibleTotal = document.getElementById("ineligible-total");
   
-  // Update totals in expand buttons
-  document.getElementById("eligible-total").textContent = eligible.length;
-  document.getElementById("ineligible-total").textContent = ineligible.length;
-
+  if (eligibleCount) eligibleCount.textContent = eligible.length;
+  if (ineligibleCount) ineligibleCount.textContent = ineligible.length;
+  if (totalCount) totalCount.textContent = eligible.length + ineligible.length;
+  if (eligibleTotal) eligibleTotal.textContent = eligible.length;
+  if (ineligibleTotal) ineligibleTotal.textContent = ineligible.length;
 }
 
 function summarizeEntities(results) {
@@ -1765,9 +1886,11 @@ async function validateNames() {
     updateResultsDisplay();
     updateSummaryDisplay();
 
-    // stats
-    updateStats(allResults.eligible, allResults.ineligible);
-    updatePerformanceStats();
+    // Wait for results section to be shown before updating stats
+    setTimeout(() => {
+      updateStats(allResults.eligible, allResults.ineligible);
+      updatePerformanceStats();
+    }, 100);
     
   } catch (err) {
     if (err.message.includes("504")) {
@@ -1811,5 +1934,4 @@ document.addEventListener('DOMContentLoaded', function() {
   </script>
 </body>
 </html>
-<!-- Version: 1.0.7 -->
 <!-- Copyright 2025 moregh -->
