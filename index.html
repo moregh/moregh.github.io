@@ -151,10 +151,10 @@ textarea::placeholder { color: var(--text-muted); line-height: 1.62; }
 .ineligible-stat .stat-number { color: var(--danger-color); }
 
 /* Summary section */
-.summary-section { padding: 1.2rem 2rem; margin-bottom: 1.5rem; }
+.summary-section { padding: 1.2rem 2rem; margin-bottom: 1.5rem; overflow: visible; }
 .summary-section h3 { text-align: center; font-size: 1.62rem; font-weight: 700; margin-bottom: 1.5rem; color: var(--secondary-color); display: flex; align-items: center; justify-content: center; gap: 0.45rem; }
 .summary-container { display: grid; grid-template-columns: repeat(2, 1fr); gap: 2rem; }
-.summary-column { overflow: hidden; }
+.summary-column { overflow: visible; }
 .summary-column h4 { font-size: 1.17rem; font-weight: 600; margin-bottom: 0.9rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.45rem; }
 .entity-icon { font-size: 0.99rem; }
 
@@ -163,7 +163,7 @@ textarea::placeholder { color: var(--text-muted); line-height: 1.62; }
 .summary-expand-btn { background: rgba(255, 255, 255, 0.1); border: 0.9px solid var(--border-color); color: var(--text-secondary); padding: 0.36rem 0.72rem; border-radius: 6px; font-size: 0.72rem; cursor: pointer; transition: all 0.18s ease; }
 .summary-expand-btn:hover { background: rgba(255, 255, 255, 0.15); color: var(--text-primary); }
 
-.summary-grid { display: flex; flex-direction: column; gap: 0.72rem; }
+.summary-grid { display: flex; flex-direction: column; gap: 0.72rem; overflow: visible; }
 .summary-item {
   display: flex; align-items: center; gap: 0.9rem; background: rgba(255, 255, 255, 0.03); border-radius: 10.8px; padding: 0.9rem;
   border-left: 2.7px solid var(--secondary-color); transition: all 0.27s ease; animation: slideIn 0.45s ease forwards; min-height: 3rem;
@@ -177,6 +177,104 @@ textarea::placeholder { color: var(--text-muted); line-height: 1.62; }
 .summary-count { font-size: 0.99rem; font-weight: 700; color: var(--secondary-color); background: rgba(74, 222, 128, 0.1); padding: 0.27rem 0.72rem; border-radius: 13.5px; min-width: 2.25rem; text-align: center; }
 
 .summary-load-more-container { padding: 0.9rem 0 0; text-align: center; }
+/* Mouseover card styles */
+.summary-item { position: relative; z-index: 1; }
+
+.mouseover-card {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 320px;
+  max-height: 400px;
+  background: #0a0a0a;
+  backdrop-filter: blur(18px);
+  border: 1px solid rgba(0, 212, 255, 0.5);
+  border-radius: 13.5px;
+  box-shadow: 0 9px 36px rgba(0, 0, 0, 0.4), inset 0 0.9px 0 rgba(255, 255, 255, 0.1);
+  padding: 1.2rem;
+  z-index: 9999;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.25s ease;
+  margin-top: 0.5rem;
+  overflow-y: auto;
+}
+
+.summary-item:hover {
+  z-index: 10000;
+}
+
+.summary-item:hover .mouseover-card {
+  opacity: 1;
+  visibility: visible;
+}
+
+.mouseover-card-header {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--primary-color);
+  margin-bottom: 0.8rem;
+  text-align: center;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.5rem;
+}
+
+.mouseover-card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.mouseover-card-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0.6rem;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 6px;
+  border-left: 2px solid var(--secondary-color);
+  transition: all 0.2s ease;
+}
+
+.mouseover-card-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+  transform: translateX(2px);
+}
+
+.mouseover-card-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.mouseover-card-name {
+  font-size: 0.8rem;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.mouseover-card-name a {
+  color: var(--primary-color);
+  text-decoration: none;
+  transition: color 0.18s ease;
+}
+
+.mouseover-card-name a:hover {
+  color: #66e0ff;
+  text-decoration: underline;
+}
+
+.mouseover-card-more {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 0.5rem;
+  border-top: 1px solid var(--border-color);
+  margin-top: 0.5rem;
+}
 .summary-load-more-btn {
   background: linear-gradient(135deg, rgba(0, 212, 255, 0.1), rgba(0, 153, 204, 0.1)); border: 1.8px solid var(--border-glow); color: var(--primary-color);
   padding: 0.54rem 1.35rem; border-radius: 18px; font-size: 0.81rem; font-weight: 600; cursor: pointer; transition: all 0.27s ease;
@@ -536,6 +634,10 @@ let expandedSections = { eligible: false, ineligible: false };
 let allSummaryData = { alliance: [], corporation: [] };
 let displayedSummaryResults = { alliance: 0, corporation: 0 };
 let expandedSummarySections = { alliance: false, corporation: false };
+// Store complete results for mouseover functionality
+let completeResults = [];
+let corpToCharactersMap = new Map();
+let allianceToCorpsMap = new Map();
 
 // Cache management functions
 function getCacheKey(type, id) {
@@ -930,6 +1032,99 @@ function updateProgress(current, total) {
   document.getElementById('progressText').textContent = `Processed: ${current} / ${total}`;
 }
 
+function buildEntityMaps(results) {
+  corpToCharactersMap.clear();
+  allianceToCorpsMap.clear();
+  
+  // Build corp to characters map
+  results.forEach(character => {
+    if (character.war_eligible && character.corporation_id) {
+      if (!corpToCharactersMap.has(character.corporation_id)) {
+        corpToCharactersMap.set(character.corporation_id, []);
+      }
+      corpToCharactersMap.get(character.corporation_id).push(character);
+    }
+  });
+  
+  // Build alliance to corps map
+  const corpsByAlliance = new Map();
+  results.forEach(character => {
+    if (character.war_eligible && character.alliance_id && character.corporation_id) {
+      if (!corpsByAlliance.has(character.alliance_id)) {
+        corpsByAlliance.set(character.alliance_id, new Set());
+      }
+      corpsByAlliance.get(character.alliance_id).add(character.corporation_id);
+    }
+  });
+  
+  // Convert to array format with corp info
+  corpsByAlliance.forEach((corpIds, allianceId) => {
+    const corps = [];
+    corpIds.forEach(corpId => {
+      const characters = corpToCharactersMap.get(corpId) || [];
+      if (characters.length > 0) {
+        corps.push({
+          id: corpId,
+          name: characters[0].corporation_name,
+          count: characters.length
+        });
+      }
+    });
+    allianceToCorpsMap.set(allianceId, corps.sort((a, b) => b.count - a.count));
+  });
+}
+
+function createMouseoverCard(entity, type) {
+  const card = document.createElement("div");
+  card.className = "mouseover-card";
+  
+  let content = '';
+  let items = [];
+  const maxItems = 10;
+  
+  if (type === 'alliance') {
+    const corps = allianceToCorpsMap.get(entity.id) || [];
+    items = corps.slice(0, maxItems);
+    content = `
+      <div class="mouseover-card-header">Corporations in ${entity.name}</div>
+      <div class="mouseover-card-content">
+        ${items.map(corp => `
+          <div class="mouseover-card-item">
+            <img src="https://images.evetech.net/corporations/${corp.id}/logo?size=32" 
+                 alt="${corp.name}" class="mouseover-card-avatar" loading="lazy">
+            <div class="mouseover-card-name">
+              <a href="https://zkillboard.com/corporation/${corp.id}/" target="_blank">${corp.name}</a>
+            </div>
+            <div class="summary-count">${corp.count}</div>
+          </div>
+        `).join('')}
+        ${corps.length > maxItems ? `<div class="mouseover-card-more">... and ${corps.length - maxItems} more corporations</div>` : ''}
+      </div>
+    `;
+  } else if (type === 'corporation') {
+    const characters = corpToCharactersMap.get(entity.id) || [];
+    items = characters.slice(0, maxItems);
+    content = `
+      <div class="mouseover-card-header">Characters in ${entity.name}</div>
+      <div class="mouseover-card-content">
+        ${items.map(char => `
+          <div class="mouseover-card-item">
+            <img src="https://images.evetech.net/characters/${char.character_id}/portrait?size=32" 
+                 alt="${char.character_name}" class="mouseover-card-avatar" loading="lazy">
+            <div class="mouseover-card-name">
+              <a href="https://zkillboard.com/character/${char.character_id}/" target="_blank">${char.character_name}</a>
+            </div>
+          </div>
+        `).join('')}
+        ${characters.length > maxItems ? `<div class="mouseover-card-more">... and ${characters.length - maxItems} more characters</div>` : ''}
+      </div>
+    `;
+  }
+  
+  card.innerHTML = content;
+  return card;
+}
+
 function createCharacterItem(character, viewType = 'grid'){
   const item = document.createElement("div");
   item.className = `result-item ${viewType}-view`;
@@ -1029,6 +1224,7 @@ function createSummaryItem({ id, name, count, type }) {
   content.appendChild(countDiv);
   
   item.appendChild(content);
+  item.appendChild(createMouseoverCard({ id, name, count }, type));
   return item;
 }
 
@@ -1367,6 +1563,9 @@ async function validateNames() {
   results = [];
   try {
     const results = await validator(names);
+    // Store complete results and build entity maps
+    completeResults = results;
+    buildEntityMaps(results);
         
     results.sort((a, b) => b.war_eligible - a.war_eligible);
     
@@ -1438,5 +1637,5 @@ document.addEventListener('DOMContentLoaded', function() {
   </script>
 </body>
 </html>
-<!-- Version: 1.0.2 -->
+<!-- Version: 1.0.3 -->
 <!-- Copyright 2025 moregh -->
