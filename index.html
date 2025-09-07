@@ -190,6 +190,18 @@ textarea::placeholder { color: var(--text-muted); line-height: 1.62; }
 /* Stats dashboard */
 .stats-dashboard { padding: 1.2rem 2rem; margin-bottom: 1.5rem; }
 .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.8rem; }
+.stats-grid-extended {
+  grid-template-columns: repeat(6, 1fr);
+  gap: 1.2rem;
+}
+
+.performance-stat { border-left-color: var(--warning-color); }
+.api-stat { border-left-color: var(--primary-color); }
+.cache-stat { border-left-color: var(--secondary-color); }
+
+.performance-stat .stat-number { color: var(--warning-color); }
+.api-stat .stat-number { color: var(--primary-color); }
+.cache-stat .stat-number { color: var(--secondary-color); }
 .stat-card {
   display: flex; align-items: center; gap: 1rem; padding: 1rem 1.5rem; background: rgba(255, 255, 255, 0.02); border-radius: 13.5px;
   border-left: 3.6px solid; transition: all 0.27s ease;
@@ -466,6 +478,9 @@ textarea::placeholder { color: var(--text-muted); line-height: 1.62; }
   .result-item { padding: 0.9rem; }
   .character-avatar { width: 43.2px; height: 43.2px; }
   .summary-header { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
+  .stats-grid, .stats-grid-extended { 
+    grid-template-columns: repeat(2, 1fr); 
+  }
 }
 
 @media (max-width: 480px) {
@@ -476,6 +491,9 @@ textarea::placeholder { color: var(--text-muted); line-height: 1.62; }
   .result-item { flex-direction: column; text-align: center; gap: 0.9rem; }
   .character-content { width: 100%; }
   .corp-alliance-info { align-items: center; }
+  .stats-grid, .stats-grid-extended { 
+    grid-template-columns: 1fr; 
+  }
 }
 
 /* High contrast mode support */
@@ -579,6 +597,27 @@ textarea::placeholder { color: var(--text-muted); line-height: 1.62; }
               <div class="stat-details" id="ineligible-details"></div>
             </div>
           </div>
+          <div class="stat-card performance-stat">
+    <div class="stat-icon">⚡</div>
+    <div class="stat-content">
+      <span id="query-time" class="stat-number">0</span>
+      <div class="stat-label">Query Time (ms)</div>
+    </div>
+  </div>
+  <div class="stat-card api-stat">
+    <div class="stat-icon">🌐</div>
+    <div class="stat-content">
+      <span id="esi-lookups" class="stat-number">0</span>
+      <div class="stat-label">ESI Calls</div>
+    </div>
+  </div>
+  <div class="stat-card cache-stat">
+    <div class="stat-icon">💾</div>
+    <div class="stat-content">
+      <span id="cache-info" class="stat-number">0</span>
+      <div class="stat-label">Cache Hits</div>
+    </div>
+  </div>
         </div>
       </div>
       
@@ -1135,6 +1174,14 @@ function getLocalStorageSize() {
     }
   }
   return (total / 1024).toFixed(1); // Return size in KB
+}
+function updatePerformanceStats() {
+  const queryTime = Math.round(queryEndTime - queryStartTime);
+  const storageSize = getLocalStorageSize();
+  
+  document.getElementById("query-time").textContent = queryTime;
+  document.getElementById("esi-lookups").textContent = esiLookups;
+  document.getElementById("cache-info").textContent = `${localLookups} (${storageSize}KB)`;
 }
 
 function updateProgress(current, total) {
@@ -1724,7 +1771,10 @@ async function validateNames() {
     
     updateResultsDisplay();
     updateSummaryDisplay();
+
+    // stats
     updateStats(allResults.eligible, allResults.ineligible);
+    updatePerformanceStats();
     
   } catch (err) {
     if (err.message.includes("504")) {
@@ -1768,5 +1818,5 @@ document.addEventListener('DOMContentLoaded', function() {
   </script>
 </body>
 </html>
-<!-- Version: 1.0.5 -->
+<!-- Version: 1.0.6 -->
 <!-- Copyright 2025 moregh -->
