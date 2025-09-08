@@ -1793,7 +1793,7 @@
   </div>
 
   <script>
-    const VERSION = "0.1.10";
+    const VERSION = "0.1.11";
     const ESI_BASE = "https://esi.evetech.net/latest";
     const USER_AGENT = `WarTargetFinder/${VERSION} (+https://github.com/moregh/moregh.github.io/)`;
     const ESI_HEADERS = {
@@ -2402,39 +2402,39 @@
       return card;
     }
 
-    // Progressive image loading - loads placeholder first, then real image when visible
+    // Global observer for all images to reduce overhead
+    let globalImageObserver = null;
+
+    function getImageObserver() {
+      if (!globalImageObserver) {
+        globalImageObserver = new IntersectionObserver((entries) => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting) {
+              const img = entry.target;
+              const realSrc = img.dataset.src;
+              if (realSrc) {
+                img.src = realSrc;
+                img.removeAttribute('data-src');
+                globalImageObserver.unobserve(img);
+              }
+            }
+          });
+        }, { rootMargin: '50px' });
+      }
+      return globalImageObserver;
+    }
+
     function createOptimizedImage(src, alt, className) {
       const img = document.createElement("img");
       img.className = className;
       img.alt = alt;
       img.loading = "lazy";
-
-      // Start with a 1x1 transparent placeholder
+      
+      // Use data-src instead of immediate loading
+      img.dataset.src = src;
       img.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'%3E%3C/svg%3E";
-
-      // Use Intersection Observer for better performance
-      const observer = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-          if (entry.isIntersecting) {
-            // Load the real image when it comes into view
-            entry.target.src = src;
-            observer.unobserve(entry.target);
-
-            // Clean up observer if no more targets
-            if (observer.root === null || observer.takeRecords().length === 0) {
-              observer.disconnect();
-            }
-          }
-        });
-      }, {
-        rootMargin: '50px' // Start loading 50px before the image is visible
-      });
-
-      // Add error handling for failed image loads
-      img.addEventListener('error', () => {
-        observer.unobserve(img);
-      }, { once: true });
-      observer.observe(img);
+      
+      getImageObserver().observe(img);
       return img;
     }
 
@@ -2557,26 +2557,30 @@
 
         if (itemsToShow.length === 0) {
           container.innerHTML = `
-        <div class="no-results">
-          <div class="no-results-icon">🔍</div>
-          <div class="no-results-text">No results found</div>
-        </div>
-      `;
+            <div class="no-results">
+              <div class="no-results-icon">🔍</div>
+              <div class="no-results-text">No results found</div>
+            </div>
+          `;
           return;
         }
 
-        // Create DocumentFragment for batch DOM updates
-        const fragment = document.createDocumentFragment();
-
-        itemsToShow.forEach((item, index) => {
-          const element = createCharacterItem(item, currentView);
-          element.style.animationDelay = `${index * 0.05}s`;
-          fragment.appendChild(element); // Add to fragment, not DOM
+        // Use requestAnimationFrame for smooth rendering
+        requestAnimationFrame(() => {
+          const fragment = document.createDocumentFragment();
+          
+          // Batch create all elements
+          const elements = itemsToShow.map((item, index) => {
+            const element = createCharacterItem(item, currentView);
+            element.style.animationDelay = `${index * 0.05}s`;
+            return element;
+          });
+          
+          // Single DOM update
+          elements.forEach(el => fragment.appendChild(el));
+          container.innerHTML = "";
+          container.appendChild(fragment);
         });
-
-        // Single DOM update instead of hundreds
-        container.innerHTML = "";
-        container.appendChild(fragment);
 
       } else {
         if (items.length === 0) {
@@ -2850,6 +2854,19 @@
       }
     }
 
+    // Add this before updateCharacterCount function
+    let characterCountTimeout = null;
+
+    function debouncedUpdateCharacterCount() {
+      if (characterCountTimeout) {
+        clearTimeout(characterCountTimeout);
+      }
+      
+      characterCountTimeout = setTimeout(() => {
+        updateCharacterCount();
+      }, 150); // 150ms debounce
+    }
+
     function updateCharacterCount() {
       const textarea = document.getElementById('names');
       const names = textarea.value.split('\n')
@@ -2972,7 +2989,7 @@
     // Event listeners
     document.addEventListener('DOMContentLoaded', function () {
       const textarea = document.getElementById('names');
-      textarea.addEventListener('input', updateCharacterCount);
+      textarea.addEventListener('input', debouncedUpdateCharacterCount);
       textarea.addEventListener('keydown', function (e) {
         if (e.ctrlKey && e.key === 'Enter') {
           validateNames();
