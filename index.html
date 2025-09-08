@@ -1093,6 +1093,25 @@
       background: rgba(255, 255, 255, 0.08);
       box-shadow: 0 9px 27px rgba(0, 0, 0, 0.2);
     }
+    .result-item {
+      will-change: transform, opacity;
+      transform: translateZ(0); /* Enable hardware acceleration */
+    }
+
+    .result-item:hover {
+      transform: translateY(-4.5px) translateZ(0); /* Keep hardware acceleration on hover */
+    }
+
+    /* Optimize floating orbs for better performance */
+    .floating-orb {
+      transform: translateZ(0);
+      will-change: transform;
+    }
+
+    /* Reduce repaints on glass cards */
+    .glass-card {
+      transform: translateZ(0);
+    }
 
     .result-item:hover::before {
       opacity: 1;
@@ -1793,7 +1812,7 @@
   </div>
 
   <script>
-    const VERSION = "0.1.11";
+    const VERSION = "0.1.12";
     const ESI_BASE = "https://esi.evetech.net/latest";
     const USER_AGENT = `WarTargetFinder/${VERSION} (+https://github.com/moregh/moregh.github.io/)`;
     const ESI_HEADERS = {
@@ -2303,10 +2322,31 @@
       document.getElementById("cache-size").textContent = `Size: ${storageSize} MB`;
     }
 
+    let progressElements = null;
+    let lastProgressUpdate = 0;
+
+    function getProgressElements() {
+      if (!progressElements) {
+        progressElements = {
+          bar: document.getElementById('progressBar'),
+          text: document.getElementById('progressText')
+        };
+      }
+      return progressElements;
+    }
+
     function updateProgress(current, total) {
+      // Throttle progress updates to every 50ms
+      const now = Date.now();
+      if (now - lastProgressUpdate < 50 && current < total) return;
+      
+      const elements = getProgressElements();
       const p = total > 0 ? (current / total) * 100 : 0;
-      document.getElementById('progressBar').style.width = p + '%';
-      document.getElementById('progressText').textContent = `Processed: ${current} / ${total}`;
+      
+      if (elements.bar) elements.bar.style.width = p + '%';
+      if (elements.text) elements.text.textContent = `Processed: ${current} / ${total}`;
+      
+      lastProgressUpdate = now;
     }
 
     function buildEntityMaps(results) {
@@ -2601,9 +2641,15 @@
       }
     }
 
+    let lastTimerUpdate = 0;
     function updateTimer() {
-      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+      const now = Date.now();
+      // Only update every 200ms instead of every 100ms
+      if (now - lastTimerUpdate < 200) return;
+      
+      const elapsed = ((now - startTime) / 1000).toFixed(1);
       document.getElementById("timer").textContent = `Elapsed: ${elapsed}s`;
+      lastTimerUpdate = now;
     }
 
     function startLoading() {
@@ -2627,7 +2673,7 @@
       queryStartTime = performance.now(); // Add this line
 
       startTime = Date.now();
-      timerInterval = setInterval(updateTimer, 100);
+      timerInterval = setInterval(updateTimer, 200);
     }
 
     function stopLoading() {
@@ -2678,19 +2724,33 @@
   `;
     }
 
-    function updateStats(eligible, ineligible) {
-      // Add null checks to prevent errors
-      const eligibleCount = document.getElementById("eligible-count");
-      const ineligibleCount = document.getElementById("ineligible-count");
-      const totalCount = document.getElementById("total-count");
-      const eligibleTotal = document.getElementById("eligible-total");
-      const ineligibleTotal = document.getElementById("ineligible-total");
+    // Cache DOM elements to avoid repeated queries
+    let statsElements = null;
 
-      if (eligibleCount) eligibleCount.textContent = eligible.length;
-      if (ineligibleCount) ineligibleCount.textContent = ineligible.length;
-      if (totalCount) totalCount.textContent = eligible.length + ineligible.length;
-      if (eligibleTotal) eligibleTotal.textContent = eligible.length;
-      if (ineligibleTotal) ineligibleTotal.textContent = ineligible.length;
+    function getStatsElements() {
+      if (!statsElements) {
+        statsElements = {
+          eligibleCount: document.getElementById("eligible-count"),
+          ineligibleCount: document.getElementById("ineligible-count"),
+          totalCount: document.getElementById("total-count"),
+          eligibleTotal: document.getElementById("eligible-total"),
+          ineligibleTotal: document.getElementById("ineligible-total")
+        };
+      }
+      return statsElements;
+    }
+
+    function updateStats(eligible, ineligible) {
+      const elements = getStatsElements();
+      const eligibleLen = eligible.length;
+      const ineligibleLen = ineligible.length;
+      const totalLen = eligibleLen + ineligibleLen;
+
+      if (elements.eligibleCount) elements.eligibleCount.textContent = eligibleLen;
+      if (elements.ineligibleCount) elements.ineligibleCount.textContent = ineligibleLen;
+      if (elements.totalCount) elements.totalCount.textContent = totalLen;
+      if (elements.eligibleTotal) elements.eligibleTotal.textContent = eligibleLen;
+      if (elements.ineligibleTotal) elements.ineligibleTotal.textContent = ineligibleLen;
     }
 
     function summarizeEntities(results) {
