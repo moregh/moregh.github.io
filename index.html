@@ -2419,12 +2419,21 @@
             // Load the real image when it comes into view
             entry.target.src = src;
             observer.unobserve(entry.target);
+
+            // Clean up observer if no more targets
+            if (observer.root === null || observer.takeRecords().length === 0) {
+              observer.disconnect();
+            }
           }
         });
       }, {
         rootMargin: '50px' // Start loading 50px before the image is visible
       });
 
+      // Add error handling for failed image loads
+      img.addEventListener('error', () => {
+        observer.unobserve(img);
+      }, { once: true });
       observer.observe(img);
       return img;
     }
