@@ -12,6 +12,7 @@
       margin: 0;
       padding: 0;
       box-sizing: border-box;
+      
     }
 
     :root {
@@ -34,7 +35,7 @@
       background: var(--background-dark);
       color: var(--text-primary);
       min-height: 100vh;
-      line-height: 1.44;
+      line-height: 1.2;
       overflow-x: hidden;
       position: relative;
     }
@@ -105,7 +106,6 @@
       pointer-events: none;
       z-index: -1;
     }
-
     .grid-overlay {
       position: absolute;
       top: 0;
@@ -124,6 +124,10 @@
       filter: blur(36px);
       opacity: 0.1;
       animation: float 18s ease-in-out infinite;
+      will-change: transform;
+      transform: translateZ(0);
+      /* Force hardware acceleration */
+      backface-visibility: hidden;
     }
 
     .orb-1 {
@@ -154,11 +158,11 @@
 
     @keyframes gridMove {
       0% {
-        transform: translate(0, 0);
+        transform: translate3d(0, 0, 0);
       }
 
       100% {
-        transform: translate(45px, 45px);
+        transform: translate3d(45px, 45px, 0);
       }
     }
 
@@ -166,19 +170,19 @@
 
       0%,
       100% {
-        transform: translate(0, 0) scale(1);
+        transform: translate3d(0, 0, 0) scale(1);
       }
 
       25% {
-        transform: translate(27px, -27px) scale(1.1);
+        transform: translate3d(27px, -27px, 0) scale(1.1);
       }
 
       50% {
-        transform: translate(-18px, 18px) scale(0.9);
+        transform: translate3d(-18px, 18px, 0) scale(0.9);
       }
 
       75% {
-        transform: translate(18px, 27px) scale(1.05);
+        transform: translate3d(18px, 27px, 0) scale(1.05);
       }
     }
 
@@ -1093,19 +1097,16 @@
       background: rgba(255, 255, 255, 0.08);
       box-shadow: 0 9px 27px rgba(0, 0, 0, 0.2);
     }
+
     .result-item {
       will-change: transform, opacity;
-      transform: translateZ(0); /* Enable hardware acceleration */
+      transform: translateZ(0);
+      /* Enable hardware acceleration */
     }
 
     .result-item:hover {
-      transform: translateY(-4.5px) translateZ(0); /* Keep hardware acceleration on hover */
-    }
-
-    /* Optimize floating orbs for better performance */
-    .floating-orb {
-      transform: translateZ(0);
-      will-change: transform;
+      transform: translateY(-4.5px) translateZ(0);
+      /* Keep hardware acceleration on hover */
     }
 
     /* Reduce repaints on glass cards */
@@ -1853,6 +1854,8 @@
     let corpToCharactersMap = new Map();
     let allianceToCorpsMap = new Map();
 
+
+
     function collapseInputSection() {
       const inputSection = document.getElementById('input-section');
       inputSection.classList.add('collapsed');
@@ -2339,13 +2342,13 @@
       // Throttle progress updates to every 50ms
       const now = Date.now();
       if (now - lastProgressUpdate < 50 && current < total) return;
-      
+
       const elements = getProgressElements();
       const p = total > 0 ? (current / total) * 100 : 0;
-      
+
       if (elements.bar) elements.bar.style.width = p + '%';
       if (elements.text) elements.text.textContent = `Processed: ${current} / ${total}`;
-      
+
       lastProgressUpdate = now;
     }
 
@@ -2445,23 +2448,81 @@
     // Global observer for all images to reduce overhead
     let globalImageObserver = null;
 
+    let imageLoadQueue = [];
+    let currentlyLoading = 0;
+    const MAX_CONCURRENT_IMAGES = 4;
+
     function getImageObserver() {
       if (!globalImageObserver) {
         globalImageObserver = new IntersectionObserver((entries) => {
           entries.forEach(entry => {
             if (entry.isIntersecting) {
               const img = entry.target;
-              const realSrc = img.dataset.src;
-              if (realSrc) {
-                img.src = realSrc;
-                img.removeAttribute('data-src');
-                globalImageObserver.unobserve(img);
-              }
+              imageLoadQueue.push(img);
+              globalImageObserver.unobserve(img);
+              processImageQueue();
             }
           });
-        }, { rootMargin: '50px' });
+        }, {
+          rootMargin: '100px', // Load images before they're visible
+          threshold: 0.1
+        });
       }
       return globalImageObserver;
+    }
+
+    // Add this new animation observer
+    let animationObserver = null;
+
+    function getAnimationObserver() {
+      if (!animationObserver) {
+        animationObserver = new IntersectionObserver((entries) => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting) {
+              const element = entry.target;
+              element.style.opacity = '1';
+              element.style.transform = 'translateY(0)';
+              animationObserver.unobserve(element);
+            }
+          });
+        }, {
+          rootMargin: '50px 0px',
+          threshold: 0.1
+        });
+      }
+      return animationObserver;
+    }
+
+    function processImageQueue() {
+      while (imageLoadQueue.length > 0 && currentlyLoading < MAX_CONCURRENT_IMAGES) {
+        const img = imageLoadQueue.shift();
+        loadSingleImage(img);
+      }
+    }
+
+    function loadSingleImage(img) {
+      const realSrc = img.dataset.src;
+      if (!realSrc) return;
+
+      currentlyLoading++;
+
+      // Create a new image to preload
+      const preloader = new Image();
+      preloader.onload = () => {
+        img.src = realSrc;
+        img.removeAttribute('data-src');
+        currentlyLoading--;
+        // Process next batch
+        setTimeout(processImageQueue, 10);
+      };
+
+      preloader.onerror = () => {
+        console.warn(`Failed to load image: ${realSrc}`);
+        currentlyLoading--;
+        setTimeout(processImageQueue, 10);
+      };
+
+      preloader.src = realSrc;
     }
 
     function createOptimizedImage(src, alt, className) {
@@ -2469,11 +2530,12 @@
       img.className = className;
       img.alt = alt;
       img.loading = "lazy";
-      
-      // Use data-src instead of immediate loading
-      img.dataset.src = src;
+      img.decoding = "async"; // Add this for better performance
+
+      // Use a smaller, more efficient placeholder
       img.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'%3E%3C/svg%3E";
-      
+      img.dataset.src = src;
+
       getImageObserver().observe(img);
       return img;
     }
@@ -2552,6 +2614,14 @@
       textContainer.appendChild(details);
       item.appendChild(textContainer);
 
+      // Set initial state for scroll-based animation
+      item.style.opacity = '0';
+      item.style.transform = 'translateY(20px)';
+      item.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+
+      // Observe for animation trigger
+      getAnimationObserver().observe(item);
+
       item.appendChild(createMouseoverCard({ id: character.character_id, name: character.character_name, count: 1 }, 'character'));
 
       return item;
@@ -2608,14 +2678,14 @@
         // Use requestAnimationFrame for smooth rendering
         requestAnimationFrame(() => {
           const fragment = document.createDocumentFragment();
-          
+
           // Batch create all elements
           const elements = itemsToShow.map((item, index) => {
             const element = createCharacterItem(item, currentView);
             element.style.animationDelay = `${index * 0.05}s`;
             return element;
           });
-          
+
           // Single DOM update
           elements.forEach(el => fragment.appendChild(el));
           container.innerHTML = "";
@@ -2646,7 +2716,7 @@
       const now = Date.now();
       // Only update every 200ms instead of every 100ms
       if (now - lastTimerUpdate < 200) return;
-      
+
       const elapsed = ((now - startTime) / 1000).toFixed(1);
       document.getElementById("timer").textContent = `Elapsed: ${elapsed}s`;
       lastTimerUpdate = now;
@@ -2921,7 +2991,7 @@
       if (characterCountTimeout) {
         clearTimeout(characterCountTimeout);
       }
-      
+
       characterCountTimeout = setTimeout(() => {
         updateCharacterCount();
       }, 150); // 150ms debounce
