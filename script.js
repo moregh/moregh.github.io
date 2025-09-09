@@ -12,6 +12,7 @@ const INITIAL_USER_RESULTS_COUNT = 6;
 const INITIAL_CORP_ALLIANCE_COUNT = 5;
 const LOAD_MORE_COUNT = 12;
 const MAX_ESI_CALL_SIZE = 500;
+const MAX_CONCURRENT_IMAGES = 8;
 
 const characterInfoCache = new Map();
 const corporationInfoCache = new Map();
@@ -629,7 +630,7 @@ let globalImageObserver = null;
 
 let imageLoadQueue = [];
 let currentlyLoading = 0;
-const MAX_CONCURRENT_IMAGES = 4;
+
 
 function getImageObserver() {
     if (!globalImageObserver) {
@@ -658,50 +659,52 @@ function getAnimationObserver() {
         animationObserver = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
                 if (entry.isIntersecting) {
-                    const element = entry.target;
-                    element.style.opacity = '1';
-                    element.style.transform = 'translateY(0)';
-                    animationObserver.unobserve(element);
+                    entry.target.classList.add('animate-in');
+                    animationObserver.unobserve(entry.target);
                 }
             });
         }, {
-            rootMargin: '50px 0px',
-            threshold: 0.1
+            rootMargin: '20px 0px',
+            threshold: 0.01
         });
     }
     return animationObserver;
 }
 
 function processImageQueue() {
-    while (imageLoadQueue.length > 0 && currentlyLoading < MAX_CONCURRENT_IMAGES) {
+    const batchSize = Math.min(imageLoadQueue.length, MAX_CONCURRENT_IMAGES - currentlyLoading);
+    for (let i = 0; i < batchSize; i++) {
         const img = imageLoadQueue.shift();
-        loadSingleImage(img);
+        if (img) loadSingleImage(img);
     }
 }
 
 function loadSingleImage(img) {
     const realSrc = img.dataset.src;
-    if (!realSrc) return;
+    if (!realSrc || img.src !== img.dataset.placeholder) return;
 
     currentlyLoading++;
-
-    // Create a new image to preload
-    const preloader = new Image();
-    preloader.onload = () => {
-        img.src = realSrc;
-        img.removeAttribute('data-src');
+    
+    // Direct assignment - no preloader needed for small images
+    img.onload = () => {
+        img.onload = null;
+        img.onerror = null;
         currentlyLoading--;
-        // Process next batch
-        setTimeout(processImageQueue, 10);
+        if (imageLoadQueue.length > 0) {
+            requestAnimationFrame(processImageQueue);
+        }
     };
-
-    preloader.onerror = () => {
-        console.warn(`Failed to load image: ${realSrc}`);
+    
+    img.onerror = () => {
+        img.onload = null;
+        img.onerror = null;
         currentlyLoading--;
-        setTimeout(processImageQueue, 10);
+        if (imageLoadQueue.length > 0) {
+            requestAnimationFrame(processImageQueue);
+        }
     };
-
-    preloader.src = realSrc;
+    
+    img.src = realSrc;
 }
 
 function createOptimizedImage(src, alt, className) {
@@ -709,11 +712,12 @@ function createOptimizedImage(src, alt, className) {
     img.className = className;
     img.alt = alt;
     img.loading = "lazy";
-    img.decoding = "async"; // Add this for better performance
-
-    // Use a smaller, more efficient placeholder
-    img.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'%3E%3C/svg%3E";
+    img.decoding = "async";
+    
+    const placeholder = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3C/svg%3E";
+    img.src = placeholder;
     img.dataset.src = src;
+    img.dataset.placeholder = placeholder;
 
     getImageObserver().observe(img);
     return img;
@@ -721,88 +725,66 @@ function createOptimizedImage(src, alt, className) {
 
 function createCharacterItem(character, viewType = 'grid') {
     const item = document.createElement("div");
-    item.className = `result-item ${viewType}-view`;
-
-    // Optimized image loading
-    const charAvatar = createOptimizedImage(
-        `https://images.evetech.net/characters/${character.character_id}/portrait?size=64`,
-        character.character_name,
-        "character-avatar"
-    );
-    item.appendChild(charAvatar);
-
-    const textContainer = document.createElement("div");
-    textContainer.className = "character-content";
-
-    const charName = document.createElement("div");
-    charName.className = "character-name";
-    charName.innerHTML = `<a href="https://zkillboard.com/character/${character.character_id}/" target="_blank" class="character-link">${character.character_name}</a>`;
-    textContainer.appendChild(charName);
-
-    const details = document.createElement("div");
-    details.className = "character-details";
-
-    const corpAllianceInfo = document.createElement("div");
-    corpAllianceInfo.className = "corp-alliance-info";
-
-    if (character.corporation_id) {
-        const corpDiv = document.createElement("div");
-        corpDiv.className = "org-item";
-
-        // Optimized corp logo
-        const corpLogo = createOptimizedImage(
-            `https://images.evetech.net/corporations/${character.corporation_id}/logo?size=32`,
-            character.corporation_name,
-            "org-logo"
-        );
-
-        const corpLink = document.createElement("a");
-        corpLink.href = `https://zkillboard.com/corporation/${character.corporation_id}/`;
-        corpLink.target = "_blank";
-        corpLink.className = "character-link";
-        corpLink.textContent = character.corporation_name;
-
-        corpDiv.appendChild(corpLogo);
-        corpDiv.appendChild(corpLink);
-        corpAllianceInfo.appendChild(corpDiv);
-    }
-
-    if (character.alliance_name && character.alliance_id) {
-        const allianceDiv = document.createElement("div");
-        allianceDiv.className = "org-item";
-
-        // Optimized alliance logo
-        const allianceLogo = createOptimizedImage(
-            `https://images.evetech.net/alliances/${character.alliance_id}/logo?size=32`,
-            character.alliance_name,
-            "org-logo"
-        );
-
-        const allianceLink = document.createElement("a");
-        allianceLink.href = `https://zkillboard.com/alliance/${character.alliance_id}/`;
-        allianceLink.target = "_blank";
-        allianceLink.className = "character-link";
-        allianceLink.textContent = character.alliance_name;
-
-        allianceDiv.appendChild(allianceLogo);
-        allianceDiv.appendChild(allianceLink);
-        corpAllianceInfo.appendChild(allianceDiv);
-    }
-
-    details.appendChild(corpAllianceInfo);
-    textContainer.appendChild(details);
-    item.appendChild(textContainer);
-
-    // Set initial state for scroll-based animation
-    item.style.opacity = '0';
-    item.style.transform = 'translateY(20px)';
-    item.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
-
-    // Observe for animation trigger
+    item.className = `result-item ${viewType}-view animate-ready`;
+    
+    const placeholder = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3C/svg%3E";
+    
+    const allianceSection = character.alliance_name && character.alliance_id ? `
+        <div class="org-item">
+            <img src="${placeholder}" 
+                 data-src="https://images.evetech.net/alliances/${character.alliance_id}/logo?size=32"
+                 data-placeholder="${placeholder}"
+                 alt="${character.alliance_name}" 
+                 class="org-logo" 
+                 loading="lazy" 
+                 decoding="async">
+            <a href="https://zkillboard.com/alliance/${character.alliance_id}/" 
+               target="_blank" 
+               class="character-link">${character.alliance_name}</a>
+        </div>
+    ` : '';
+    
+    item.innerHTML = `
+        <img src="${placeholder}" 
+             data-src="https://images.evetech.net/characters/${character.character_id}/portrait?size=64"
+             data-placeholder="${placeholder}"
+             alt="${character.character_name}" 
+             class="character-avatar" 
+             loading="lazy" 
+             decoding="async">
+        <div class="character-content">
+            <div class="character-name">
+                <a href="https://zkillboard.com/character/${character.character_id}/" 
+                   target="_blank" 
+                   class="character-link">${character.character_name}</a>
+            </div>
+            <div class="character-details">
+                <div class="corp-alliance-info">
+                    <div class="org-item">
+                        <img src="${placeholder}" 
+                             data-src="https://images.evetech.net/corporations/${character.corporation_id}/logo?size=32"
+                             data-placeholder="${placeholder}"
+                             alt="${character.corporation_name}" 
+                             class="org-logo" 
+                             loading="lazy" 
+                             decoding="async">
+                        <a href="https://zkillboard.com/corporation/${character.corporation_id}/" 
+                           target="_blank" 
+                           class="character-link">${character.corporation_name}</a>
+                    </div>
+                    ${allianceSection}
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Observe all lazy images at once
+    const lazyImages = item.querySelectorAll('img[data-src]');
+    lazyImages.forEach(img => getImageObserver().observe(img));
+    
+    // Single animation observer
     getAnimationObserver().observe(item);
-
-    item.appendChild(createMouseoverCard({ id: character.character_id, name: character.character_name, count: 1 }, 'character'));
-
+    
     return item;
 }
 
@@ -844,32 +826,42 @@ function renderGrid(containerId, items, type = 'character', limit = null) {
     if (type === 'character') {
         const itemsToShow = limit ? items.slice(0, limit) : items;
 
-        if (itemsToShow.length === 0) {
-            container.innerHTML = `
-            <div class="no-results">
-              <div class="no-results-icon">🔍</div>
-              <div class="no-results-text">No results found</div>
-            </div>
-          `;
-            return;
+    if (itemsToShow.length === 0) {
+        container.innerHTML = `
+        <div class="no-results">
+          <div class="no-results-icon">🔍</div>
+          <div class="no-results-text">No results found</div>
+        </div>
+      `;
+        return;
+    }
+
+    // Clear and create fragment
+    container.innerHTML = "";
+    const fragment = document.createDocumentFragment();
+    
+    // Create elements in smaller batches
+    const batchSize = 20;
+    let currentBatch = 0;
+    
+    const processBatch = () => {
+        const start = currentBatch * batchSize;
+        const end = Math.min(start + batchSize, itemsToShow.length);
+        
+        for (let i = start; i < end; i++) {
+            const element = createCharacterItem(itemsToShow[i], currentView);
+            fragment.appendChild(element);
         }
-
-        // Use requestAnimationFrame for smooth rendering
-        requestAnimationFrame(() => {
-            const fragment = document.createDocumentFragment();
-
-            // Batch create all elements
-            const elements = itemsToShow.map((item, index) => {
-                const element = createCharacterItem(item, currentView);
-                element.style.animationDelay = `${index * 0.05}s`;
-                return element;
-            });
-
-            // Single DOM update
-            elements.forEach(el => fragment.appendChild(el));
-            container.innerHTML = "";
+        
+        if (end < itemsToShow.length) {
+            currentBatch++;
+            requestAnimationFrame(processBatch);
+        } else {
             container.appendChild(fragment);
-        });
+        }
+    };
+    
+    processBatch();
 
     } else {
         if (items.length === 0) {
