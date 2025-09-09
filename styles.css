@@ -1580,3 +1580,24 @@ textarea::placeholder {
         animation: none;
     }
 }
+
+.animate-ready {
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.animate-in {
+    opacity: 1 !important;
+    transform: translateY(0) !important;
+}
+
+/* Use CSS transforms for better performance */
+.result-item {
+    will-change: transform, opacity;
+}
+
+/* Reduce paint operations */
+.character-avatar, .org-logo, .summary-logo {
+    will-change: auto;
+}
