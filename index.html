@@ -2714,8 +2714,8 @@
     let lastTimerUpdate = 0;
     function updateTimer() {
       const now = Date.now();
-      // Only update every 200ms instead of every 100ms
-      if (now - lastTimerUpdate < 200) return;
+      // 100ms update
+      if (now - lastTimerUpdate < 100) return;
 
       const elapsed = ((now - startTime) / 1000).toFixed(1);
       document.getElementById("timer").textContent = `Elapsed: ${elapsed}s`;
@@ -2740,10 +2740,10 @@
 
       esiLookups = 0;
       localLookups = 0;
-      queryStartTime = performance.now(); // Add this line
+      queryStartTime = performance.now();
 
       startTime = Date.now();
-      timerInterval = setInterval(updateTimer, 200);
+      timerInterval = setInterval(updateTimer, 100);
     }
 
     function stopLoading() {
