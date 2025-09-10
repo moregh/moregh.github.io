@@ -1,4 +1,4 @@
-const VERSION = "0.1.13";
+const VERSION = "0.1.14";
 const ESI_BASE = "https://esi.evetech.net/latest";
 const USER_AGENT = `WarTargetFinder/${VERSION} (+https://github.com/moregh/moregh.github.io/)`;
 const ESI_HEADERS = {
@@ -820,57 +820,43 @@ function createSummaryItem({ id, name, count, type }) {
     return item;
 }
 
+// Virtual scrolling implementation
+const VIRTUAL_ITEM_HEIGHT = 120; // Approximate height of each item in pixels
+const VIRTUAL_BUFFER = 5; // Items to render outside visible area
+
+let virtualScrollStates = {
+    'eligible-grid': { scrollTop: 0, containerHeight: 0 },
+    'ineligible-grid': { scrollTop: 0, containerHeight: 0 }
+};
+
 function renderGrid(containerId, items, type = 'character', limit = null) {
     const container = document.getElementById(containerId);
-
+    
     if (type === 'character') {
         const itemsToShow = limit ? items.slice(0, limit) : items;
-
-    if (itemsToShow.length === 0) {
-        container.innerHTML = `
-        <div class="no-results">
-          <div class="no-results-icon">🔍</div>
-          <div class="no-results-text">No results found</div>
-        </div>
-      `;
-        return;
-    }
-
-    // Clear and create fragment
-    container.innerHTML = "";
-    const fragment = document.createDocumentFragment();
-    
-    // Create elements in smaller batches
-    const batchSize = 20;
-    let currentBatch = 0;
-    
-    const processBatch = () => {
-        const start = currentBatch * batchSize;
-        const end = Math.min(start + batchSize, itemsToShow.length);
         
-        for (let i = start; i < end; i++) {
-            const element = createCharacterItem(itemsToShow[i], currentView);
-            fragment.appendChild(element);
+        if (itemsToShow.length === 0) {
+            container.innerHTML = `
+                <div class="no-results">
+                    <div class="no-results-icon">🔍</div>
+                    <div class="no-results-text">No results found</div>
+                </div>
+            `;
+            return;
         }
-        
-        if (end < itemsToShow.length) {
-            currentBatch++;
-            requestAnimationFrame(processBatch);
-        } else {
-            container.appendChild(fragment);
-        }
-    };
-    
-    processBatch();
 
+        // Convert to virtual scrolling container
+        setupVirtualScrolling(containerId, itemsToShow);
+        
     } else {
+        // Keep existing logic for summary items (they're typically small lists)
         if (items.length === 0) {
             container.innerHTML = `
-        <div class="no-summary">
-          <div class="no-results-icon">📊</div>
-          <div class="no-results-text">No war-eligible ${type}s found</div>
-        </div>
-      `;
+                <div class="no-summary">
+                    <div class="no-results-icon">📊</div>
+                    <div class="no-results-text">No war-eligible ${type}s found</div>
+                </div>
+            `;
             return;
         }
 
@@ -882,6 +868,217 @@ function renderGrid(containerId, items, type = 'character', limit = null) {
     }
 }
 
+// Image preloading and caching system
+const imageCache = new Map();
+
+function preloadImage(src) {
+    if (imageCache.has(src)) {
+        return imageCache.get(src);
+    }
+    
+    const img = new Image();
+    const promise = new Promise((resolve, reject) => {
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = src;
+    });
+    
+    imageCache.set(src, promise);
+    return promise;
+}
+
+function createCharacterItemWithCachedImages(character, viewType = 'grid') {
+    const item = document.createElement("div");
+    item.className = `result-item ${viewType}-view`;
+    
+    // Pre-cache the images
+    const portraitSrc = `https://images.evetech.net/characters/${character.character_id}/portrait?size=64`;
+    const corpSrc = `https://images.evetech.net/corporations/${character.corporation_id}/logo?size=32`;
+    
+    preloadImage(portraitSrc);
+    preloadImage(corpSrc);
+    
+    if (character.alliance_id) {
+        const allianceSrc = `https://images.evetech.net/alliances/${character.alliance_id}/logo?size=32`;
+        preloadImage(allianceSrc);
+    }
+    
+    const allianceSection = character.alliance_name && character.alliance_id ? `
+        <div class="org-item">
+            <img src="https://images.evetech.net/alliances/${character.alliance_id}/logo?size=32"
+                 alt="${character.alliance_name}" 
+                 class="org-logo" 
+                 loading="lazy" 
+                 decoding="async">
+            <a href="https://zkillboard.com/alliance/${character.alliance_id}/" 
+               target="_blank" 
+               class="character-link">${character.alliance_name}</a>
+        </div>
+    ` : '';
+    
+    item.innerHTML = `
+        <img src="${portraitSrc}"
+             alt="${character.character_name}" 
+             class="character-avatar" 
+             loading="eager" 
+             decoding="async">
+        <div class="character-content">
+            <div class="character-name">
+                <a href="https://zkillboard.com/character/${character.character_id}/" 
+                   target="_blank" 
+                   class="character-link">${character.character_name}</a>
+            </div>
+            <div class="character-details">
+                <div class="corp-alliance-info">
+                    <div class="org-item">
+                        <img src="${corpSrc}"
+                             alt="${character.corporation_name}" 
+                             class="org-logo" 
+                             loading="eager" 
+                             decoding="async">
+                        <a href="https://zkillboard.com/corporation/${character.corporation_id}/" 
+                           target="_blank" 
+                           class="character-link">${character.corporation_name}</a>
+                    </div>
+                    ${allianceSection}
+                </div>
+            </div>
+        </div>
+    `;
+    
+    return item;
+}
+
+
+function setupVirtualScrolling(containerId, items) {
+    const container = document.getElementById(containerId);
+    const parentGrid = container.closest('.result-grid');
+    
+    // Store original grid classes for view switching
+    const isListView = parentGrid.classList.contains('list-view');
+    
+    // Calculate item height based on view type
+    const itemHeight = isListView ? 80 : 140;
+    const itemsPerRow = isListView ? 1 : Math.floor(parentGrid.clientWidth / 270);
+    const totalRows = Math.ceil(items.length / itemsPerRow);
+    const totalHeight = totalRows * itemHeight;
+    
+    // Create virtual scroll structure that preserves grid layout
+    container.innerHTML = '';
+    container.style.height = '600px';
+    container.style.overflowY = 'auto';
+    container.style.position = 'relative';
+    
+    const spacer = document.createElement('div');
+    spacer.style.height = totalHeight + 'px';
+    spacer.style.position = 'relative';
+    
+    const content = document.createElement('div');
+    content.className = 'virtual-content';
+    content.style.position = 'absolute';
+    content.style.top = '0';
+    content.style.left = '0';
+    content.style.right = '0';
+    content.style.display = 'grid';
+    content.style.gap = '1.35rem';
+    content.style.padding = '1.8rem';
+    
+    // Apply correct grid template based on view
+    if (isListView) {
+        content.style.gridTemplateColumns = '1fr';
+    } else {
+        content.style.gridTemplateColumns = 'repeat(auto-fill, minmax(252px, 1fr))';
+    }
+    
+    spacer.appendChild(content);
+    container.appendChild(spacer);
+    
+    // Cache for rendered items
+    const itemCache = new Map();
+    let currentStartIndex = -1;
+    let currentEndIndex = -1;
+    let isUpdating = false;
+    
+    function updateVisibleItems() {
+        if (isUpdating) return;
+        isUpdating = true;
+        
+        const scrollTop = container.scrollTop;
+        const containerHeight = container.clientHeight;
+        
+        // Much larger buffer for fast scrolling - render 2 full screens above and below
+        const bufferRows = Math.ceil((containerHeight * 2) / itemHeight);
+        const visibleRows = Math.ceil(containerHeight / itemHeight);
+        
+        const centerRow = Math.floor(scrollTop / itemHeight) + Math.floor(visibleRows / 2);
+        const startRow = Math.max(0, centerRow - bufferRows);
+        const endRow = Math.min(totalRows, centerRow + bufferRows);
+        
+        const startIndex = startRow * itemsPerRow;
+        const endIndex = Math.min(items.length, endRow * itemsPerRow);
+        
+        // Only update if we've moved significantly (reduces unnecessary updates)
+        const threshold = Math.floor(itemsPerRow * 2); // 2 rows worth of items
+        if (Math.abs(startIndex - currentStartIndex) < threshold && 
+            Math.abs(endIndex - currentEndIndex) < threshold) {
+            isUpdating = false;
+            return;
+        }
+        
+        currentStartIndex = startIndex;
+        currentEndIndex = endIndex;
+        
+        // Position the content container
+        content.style.transform = `translateY(${startRow * itemHeight}px)`;
+        
+        // Use requestAnimationFrame for smooth updates
+        requestAnimationFrame(() => {
+            // Clear current content
+            content.innerHTML = '';
+            const fragment = document.createDocumentFragment();
+            
+            for (let i = startIndex; i < endIndex; i++) {
+                if (items[i]) {
+                    // Check cache first
+                    let element = itemCache.get(i);
+                    if (!element) {
+                        element = createCharacterItemWithCachedImages(items[i], isListView ? 'list' : 'grid');
+                        itemCache.set(i, element);
+                    }
+                    
+                    // Clone the cached element
+                    const clonedElement = element.cloneNode(true);
+                    fragment.appendChild(clonedElement);
+                }
+            }
+            
+            content.appendChild(fragment);
+            isUpdating = false;
+        });
+    }
+    
+    // Immediate scroll handler with throttling using requestAnimationFrame
+    let scrollTicking = false;
+    
+    function onScroll() {
+        if (!scrollTicking) {
+            requestAnimationFrame(() => {
+                updateVisibleItems();
+                scrollTicking = false;
+            });
+            scrollTicking = true;
+        }
+    }
+    
+    container.addEventListener('scroll', onScroll, { passive: true });
+    
+    // Initial render
+    updateVisibleItems();
+    
+    // Store reference for view switching
+    container._virtualUpdate = updateVisibleItems;
+    container._itemCache = itemCache;
+}
 let lastTimerUpdate = 0;
 function updateTimer() {
     const now = Date.now();
@@ -1040,8 +1237,24 @@ function toggleView(viewType) {
         grid.classList.toggle('list-view', viewType === 'list');
     });
 
-    // Re-render current results with new view
-    updateResultsDisplay();
+    // Re-render with proper virtual scrolling update
+    const eligibleContainer = document.getElementById('eligible-grid');
+    const ineligibleContainer = document.getElementById('ineligible-grid');
+    
+    if (eligibleContainer._virtualUpdate) {
+        // Recreate virtual scrolling for new view
+        const eligibleToShow = expandedSections.eligible 
+            ? allResults.eligible 
+            : allResults.eligible.slice(0, displayedResults.eligible);
+        setupVirtualScrolling('eligible-grid', eligibleToShow);
+    }
+    
+    if (ineligibleContainer._virtualUpdate) {
+        const ineligibleToShow = expandedSections.ineligible 
+            ? allResults.ineligible 
+            : allResults.ineligible.slice(0, displayedResults.ineligible);
+        setupVirtualScrolling('ineligible-grid', ineligibleToShow);
+    }
 }
 
 function toggleExpanded(type) {
