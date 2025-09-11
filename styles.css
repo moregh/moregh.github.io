@@ -517,6 +517,8 @@ textarea::placeholder {
     opacity: 0;
     transform: translateY(27px);
     transition: all 0.54s ease;
+    position: relative;
+    z-index: 50;
 }
 
 .results-section.show {
@@ -633,6 +635,8 @@ textarea::placeholder {
     padding: 1.2rem 2rem;
     margin-bottom: 1.5rem;
     overflow: visible;
+    position: relative;
+    z-index: 100;
 }
 
 .summary-section h3 {
@@ -795,7 +799,8 @@ textarea::placeholder {
 }
 
 .summary-item:hover {
-    z-index: 10000;
+    z-index: 1000;
+    position: relative;
 }
 
 
@@ -977,6 +982,8 @@ textarea::placeholder {
 .result-column {
     padding: 0;
     overflow: hidden;
+    position: relative;
+    z-index: 1;
 }
 
 .column-header {
