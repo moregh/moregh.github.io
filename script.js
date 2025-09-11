@@ -627,7 +627,6 @@ function createMouseoverCard(entity, type) {
 
 // Global observer for all images to reduce overhead
 let globalImageObserver = null;
-
 let imageLoadQueue = [];
 let currentlyLoading = 0;
 
@@ -638,13 +637,16 @@ function getImageObserver() {
             entries.forEach(entry => {
                 if (entry.isIntersecting) {
                     const img = entry.target;
-                    imageLoadQueue.push(img);
-                    globalImageObserver.unobserve(img);
-                    processImageQueue();
+                    if (img.dataset.src && !img.dataset.loading) {
+                        img.dataset.loading = 'true';
+                        imageLoadQueue.push(img);
+                        globalImageObserver.unobserve(img);
+                        processImageQueue();
+                    }
                 }
             });
         }, {
-            rootMargin: '100px', // Load images before they're visible
+            rootMargin: '50px',
             threshold: 0.1
         });
     }
@@ -672,39 +674,52 @@ function getAnimationObserver() {
 }
 
 function processImageQueue() {
-    const batchSize = Math.min(imageLoadQueue.length, MAX_CONCURRENT_IMAGES - currentlyLoading);
-    for (let i = 0; i < batchSize; i++) {
+    while (imageLoadQueue.length > 0 && currentlyLoading < MAX_CONCURRENT_IMAGES) {
         const img = imageLoadQueue.shift();
-        if (img) loadSingleImage(img);
+        if (img && img.dataset.src) {
+            loadSingleImage(img);
+        }
     }
 }
 
 function loadSingleImage(img) {
     const realSrc = img.dataset.src;
-    if (!realSrc || img.src !== img.dataset.placeholder) return;
+    if (!realSrc || img.src === realSrc) return;
 
     currentlyLoading++;
     
-    // Direct assignment - no preloader needed for small images
-    img.onload = () => {
-        img.onload = null;
-        img.onerror = null;
+    const onLoad = () => {
         currentlyLoading--;
-        if (imageLoadQueue.length > 0) {
-            requestAnimationFrame(processImageQueue);
-        }
+        img.removeEventListener('load', onLoad);
+        img.removeEventListener('error', onError);
+        delete img.dataset.loading;
+        processImageQueue();
     };
     
-    img.onerror = () => {
-        img.onload = null;
-        img.onerror = null;
+    const onError = () => {
         currentlyLoading--;
-        if (imageLoadQueue.length > 0) {
-            requestAnimationFrame(processImageQueue);
-        }
+        img.removeEventListener('load', onLoad);
+        img.removeEventListener('error', onError);
+        delete img.dataset.loading;
+        // Set a fallback image or hide the broken image
+        img.style.opacity = '0.3';
+        processImageQueue();
     };
     
+    img.addEventListener('load', onLoad);
+    img.addEventListener('error', onError);
     img.src = realSrc;
+}
+
+function cleanupObservers() {
+    if (globalImageObserver) {
+        globalImageObserver.disconnect();
+        globalImageObserver = null;
+    }
+    if (animationObserver) {
+        animationObserver.disconnect();
+        animationObserver = null;
+    }
 }
 
 function createOptimizedImage(src, alt, className) {
@@ -821,8 +836,9 @@ function createSummaryItem({ id, name, count, type }) {
 }
 
 // Virtual scrolling implementation
-const VIRTUAL_ITEM_HEIGHT = 120; // Approximate height of each item in pixels
-const VIRTUAL_BUFFER = 5; // Items to render outside visible area
+const VIRTUAL_ITEM_HEIGHT = 125; // Approximate height of each item in pixels
+const VIRTUAL_BUFFER = 30; // Items to render outside visible area
+const ROWS_TO_SHOW = 5;
 
 let virtualScrollStates = {
     'eligible-grid': { scrollTop: 0, containerHeight: 0 },
@@ -849,7 +865,6 @@ function renderGrid(containerId, items, type = 'character', limit = null) {
         setupVirtualScrolling(containerId, itemsToShow);
         
     } else {
-        // Keep existing logic for summary items (they're typically small lists)
         if (items.length === 0) {
             container.innerHTML = `
                 <div class="no-summary">
@@ -954,18 +969,21 @@ function setupVirtualScrolling(containerId, items) {
     const container = document.getElementById(containerId);
     const parentGrid = container.closest('.result-grid');
     
-    // Store original grid classes for view switching
-    const isListView = parentGrid.classList.contains('list-view');
+    // Clear any existing virtual scroll setup
+    if (container._scrollListener) {
+        container.removeEventListener('scroll', container._scrollListener);
+        delete container._scrollListener;
+    }
     
-    // Calculate item height based on view type
-    const itemHeight = isListView ? 80 : 140;
-    const itemsPerRow = isListView ? 1 : Math.floor(parentGrid.clientWidth / 270);
+    const isListView = parentGrid.classList.contains('list-view');
+    const itemHeight = isListView ? 90 : 150; // Fixed heights
+    const containerWidth = parentGrid.clientWidth - 60; // Account for padding
+    const itemsPerRow = isListView ? 1 : Math.max(1, Math.floor(containerWidth / 270));
     const totalRows = Math.ceil(items.length / itemsPerRow);
     const totalHeight = totalRows * itemHeight;
     
-    // Create virtual scroll structure that preserves grid layout
-    container.innerHTML = '';
-    container.style.height = '600px';
+    // Setup container
+    container.style.height = '500px';
     container.style.overflowY = 'auto';
     container.style.position = 'relative';
     
@@ -983,21 +1001,19 @@ function setupVirtualScrolling(containerId, items) {
     content.style.gap = '1.35rem';
     content.style.padding = '1.8rem';
     
-    // Apply correct grid template based on view
     if (isListView) {
         content.style.gridTemplateColumns = '1fr';
     } else {
         content.style.gridTemplateColumns = 'repeat(auto-fill, minmax(252px, 1fr))';
     }
     
+    container.innerHTML = '';
     spacer.appendChild(content);
     container.appendChild(spacer);
     
-    // Cache for rendered items
-    const itemCache = new Map();
-    let currentStartIndex = -1;
-    let currentEndIndex = -1;
     let isUpdating = false;
+    let lastStartIndex = -1;
+    let lastEndIndex = -1;
     
     function updateVisibleItems() {
         if (isUpdating) return;
@@ -1005,61 +1021,43 @@ function setupVirtualScrolling(containerId, items) {
         
         const scrollTop = container.scrollTop;
         const containerHeight = container.clientHeight;
+        const buffer = 20; // Number of items to render outside visible area
         
-        // Much larger buffer for fast scrolling - render 2 full screens above and below
-        const bufferRows = Math.ceil((containerHeight * 2) / itemHeight);
-        const visibleRows = Math.ceil(containerHeight / itemHeight);
-        
-        const centerRow = Math.floor(scrollTop / itemHeight) + Math.floor(visibleRows / 2);
-        const startRow = Math.max(0, centerRow - bufferRows);
-        const endRow = Math.min(totalRows, centerRow + bufferRows);
+        const startRow = Math.max(0, Math.floor(scrollTop / itemHeight) - buffer);
+        const endRow = Math.min(totalRows, Math.ceil((scrollTop + containerHeight) / itemHeight) + buffer);
         
         const startIndex = startRow * itemsPerRow;
         const endIndex = Math.min(items.length, endRow * itemsPerRow);
         
-        // Only update if we've moved significantly (reduces unnecessary updates)
-        const threshold = Math.floor(itemsPerRow * 2); // 2 rows worth of items
-        if (Math.abs(startIndex - currentStartIndex) < threshold && 
-            Math.abs(endIndex - currentEndIndex) < threshold) {
+        // Only update if range has changed significantly
+        if (startIndex === lastStartIndex && endIndex === lastEndIndex) {
             isUpdating = false;
             return;
         }
         
-        currentStartIndex = startIndex;
-        currentEndIndex = endIndex;
+        lastStartIndex = startIndex;
+        lastEndIndex = endIndex;
         
-        // Position the content container
         content.style.transform = `translateY(${startRow * itemHeight}px)`;
         
-        // Use requestAnimationFrame for smooth updates
         requestAnimationFrame(() => {
-            // Clear current content
-            content.innerHTML = '';
             const fragment = document.createDocumentFragment();
             
             for (let i = startIndex; i < endIndex; i++) {
                 if (items[i]) {
-                    // Check cache first
-                    let element = itemCache.get(i);
-                    if (!element) {
-                        element = createCharacterItemWithCachedImages(items[i], isListView ? 'list' : 'grid');
-                        itemCache.set(i, element);
-                    }
-                    
-                    // Clone the cached element
-                    const clonedElement = element.cloneNode(true);
-                    fragment.appendChild(clonedElement);
+                    const element = createCharacterItem(items[i], isListView ? 'list' : 'grid');
+                    fragment.appendChild(element);
                 }
             }
             
+            content.innerHTML = '';
             content.appendChild(fragment);
             isUpdating = false;
         });
     }
     
-    // Immediate scroll handler with throttling using requestAnimationFrame
+    // Throttled scroll handler
     let scrollTicking = false;
-    
     function onScroll() {
         if (!scrollTicking) {
             requestAnimationFrame(() => {
@@ -1070,15 +1068,20 @@ function setupVirtualScrolling(containerId, items) {
         }
     }
     
+    container._scrollListener = onScroll;
     container.addEventListener('scroll', onScroll, { passive: true });
     
-    // Initial render
     updateVisibleItems();
     
-    // Store reference for view switching
-    container._virtualUpdate = updateVisibleItems;
-    container._itemCache = itemCache;
+    // Store cleanup function
+    container._cleanup = () => {
+        if (container._scrollListener) {
+            container.removeEventListener('scroll', container._scrollListener);
+            delete container._scrollListener;
+        }
+    };
 }
+
 let lastTimerUpdate = 0;
 function updateTimer() {
     const now = Date.now();
@@ -1237,22 +1240,30 @@ function toggleView(viewType) {
         grid.classList.toggle('list-view', viewType === 'list');
     });
 
-    // Re-render with proper virtual scrolling update
+    // Clean up existing virtual scrolling
     const eligibleContainer = document.getElementById('eligible-grid');
     const ineligibleContainer = document.getElementById('ineligible-grid');
     
-    if (eligibleContainer._virtualUpdate) {
-        // Recreate virtual scrolling for new view
-        const eligibleToShow = expandedSections.eligible 
-            ? allResults.eligible 
-            : allResults.eligible.slice(0, displayedResults.eligible);
-        setupVirtualScrolling('eligible-grid', eligibleToShow);
+    if (eligibleContainer._cleanup) {
+        eligibleContainer._cleanup();
+    }
+    if (ineligibleContainer._cleanup) {
+        ineligibleContainer._cleanup();
     }
     
-    if (ineligibleContainer._virtualUpdate) {
-        const ineligibleToShow = expandedSections.ineligible 
-            ? allResults.ineligible 
-            : allResults.ineligible.slice(0, displayedResults.ineligible);
+    // Re-render with new view type
+    const eligibleToShow = expandedSections.eligible 
+        ? allResults.eligible 
+        : allResults.eligible.slice(0, displayedResults.eligible);
+    const ineligibleToShow = expandedSections.ineligible 
+        ? allResults.ineligible 
+        : allResults.ineligible.slice(0, displayedResults.ineligible);
+    
+    // Recreate virtual scrolling with new settings
+    if (eligibleToShow.length > 0) {
+        setupVirtualScrolling('eligible-grid', eligibleToShow);
+    }
+    if (ineligibleToShow.length > 0) {
         setupVirtualScrolling('ineligible-grid', ineligibleToShow);
     }
 }
