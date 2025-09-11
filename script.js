@@ -1,4 +1,4 @@
-const VERSION = "0.1.15";
+const VERSION = "0.1.16";
 const ESI_BASE = "https://esi.evetech.net/latest";
 const USER_AGENT = `WarTargetFinder/${VERSION} (+https://github.com/moregh/moregh.github.io/)`;
 const ESI_HEADERS = {
@@ -432,11 +432,13 @@ async function validator(names) {
 
     affiliations.forEach(affiliation => {
         uniqueCorpIds.add(affiliation.corporation_id);
-        if (affiliation.alliance_id) {
+        // FIXED: Only add alliance ID if it actually exists
+        if (affiliation.alliance_id && affiliation.alliance_id > 0) {
             uniqueAllianceIds.add(affiliation.alliance_id);
         }
     });
 
+    // Fetch corporation info
     const corpPromises = Array.from(uniqueCorpIds).map(id =>
         getCorporationInfo(id).catch(e => {
             console.error(`Error fetching corporation ${id}:`, e);
@@ -449,17 +451,21 @@ async function validator(names) {
         corpMap.set(id, corpInfos[index]);
     });
 
-    const alliancePromises = Array.from(uniqueAllianceIds).map(id =>
-        getAllianceInfo(id).catch(e => {
-            console.error(`Error fetching alliance ${id}:`, e);
-            return { name: 'Unknown Alliance' };
-        })
-    );
-    const allianceInfos = await Promise.all(alliancePromises);
+    // FIXED: Fetch alliance info only if we have alliance IDs
     const allianceMap = new Map();
-    Array.from(uniqueAllianceIds).forEach((id, index) => {
-        allianceMap.set(id, allianceInfos[index]);
-    });
+    if (uniqueAllianceIds.size > 0) {
+        const alliancePromises = Array.from(uniqueAllianceIds).map(id =>
+            getAllianceInfo(id).catch(e => {
+                console.error(`Error fetching alliance ${id}:`, e);
+                return { name: 'Unknown Alliance' };
+            })
+        );
+        const allianceInfos = await Promise.all(alliancePromises);
+        // FIXED: Properly map alliance IDs to their info without modifying the original data
+        Array.from(uniqueAllianceIds).forEach((id, index) => {
+            allianceMap.set(id, allianceInfos[index]);
+        });
+    }   
 
     for (let i = 0; i < characters.length; i++) {
         const char = characters[i];
@@ -484,13 +490,19 @@ async function validator(names) {
                 war_eligible: false
             };
 
-            if (affiliation.alliance_id) {
+            // FIXED: Properly handle alliance information
+            if (affiliation.alliance_id && affiliation.alliance_id > 0) {
                 const allianceInfo = allianceMap.get(affiliation.alliance_id);
                 if (allianceInfo) {
                     result.alliance_name = allianceInfo.name;
-                    result.alliance_id = affiliation.alliance_id;
+                    result.alliance_id = affiliation.alliance_id; // Use the affiliation ID
+                } else {
+                    console.warn(`Alliance info not found for alliance ID ${affiliation.alliance_id} for character ${char.name}`);
+                    // FIXED: Don't assign alliance info if we couldn't fetch it
+                    // Leave alliance_name and alliance_id as null
                 }
             }
+            // FIXED: If no alliance_id in affiliation, alliance_name and alliance_id remain null
 
             if (corpInfo.war_eligible !== undefined) result.war_eligible = corpInfo.war_eligible;
             results.push(result);
@@ -509,6 +521,152 @@ async function validator(names) {
         updateProgress(i + 1, characters.length);
     }
     return results;
+}
+
+function createCharacterItem(character, viewType = 'grid') {
+    const item = document.createElement("div");
+    item.className = `result-item ${viewType}-view`;
+    
+    const placeholder = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3C/svg%3E";
+    
+    // FIXED: Only create alliance section if character actually has an alliance
+    const allianceSection = character.alliance_name && character.alliance_id ? `
+        <div class="org-item">
+            <img src="${placeholder}" 
+                 data-src="https://images.evetech.net/alliances/${character.alliance_id}/logo?size=32"
+                 data-placeholder="${placeholder}"
+                 alt="${character.alliance_name}" 
+                 class="org-logo" 
+                 loading="lazy" 
+                 decoding="async">
+            <a href="https://zkillboard.com/alliance/${character.alliance_id}/" 
+               target="_blank" 
+               class="character-link">${character.alliance_name}</a>
+        </div>
+    ` : '';
+    
+    item.innerHTML = `
+        <img src="${placeholder}" 
+             data-src="https://images.evetech.net/characters/${character.character_id}/portrait?size=64"
+             data-placeholder="${placeholder}"
+             alt="${character.character_name}" 
+             class="character-avatar" 
+             loading="lazy" 
+             decoding="async">
+        <div class="character-content">
+            <div class="character-name">
+                <a href="https://zkillboard.com/character/${character.character_id}/" 
+                   target="_blank" 
+                   class="character-link">${character.character_name}</a>
+            </div>
+            <div class="character-details">
+                <div class="corp-alliance-info">
+                    <div class="org-item">
+                        <img src="${placeholder}" 
+                             data-src="https://images.evetech.net/corporations/${character.corporation_id}/logo?size=32"
+                             data-placeholder="${placeholder}"
+                             alt="${character.corporation_name}" 
+                             class="org-logo" 
+                             loading="lazy" 
+                             decoding="async">
+                        <a href="https://zkillboard.com/corporation/${character.corporation_id}/" 
+                           target="_blank" 
+                           class="character-link">${character.corporation_name}</a>
+                    </div>
+                    ${allianceSection}
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Only observe images and animations for non-virtual scrolling contexts
+    const lazyImages = item.querySelectorAll('img[data-src]');
+    lazyImages.forEach(img => getImageObserver().observe(img));
+    
+    return item;
+}
+
+function updateElementContent(element, character, viewType) {
+    // Update the element's content without recreating it
+    const avatar = element.querySelector('.character-avatar');
+    const characterLink = element.querySelector('.character-name a');
+    const corpLogo = element.querySelector('.corp-alliance-info .org-logo');
+    const corpLink = element.querySelector('.corp-alliance-info .character-link');
+    
+    if (avatar) {
+        avatar.alt = character.character_name;
+        avatar.dataset.src = `https://images.evetech.net/characters/${character.character_id}/portrait?size=64`;
+        if (avatar.dataset.src !== avatar.src) {
+            getImageObserver().observe(avatar);
+        }
+    }
+    
+    if (characterLink) {
+        characterLink.textContent = character.character_name;
+        characterLink.href = `https://zkillboard.com/character/${character.character_id}/`;
+    }
+    
+    if (corpLogo) {
+        corpLogo.alt = character.corporation_name;
+        corpLogo.dataset.src = `https://images.evetech.net/corporations/${character.corporation_id}/logo?size=32`;
+        if (corpLogo.dataset.src !== corpLogo.src) {
+            getImageObserver().observe(corpLogo);
+        }
+    }
+    
+    if (corpLink) {
+        corpLink.textContent = character.corporation_name;
+        corpLink.href = `https://zkillboard.com/corporation/${character.corporation_id}/`;
+    }
+    
+    // FIXED: Handle alliance info properly
+    const corpAllianceInfo = element.querySelector('.corp-alliance-info');
+    let allianceSection = element.querySelector('.org-item:last-child');
+    
+    // Check if the alliance section is actually for alliance (not corp)
+    const isAllianceSection = allianceSection && allianceSection.querySelector('a[href*="/alliance/"]');
+    
+    if (character.alliance_name && character.alliance_id) {
+        if (!isAllianceSection) {
+            // Need to create alliance section
+            const newAllianceSection = document.createElement('div');
+            newAllianceSection.className = 'org-item';
+            newAllianceSection.innerHTML = `
+                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3C/svg%3E" 
+                     data-src="https://images.evetech.net/alliances/${character.alliance_id}/logo?size=32"
+                     alt="${character.alliance_name}" 
+                     class="org-logo" 
+                     loading="lazy" 
+                     decoding="async">
+                <a href="https://zkillboard.com/alliance/${character.alliance_id}/" 
+                   target="_blank" 
+                   class="character-link">${character.alliance_name}</a>
+            `;
+            corpAllianceInfo.appendChild(newAllianceSection);
+            const allianceLogo = newAllianceSection.querySelector('.org-logo');
+            getImageObserver().observe(allianceLogo);
+        } else {
+            // Update existing alliance section
+            const allianceLogo = allianceSection.querySelector('.org-logo');
+            const allianceLink = allianceSection.querySelector('.character-link');
+            
+            if (allianceLogo) {
+                allianceLogo.alt = character.alliance_name;
+                allianceLogo.dataset.src = `https://images.evetech.net/alliances/${character.alliance_id}/logo?size=32`;
+                getImageObserver().observe(allianceLogo);
+            }
+            
+            if (allianceLink) {
+                allianceLink.textContent = character.alliance_name;
+                allianceLink.href = `https://zkillboard.com/alliance/${character.alliance_id}/`;
+            }
+        }
+    } else {
+        // Character has no alliance, remove alliance section if it exists
+        if (isAllianceSection) {
+            allianceSection.remove();
+        }
+    }
 }
 
 function getLocalStorageSize() {
@@ -701,8 +859,12 @@ function getAnimationObserver() {
 function processImageQueue() {
     while (imageLoadQueue.length > 0 && currentlyLoading < MAX_CONCURRENT_IMAGES) {
         const img = imageLoadQueue.shift();
-        if (img && img.dataset.src) {
+        // Check if image is still in DOM before processing
+        if (img && img.dataset.src && document.contains(img)) {
             loadSingleImage(img);
+        } else {
+            // Skip orphaned images
+            continue;
         }
     }
 }
@@ -763,9 +925,10 @@ function createOptimizedImage(src, alt, className) {
     return img;
 }
 
+
 function createCharacterItem(character, viewType = 'grid') {
     const item = document.createElement("div");
-    item.className = `result-item ${viewType}-view animate-ready`;
+    item.className = `result-item ${viewType}-view`;
     
     const placeholder = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3C/svg%3E";
     
@@ -818,12 +981,9 @@ function createCharacterItem(character, viewType = 'grid') {
         </div>
     `;
     
-    // Observe all lazy images at once
+    // Only observe images and animations for non-virtual scrolling contexts
     const lazyImages = item.querySelectorAll('img[data-src]');
     lazyImages.forEach(img => getImageObserver().observe(img));
-    
-    // Single animation observer
-    getAnimationObserver().observe(item);
     
     return item;
 }
@@ -992,7 +1152,28 @@ function createCharacterItemWithCachedImages(character, viewType = 'grid') {
 
 function setupVirtualScrolling(containerId, items) {
     const container = document.getElementById(containerId);
-    const parentGrid = container.closest('.result-grid');
+
+    // handle case where container is not found
+    if (!container) {
+        console.warn(`Container with id "${containerId}" not found`);
+        return;
+    }
+    
+    // Find the parent grid - try different selectors
+    let parentGrid = container.closest('.result-grid');
+    if (!parentGrid) {
+        // If closest doesn't work, try parent element
+        parentGrid = container.parentElement;
+        // If parent doesn't have result-grid class, the container itself might be the grid
+        if (!parentGrid || !parentGrid.classList.contains('result-grid')) {
+            parentGrid = container;
+        }
+    }
+    
+    if (!parentGrid) {
+        console.warn(`Parent grid not found for container "${containerId}"`);
+        return;
+    }
     
     // Clear any existing virtual scroll setup
     if (container._scrollListener) {
@@ -1000,37 +1181,26 @@ function setupVirtualScrolling(containerId, items) {
         delete container._scrollListener;
     }
     
+    // Add CSS classes instead of inline styles
+    parentGrid.classList.add('virtual-enabled');
+    
     const isListView = parentGrid.classList.contains('list-view');
-    const itemHeight = isListView ? 90 : 150; // Fixed heights
-    const containerWidth = parentGrid.clientWidth - 60; // Account for padding
+    const itemHeight = isListView ? 90 : 150;
+    const containerWidth = parentGrid.clientWidth - 60;
     const itemsPerRow = isListView ? 1 : Math.max(1, Math.floor(containerWidth / 270));
     const totalRows = Math.ceil(items.length / itemsPerRow);
     const totalHeight = totalRows * itemHeight;
     
-    // Setup container
-    container.style.height = '500px';
-    container.style.overflowY = 'auto';
-    container.style.position = 'relative';
+    // Apply CSS classes instead of inline styles
+    container.className = 'virtual-scroll-container';
     
+    // Create structure with CSS classes
     const spacer = document.createElement('div');
-    spacer.style.height = totalHeight + 'px';
-    spacer.style.position = 'relative';
+    spacer.className = 'virtual-scroll-spacer';
+    spacer.style.height = totalHeight + 'px'; // Only dynamic style needed
     
     const content = document.createElement('div');
-    content.className = 'virtual-content';
-    content.style.position = 'absolute';
-    content.style.top = '0';
-    content.style.left = '0';
-    content.style.right = '0';
-    content.style.display = 'grid';
-    content.style.gap = '1.35rem';
-    content.style.padding = '1.8rem';
-    
-    if (isListView) {
-        content.style.gridTemplateColumns = '1fr';
-    } else {
-        content.style.gridTemplateColumns = 'repeat(auto-fill, minmax(252px, 1fr))';
-    }
+    content.className = `virtual-scroll-content ${isListView ? 'list-view' : ''}`;
     
     container.innerHTML = '';
     spacer.appendChild(content);
@@ -1046,7 +1216,7 @@ function setupVirtualScrolling(containerId, items) {
         
         const scrollTop = container.scrollTop;
         const containerHeight = container.clientHeight;
-        const buffer = 20; // Number of items to render outside visible area
+        const buffer = 20;
         
         const startRow = Math.max(0, Math.floor(scrollTop / itemHeight) - buffer);
         const endRow = Math.min(totalRows, Math.ceil((scrollTop + containerHeight) / itemHeight) + buffer);
@@ -1054,7 +1224,6 @@ function setupVirtualScrolling(containerId, items) {
         const startIndex = startRow * itemsPerRow;
         const endIndex = Math.min(items.length, endRow * itemsPerRow);
         
-        // Only update if range has changed significantly
         if (startIndex === lastStartIndex && endIndex === lastEndIndex) {
             isUpdating = false;
             return;
@@ -1063,6 +1232,7 @@ function setupVirtualScrolling(containerId, items) {
         lastStartIndex = startIndex;
         lastEndIndex = endIndex;
         
+        // Only transform is dynamic
         content.style.transform = `translateY(${startRow * itemHeight}px)`;
         
         requestAnimationFrame(() => {
@@ -1081,7 +1251,6 @@ function setupVirtualScrolling(containerId, items) {
         });
     }
     
-    // Throttled scroll handler
     let scrollTicking = false;
     function onScroll() {
         if (!scrollTicking) {
@@ -1098,11 +1267,18 @@ function setupVirtualScrolling(containerId, items) {
     
     updateVisibleItems();
     
-    // Store cleanup function
     container._cleanup = () => {
         if (container._scrollListener) {
             container.removeEventListener('scroll', container._scrollListener);
             delete container._scrollListener;
+        }
+        // Remove CSS classes when cleaning up
+        if (parentGrid && parentGrid.classList) {
+            parentGrid.classList.remove('virtual-enabled');
+        }
+        // Reset container to original class
+        if (container) {
+            container.className = container.className.replace('virtual-scroll-container', '').trim() || 'result-grid';
         }
     };
 }
@@ -1123,6 +1299,11 @@ function startLoading() {
     const rs = document.getElementById("results-section");
     const cb = document.getElementById("checkButton");
     const ec = document.getElementById("error-container");
+
+    // Collapse input section and disable hover during loading
+    const inputSection = document.getElementById('input-section');
+    collapseInputSection();
+    inputSection.classList.add('loading'); // Add class to disable hover
 
     lc.style.display = 'block';
     lc.offsetHeight; // Force reflow
@@ -1157,15 +1338,17 @@ function stopLoading() {
 
     setTimeout(() => {
         rs.classList.add("show");
-        // Collapse the input section after results are shown
-        setTimeout(() => {
-            collapseInputSection();
-        }, 500);
+        // Re-enable hover behavior after loading is complete
+        const inputSection = document.getElementById('input-section');
+        inputSection.classList.remove('loading');
+        
         setTimeout(() => {
             lc.style.display = 'none';
         }, 500);
     }, 300);
 }
+
+
 function showWarning(message) {
     document.getElementById("error-container").innerHTML = `
         <div class="warning-message glass-card">
@@ -1467,10 +1650,8 @@ async function validateNames() {
         return;
     }
 
-
     startLoading();
 
-    results = [];
     try {
         const results = await validator(names);
         queryEndTime = performance.now();
@@ -1489,6 +1670,16 @@ async function validateNames() {
         expandedSections.eligible = false;
         expandedSections.ineligible = false;
 
+        // Reset main result section button states
+        const eligibleButton = document.getElementById('eligible-expand');
+        const ineligibleButton = document.getElementById('ineligible-expand');
+        if (eligibleButton) {
+            eligibleButton.textContent = `Show All (${allResults.eligible.length})`;
+        }
+        if (ineligibleButton) {
+            ineligibleButton.textContent = `Show All (${allResults.ineligible.length})`;
+        }
+
         const { allCorps, allAlliances } = summarizeEntities(results);
 
         // Store all summary data
@@ -1501,9 +1692,25 @@ async function validateNames() {
         expandedSummarySections.alliance = false;
         expandedSummarySections.corporation = false;
 
-        // Update summary totals in buttons
-        document.getElementById("alliance-total").textContent = allAlliances.length;
-        document.getElementById("corporation-total").textContent = allCorps.length;
+        // Reset summary button states  
+        const allianceButton = document.getElementById('alliance-expand');
+        const corporationButton = document.getElementById('corporation-expand');
+        if (allianceButton) {
+            allianceButton.textContent = `Show All (${allAlliances.length})`;
+        }
+        if (corporationButton) {
+            corporationButton.textContent = `Show All (${allCorps.length})`;
+        }
+
+        // Update summary totals in buttons - with null checks
+        const allianceTotal = document.getElementById("alliance-total");
+        const corporationTotal = document.getElementById("corporation-total");
+        if (allianceTotal) {
+            allianceTotal.textContent = allAlliances.length;
+        }
+        if (corporationTotal) {
+            corporationTotal.textContent = allCorps.length;
+        }
 
         updateResultsDisplay();
         updateSummaryDisplay();
