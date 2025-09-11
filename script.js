@@ -1,4 +1,4 @@
-const VERSION = "0.1.16";
+const VERSION = "0.1.18";
 const ESI_BASE = "https://esi.evetech.net/latest";
 const USER_AGENT = `WarTargetFinder/${VERSION} (+https://github.com/moregh/moregh.github.io/)`;
 const ESI_HEADERS = {
@@ -820,7 +820,7 @@ function getImageObserver() {
             entries.forEach(entry => {
                 if (entry.isIntersecting) {
                     const img = entry.target;
-                    if (img.dataset.src && !img.dataset.loading) {
+                    if (img.dataset.src && !img.src.startsWith('https://') && document.contains(img)) {
                         img.dataset.loading = 'true';
                         imageLoadQueue.push(img);
                         globalImageObserver.unobserve(img);
@@ -859,13 +859,11 @@ function getAnimationObserver() {
 function processImageQueue() {
     while (imageLoadQueue.length > 0 && currentlyLoading < MAX_CONCURRENT_IMAGES) {
         const img = imageLoadQueue.shift();
-        // Check if image is still in DOM before processing
-        if (img && img.dataset.src && document.contains(img)) {
+        // Check if image is still in DOM and needs loading
+        if (img && img.dataset.src && document.contains(img) && !img.src.startsWith('https://')) {
             loadSingleImage(img);
-        } else {
-            // Skip orphaned images
-            continue;
         }
+        // If image is not valid, just continue to next one
     }
 }
 
@@ -928,7 +926,7 @@ function createOptimizedImage(src, alt, className) {
 
 function createCharacterItem(character, viewType = 'grid') {
     const item = document.createElement("div");
-    item.className = `result-item ${viewType}-view`;
+    item.className = `result-item ${viewType}-view animate-ready`;
     
     const placeholder = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3C/svg%3E";
     
@@ -936,7 +934,6 @@ function createCharacterItem(character, viewType = 'grid') {
         <div class="org-item">
             <img src="${placeholder}" 
                  data-src="https://images.evetech.net/alliances/${character.alliance_id}/logo?size=32"
-                 data-placeholder="${placeholder}"
                  alt="${character.alliance_name}" 
                  class="org-logo" 
                  loading="lazy" 
@@ -950,7 +947,6 @@ function createCharacterItem(character, viewType = 'grid') {
     item.innerHTML = `
         <img src="${placeholder}" 
              data-src="https://images.evetech.net/characters/${character.character_id}/portrait?size=64"
-             data-placeholder="${placeholder}"
              alt="${character.character_name}" 
              class="character-avatar" 
              loading="lazy" 
@@ -966,7 +962,6 @@ function createCharacterItem(character, viewType = 'grid') {
                     <div class="org-item">
                         <img src="${placeholder}" 
                              data-src="https://images.evetech.net/corporations/${character.corporation_id}/logo?size=32"
-                             data-placeholder="${placeholder}"
                              alt="${character.corporation_name}" 
                              class="org-logo" 
                              loading="lazy" 
@@ -981,13 +976,15 @@ function createCharacterItem(character, viewType = 'grid') {
         </div>
     `;
     
-    // Only observe images and animations for non-virtual scrolling contexts
+    // Observe all lazy images immediately - no setTimeout needed
     const lazyImages = item.querySelectorAll('img[data-src]');
     lazyImages.forEach(img => getImageObserver().observe(img));
     
+    // Single animation observer
+    getAnimationObserver().observe(item);
+    
     return item;
 }
-
 
 
 function createSummaryItem({ id, name, count, type }) {
