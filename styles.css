@@ -1672,13 +1672,3 @@ textarea::placeholder {
     }
 }
 
-/* Disable hover expansion during loading */
-.input-section.collapsed.loading:hover {
-    max-height: 60px !important;
-}
-
-.input-section.collapsed.loading:hover .input-content {
-    opacity: 0 !important;
-    transform: translateY(-20px) !important;
-    pointer-events: none !important;
-}
