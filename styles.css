@@ -1608,29 +1608,6 @@ textarea::placeholder {
 .character-avatar, .org-logo, .summary-logo {
     will-change: auto;
 }
-/* Virtual scrolling styles */
-.virtual-scroll-container {
-    height: 400px !important;
-    overflow-y: auto;
-}
-
-.virtual-scroll-container .result-grid {
-    height: auto !important;
-    min-height: auto !important;
-    padding: 0 !important;
-    display: block !important;
-}
-
-.virtual-scroll-content {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(252px, 1fr));
-    gap: 1.35rem;
-    padding: 1.8rem;
-}
-
-.virtual-scroll-content.list-view {
-    grid-template-columns: 1fr;
-}
 /* Virtual scrolling layout fixes */
 .result-grid {
     display: block !important;
@@ -1659,7 +1636,58 @@ textarea::placeholder {
     grid-template-columns: 1fr 1fr;
     gap: 2rem;
 }
+/* Virtual scrolling container styles */
+.virtual-scroll-container {
+    height: 60vh; /* Responsive height */
+    min-height: 300px;
+    max-height: 600px;
+    overflow-y: auto;
+    position: relative;
+}
 
+/* Mobile adjustments */
+@media (max-width: 768px) {
+    .virtual-scroll-container {
+        height: 50vh;
+        min-height: 250px;
+        max-height: 400px;
+    }
+}
+
+.virtual-scroll-spacer {
+    position: relative;
+}
+
+.virtual-scroll-content {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    display: grid;
+    gap: 1.35rem;
+    padding: 1.8rem;
+    grid-template-columns: repeat(auto-fill, minmax(252px, 1fr));
+}
+
+.virtual-scroll-content.list-view {
+    grid-template-columns: 1fr;
+}
+
+/* Mobile virtual scroll adjustments */
+@media (max-width: 768px) {
+    .virtual-scroll-content {
+        grid-template-columns: 1fr !important;
+        padding: 0.9rem;
+        gap: 1rem;
+    }
+}
+
+/* Ensure virtual scrolling works within result grids */
+.result-grid.virtual-enabled {
+    display: block !important;
+    padding: 0 !important;
+    min-height: auto !important;
+}
 /* Fix for mobile */
 @media (max-width: 768px) {
     .results-container {
@@ -1672,3 +1700,13 @@ textarea::placeholder {
     }
 }
 
+/* Disable hover expansion during loading */
+.input-section.collapsed.loading:hover {
+    max-height: 60px !important;
+}
+
+.input-section.collapsed.loading:hover .input-content {
+    opacity: 0 !important;
+    transform: translateY(-20px) !important;
+    pointer-events: none !important;
+}
