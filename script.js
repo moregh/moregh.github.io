@@ -1,4 +1,4 @@
-const VERSION = "0.1.18";
+const VERSION = "0.1.19";
 const ESI_BASE = "https://esi.evetech.net/latest";
 const USER_AGENT = `WarTargetFinder/${VERSION} (+https://github.com/moregh/moregh.github.io/)`;
 const ESI_HEADERS = {
@@ -11,8 +11,10 @@ const CACHE_EXPIRY_HOURS = 12;
 const INITIAL_USER_RESULTS_COUNT = 6;
 const INITIAL_CORP_ALLIANCE_COUNT = 5;
 const LOAD_MORE_COUNT = 12;
-const MAX_ESI_CALL_SIZE = 500;
+const MAX_ESI_CALL_SIZE = 100;
 const MAX_CONCURRENT_IMAGES = 8;
+const CHUNK_SIZE = 50; // Process corporations/alliances in chunks of 50
+const CHUNK_DELAY = 100; // 100ms delay between chunks to be nice to ESI
 
 const characterInfoCache = new Map();
 const corporationInfoCache = new Map();
@@ -289,6 +291,7 @@ async function getCharacterIds(names) {
     const cachedCharacters = [];
     const uncachedNames = [];
 
+    // First, check cache for all names
     for (const name of names) {
         const lowerName = name.toLowerCase();
         if (characterNameToIdCache.has(lowerName)) {
@@ -307,31 +310,58 @@ async function getCharacterIds(names) {
     }
 
     let fetchedCharacters = [];
-    if (uncachedNames.length > MAX_ESI_CALL_SIZE) {
-        console.warn(`Warning: Attempting to fetch ${uncachedNames.length} names exceeds ESI limit of ${MAX_ESI_CALL_SIZE}. Truncating to first ${MAX_ESI_CALL_SIZE}.`);
-        showWarning(`Warning: Attempting to fetch ${uncachedNames.length} names exceeds ESI limit of ${MAX_ESI_CALL_SIZE}. Only the first ${MAX_ESI_CALL_SIZE} names will be processed. Try running the check multiple times.`);
-        uncachedNames.splice(MAX_ESI_CALL_SIZE);
-    }
-
 
     if (uncachedNames.length > 0) {
-        esiLookups++;
-        const res = await fetch(`${ESI_BASE}/universe/ids/`, {
-            method: 'POST',
-            headers: ESI_HEADERS,
-            body: JSON.stringify(uncachedNames)
-        });
-        if (!res.ok) throw new Error(`Failed to get character IDs: ${res.status}`);
-        const data = await res.json();
-        fetchedCharacters = data.characters || [];
-
-        fetchedCharacters.forEach(char => {
-            setCachedNameToId(char.name, char);
-        });
+        // Process uncached names in chunks
+        updateProgress(0, uncachedNames.length, `Looking up ${uncachedNames.length} character names...`);
+        
+        fetchedCharacters = await processInChunks(
+            // Split uncached names into chunks of MAX_ESI_CALL_SIZE
+            chunkArray(uncachedNames, MAX_ESI_CALL_SIZE),
+            async (nameChunk, index, totalChunks) => {
+                esiLookups++;
+                updateProgress(index * MAX_ESI_CALL_SIZE, uncachedNames.length, 
+                    `Looking up character names (batch ${index + 1}/${totalChunks})...`);
+                
+                const res = await fetch(`${ESI_BASE}/universe/ids/`, {
+                    method: 'POST',
+                    headers: ESI_HEADERS,
+                    body: JSON.stringify(nameChunk)
+                });
+                
+                if (!res.ok) {
+                    throw new Error(`Failed to get character IDs for batch ${index + 1}: ${res.status}`);
+                }
+                
+                const data = await res.json();
+                const characters = data.characters || [];
+                
+                // Cache each character immediately
+                characters.forEach(char => {
+                    setCachedNameToId(char.name, char);
+                });
+                
+                return characters;
+            },
+            MAX_ESI_CALL_SIZE, // chunk size
+            CHUNK_DELAY        // chunk delay
+        );
+        
+        // Flatten the results (each chunk returns an array of characters)
+        fetchedCharacters = fetchedCharacters.flat().filter(char => char !== null);
     }
 
     return [...cachedCharacters, ...fetchedCharacters];
 }
+
+function chunkArray(array, chunkSize) {
+    const chunks = [];
+    for (let i = 0; i < array.length; i += chunkSize) {
+        chunks.push(array.slice(i, i + chunkSize));
+    }
+    return chunks;
+}
+
 
 async function getCharacterAffiliations(characterIds) {
     const cachedAffiliations = [];
@@ -413,10 +443,63 @@ async function getAllianceInfo(id) {
     return data;
 }
 
+async function processInChunks(items, processFn, chunkSize = CHUNK_SIZE, delay = CHUNK_DELAY) {
+    const results = [];
+    const totalChunks = items.length;
+    
+    for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        
+        try {
+            // Pass chunk index and total chunks to the processor function
+            const result = await processFn(item, i, totalChunks);
+            if (result !== null && result !== undefined) {
+                if (Array.isArray(result)) {
+                    results.push(...result);
+                } else {
+                    results.push(result);
+                }
+            }
+        } catch (e) {
+            console.error(`Error processing chunk ${i + 1}/${totalChunks}:`, e);
+            // For character ID lookups, we want to continue even if one chunk fails
+            // Return empty array for failed chunks
+            if (processFn.name === 'getCharacterIdChunk' || e.message.includes('character IDs')) {
+                results.push([]);
+            } else {
+                results.push(null);
+            }
+        }
+        
+        // Small delay between chunks
+        if (i + 1 < items.length && delay > 0) {
+            await new Promise(resolve => setTimeout(resolve, delay));
+        }
+    }
+    
+    return results;
+}
+
+// Updated validator function with proper chunking for corps and alliances
 async function validator(names) {
+    // Step 1: Get character IDs (chunked with progress)
     const characters = await getCharacterIds(names);
     const characterIds = characters.map(char => char.id);
 
+    // Check if we got all the characters we expected
+    if (characters.length !== names.length) {
+        const foundNames = new Set(characters.map(c => c.name.toLowerCase()));
+        const missingNames = names.filter(name => !foundNames.has(name.toLowerCase()));
+        console.warn(`Could not find ${missingNames.length} character(s):`, missingNames);
+        
+        if (missingNames.length > 0) {
+            updateProgress(0, 0, `Warning: ${missingNames.length} character names not found`);
+            await new Promise(resolve => setTimeout(resolve, 1500));
+        }
+    }
+
+    // Step 2: Get character affiliations
+    updateProgress(0, characterIds.length, "Getting character affiliations...");
     const affiliations = await getCharacterAffiliations(characterIds);
 
     const affiliationMap = new Map();
@@ -424,103 +507,189 @@ async function validator(names) {
         affiliationMap.set(affiliation.character_id, affiliation);
     });
 
-    const results = [];
-    updateProgress(0, characters.length);
+    // Step 3: Get unique corp and alliance IDs
+    const uniqueCorpIds = Array.from(new Set(affiliations.map(a => a.corporation_id)));
+    const uniqueAllianceIds = Array.from(new Set(affiliations.map(a => a.alliance_id).filter(id => id)));
 
-    const uniqueCorpIds = new Set();
-    const uniqueAllianceIds = new Set();
-
-    affiliations.forEach(affiliation => {
-        uniqueCorpIds.add(affiliation.corporation_id);
-        // FIXED: Only add alliance ID if it actually exists
-        if (affiliation.alliance_id && affiliation.alliance_id > 0) {
-            uniqueAllianceIds.add(affiliation.alliance_id);
-        }
-    });
-
-    // Fetch corporation info
-    const corpPromises = Array.from(uniqueCorpIds).map(id =>
-        getCorporationInfo(id).catch(e => {
-            console.error(`Error fetching corporation ${id}:`, e);
-            return { name: 'Unknown Corporation', war_eligible: false };
-        })
-    );
-    const corpInfos = await Promise.all(corpPromises);
+    // Step 4: Get corporation info in proper chunks
+    updateProgress(0, uniqueCorpIds.length, "Getting corporation information...");
+    
+    const corpChunks = chunkArray(uniqueCorpIds, CHUNK_SIZE);
     const corpMap = new Map();
-    Array.from(uniqueCorpIds).forEach((id, index) => {
-        corpMap.set(id, corpInfos[index]);
-    });
+    let processedCorps = 0;
 
-    // FIXED: Fetch alliance info only if we have alliance IDs
-    const allianceMap = new Map();
-    if (uniqueAllianceIds.size > 0) {
-        const alliancePromises = Array.from(uniqueAllianceIds).map(id =>
-            getAllianceInfo(id).catch(e => {
-                console.error(`Error fetching alliance ${id}:`, e);
-                return { name: 'Unknown Alliance' };
-            })
-        );
-        const allianceInfos = await Promise.all(alliancePromises);
-        // FIXED: Properly map alliance IDs to their info without modifying the original data
-        Array.from(uniqueAllianceIds).forEach((id, index) => {
-            allianceMap.set(id, allianceInfos[index]);
+    for (let i = 0; i < corpChunks.length; i++) {
+        const chunk = corpChunks[i];
+        
+        // Process all corps in this chunk concurrently
+        const chunkPromises = chunk.map(async (corpId) => {
+            try {
+                const info = await getCorporationInfo(corpId);
+                return { id: corpId, info };
+            } catch (e) {
+                console.error(`Error fetching corporation ${corpId}:`, e);
+                return { id: corpId, info: { name: 'Unknown Corporation', war_eligible: false } };
+            }
         });
-    }   
 
-    for (let i = 0; i < characters.length; i++) {
-        const char = characters[i];
-        try {
-            const affiliation = affiliationMap.get(char.id);
-            if (!affiliation) {
-                throw new Error(`No affiliation found for character ${char.name}`);
+        const chunkResults = await Promise.all(chunkPromises);
+        
+        // Store results in map
+        chunkResults.forEach(result => {
+            if (result && result.info) {
+                corpMap.set(result.id, result.info);
             }
+        });
 
-            const corpInfo = corpMap.get(affiliation.corporation_id);
-            if (!corpInfo) {
-                throw new Error(`No corporation info found for corporation ${affiliation.corporation_id}`);
-            }
+        processedCorps += chunk.length;
+        updateProgress(processedCorps, uniqueCorpIds.length, 
+            `Getting corporation information (${processedCorps}/${uniqueCorpIds.length})...`);
 
-            let result = {
-                character_name: char.name,
-                character_id: char.id,
-                corporation_name: corpInfo.name,
-                corporation_id: affiliation.corporation_id,
-                alliance_name: null,
-                alliance_id: null,
-                war_eligible: false
-            };
-
-            // FIXED: Properly handle alliance information
-            if (affiliation.alliance_id && affiliation.alliance_id > 0) {
-                const allianceInfo = allianceMap.get(affiliation.alliance_id);
-                if (allianceInfo) {
-                    result.alliance_name = allianceInfo.name;
-                    result.alliance_id = affiliation.alliance_id; // Use the affiliation ID
-                } else {
-                    console.warn(`Alliance info not found for alliance ID ${affiliation.alliance_id} for character ${char.name}`);
-                    // FIXED: Don't assign alliance info if we couldn't fetch it
-                    // Leave alliance_name and alliance_id as null
-                }
-            }
-            // FIXED: If no alliance_id in affiliation, alliance_name and alliance_id remain null
-
-            if (corpInfo.war_eligible !== undefined) result.war_eligible = corpInfo.war_eligible;
-            results.push(result);
-        } catch (e) {
-            console.error(`Error processing character ${char.name}:`, e);
-            results.push({
-                character_name: char.name,
-                character_id: char.id,
-                corporation_name: 'Error loading',
-                corporation_id: null,
-                alliance_name: null,
-                alliance_id: null,
-                war_eligible: false
-            });
+        // Delay between chunks
+        if (i + 1 < corpChunks.length) {
+            await new Promise(resolve => setTimeout(resolve, CHUNK_DELAY));
         }
-        updateProgress(i + 1, characters.length);
     }
-    return results;
+
+    // Step 5: Get alliance info in proper chunks (if any alliances exist)
+    if (uniqueAllianceIds.length > 0) {
+        updateProgress(0, uniqueAllianceIds.length, "Getting alliance information...");
+        
+        const allianceChunks = chunkArray(uniqueAllianceIds, CHUNK_SIZE);
+        const allianceMap = new Map();
+        let processedAlliances = 0;
+
+        for (let i = 0; i < allianceChunks.length; i++) {
+            const chunk = allianceChunks[i];
+            
+            // Process all alliances in this chunk concurrently
+            const chunkPromises = chunk.map(async (allianceId) => {
+                try {
+                    const info = await getAllianceInfo(allianceId);
+                    return { id: allianceId, info };
+                } catch (e) {
+                    console.error(`Error fetching alliance ${allianceId}:`, e);
+                    return { id: allianceId, info: { name: 'Unknown Alliance' } };
+                }
+            });
+
+            const chunkResults = await Promise.all(chunkPromises);
+            
+            // Store results in map
+            chunkResults.forEach(result => {
+                if (result && result.info) {
+                    allianceMap.set(result.id, result.info);
+                }
+            });
+
+            processedAlliances += chunk.length;
+            updateProgress(processedAlliances, uniqueAllianceIds.length, 
+                `Getting alliance information (${processedAlliances}/${uniqueAllianceIds.length})...`);
+
+            // Delay between chunks
+            if (i + 1 < allianceChunks.length) {
+                await new Promise(resolve => setTimeout(resolve, CHUNK_DELAY));
+            }
+        }
+
+        // Step 6: Build final results (with alliances)
+        updateProgress(0, characters.length, "Building final results...");
+        const results = [];
+
+        for (let i = 0; i < characters.length; i++) {
+            const char = characters[i];
+            try {
+                const affiliation = affiliationMap.get(char.id);
+                if (!affiliation) {
+                    throw new Error(`No affiliation found for character ${char.name}`);
+                }
+
+                const corpInfo = corpMap.get(affiliation.corporation_id);
+                if (!corpInfo) {
+                    throw new Error(`No corporation info found for corporation ${affiliation.corporation_id}`);
+                }
+
+                let result = {
+                    character_name: char.name,
+                    character_id: char.id,
+                    corporation_name: corpInfo.name,
+                    corporation_id: affiliation.corporation_id,
+                    alliance_name: null,
+                    alliance_id: null,
+                    war_eligible: false
+                };
+
+                if (affiliation.alliance_id) {
+                    const allianceInfo = allianceMap.get(affiliation.alliance_id);
+                    if (allianceInfo) {
+                        result.alliance_name = allianceInfo.name;
+                        result.alliance_id = affiliation.alliance_id;
+                    }
+                }
+
+                if (corpInfo.war_eligible !== undefined) result.war_eligible = corpInfo.war_eligible;
+                results.push(result);
+            } catch (e) {
+                console.error(`Error processing character ${char.name}:`, e);
+                results.push({
+                    character_name: char.name,
+                    character_id: char.id,
+                    corporation_name: 'Error loading',
+                    corporation_id: null,
+                    alliance_name: null,
+                    alliance_id: null,
+                    war_eligible: false
+                });
+            }
+            updateProgress(i + 1, characters.length, "Building final results...");
+        }
+        return results;
+    } else {
+        // Step 6: Build final results (no alliances)
+        updateProgress(0, characters.length, "Building final results...");
+        const results = [];
+
+        for (let i = 0; i < characters.length; i++) {
+            const char = characters[i];
+            try {
+                const affiliation = affiliationMap.get(char.id);
+                if (!affiliation) {
+                    throw new Error(`No affiliation found for character ${char.name}`);
+                }
+
+                const corpInfo = corpMap.get(affiliation.corporation_id);
+                if (!corpInfo) {
+                    throw new Error(`No corporation info found for corporation ${affiliation.corporation_id}`);
+                }
+
+                let result = {
+                    character_name: char.name,
+                    character_id: char.id,
+                    corporation_name: corpInfo.name,
+                    corporation_id: affiliation.corporation_id,
+                    alliance_name: null,
+                    alliance_id: null,
+                    war_eligible: false
+                };
+
+                if (corpInfo.war_eligible !== undefined) result.war_eligible = corpInfo.war_eligible;
+                results.push(result);
+            } catch (e) {
+                console.error(`Error processing character ${char.name}:`, e);
+                results.push({
+                    character_name: char.name,
+                    character_id: char.id,
+                    corporation_name: 'Error loading',
+                    corporation_id: null,
+                    alliance_name: null,
+                    alliance_id: null,
+                    war_eligible: false
+                });
+            }
+            updateProgress(i + 1, characters.length, "Building final results...");
+        }
+        return results;
+    }
 }
 
 function createCharacterItem(character, viewType = 'grid') {
@@ -701,7 +870,7 @@ function getProgressElements() {
     return progressElements;
 }
 
-function updateProgress(current, total) {
+function updateProgress(current, total, stage = null) {
     // Throttle progress updates to every 50ms
     const now = Date.now();
     if (now - lastProgressUpdate < 50 && current < total) return;
@@ -710,7 +879,14 @@ function updateProgress(current, total) {
     const p = total > 0 ? (current / total) * 100 : 0;
 
     if (elements.bar) elements.bar.style.width = p + '%';
-    if (elements.text) elements.text.textContent = `Processed: ${current} / ${total}`;
+    
+    if (elements.text) {
+        if (stage) {
+            elements.text.textContent = `${stage} (${current} / ${total})`;
+        } else {
+            elements.text.textContent = `Processed: ${current} / ${total}`;
+        }
+    }
 
     lastProgressUpdate = now;
 }
