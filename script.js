@@ -1,4 +1,4 @@
-const VERSION = "0.1.16";
+const VERSION = "0.1.17";
 const ESI_BASE = "https://esi.evetech.net/latest";
 const USER_AGENT = `WarTargetFinder/${VERSION} (+https://github.com/moregh/moregh.github.io/)`;
 const ESI_HEADERS = {
@@ -437,6 +437,7 @@ async function validator(names) {
         }
     });
 
+    // Fetch corporation info
     const corpPromises = Array.from(uniqueCorpIds).map(id =>
         getCorporationInfo(id).catch(e => {
             console.error(`Error fetching corporation ${id}:`, e);
@@ -449,17 +450,23 @@ async function validator(names) {
         corpMap.set(id, corpInfos[index]);
     });
 
-    const alliancePromises = Array.from(uniqueAllianceIds).map(id =>
-        getAllianceInfo(id).catch(e => {
-            console.error(`Error fetching alliance ${id}:`, e);
-            return { name: 'Unknown Alliance' };
-        })
-    );
-    const allianceInfos = await Promise.all(alliancePromises);
+    // Fetch alliance info - FIXED: Only fetch if we have alliance IDs
     const allianceMap = new Map();
-    Array.from(uniqueAllianceIds).forEach((id, index) => {
-        allianceMap.set(id, allianceInfos[index]);
-    });
+    if (uniqueAllianceIds.size > 0) {
+        const alliancePromises = Array.from(uniqueAllianceIds).map(id =>
+            getAllianceInfo(id).catch(e => {
+                console.error(`Error fetching alliance ${id}:`, e);
+                return { name: 'Unknown Alliance', alliance_id: id };
+            })
+        );
+        const allianceInfos = await Promise.all(alliancePromises);
+        // FIXED: Properly map alliance IDs to their info
+        Array.from(uniqueAllianceIds).forEach((id, index) => {
+            const allianceInfo = allianceInfos[index];
+            // Ensure we store the ID in the alliance info for reference
+            allianceMap.set(id, { ...allianceInfo, alliance_id: id });
+        });
+    }
 
     for (let i = 0; i < characters.length; i++) {
         const char = characters[i];
@@ -484,11 +491,17 @@ async function validator(names) {
                 war_eligible: false
             };
 
+            // FIXED: Properly handle alliance information
             if (affiliation.alliance_id) {
                 const allianceInfo = allianceMap.get(affiliation.alliance_id);
                 if (allianceInfo) {
                     result.alliance_name = allianceInfo.name;
+                    result.alliance_id = affiliation.alliance_id; // Use the affiliation ID, not the info ID
+                } else {
+                    console.warn(`Alliance info not found for alliance ID ${affiliation.alliance_id} for character ${char.name}`);
+                    // Still set the alliance_id from affiliation even if we couldn't get the name
                     result.alliance_id = affiliation.alliance_id;
+                    result.alliance_name = `Alliance ${affiliation.alliance_id}`;
                 }
             }
 
