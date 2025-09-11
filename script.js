@@ -1,4 +1,4 @@
-const VERSION = "0.1.17";
+const VERSION = "0.1.16";
 const ESI_BASE = "https://esi.evetech.net/latest";
 const USER_AGENT = `WarTargetFinder/${VERSION} (+https://github.com/moregh/moregh.github.io/)`;
 const ESI_HEADERS = {
@@ -432,7 +432,8 @@ async function validator(names) {
 
     affiliations.forEach(affiliation => {
         uniqueCorpIds.add(affiliation.corporation_id);
-        if (affiliation.alliance_id) {
+        // FIXED: Only add alliance ID if it actually exists
+        if (affiliation.alliance_id && affiliation.alliance_id > 0) {
             uniqueAllianceIds.add(affiliation.alliance_id);
         }
     });
@@ -450,23 +451,21 @@ async function validator(names) {
         corpMap.set(id, corpInfos[index]);
     });
 
-    // Fetch alliance info - FIXED: Only fetch if we have alliance IDs
+    // FIXED: Fetch alliance info only if we have alliance IDs
     const allianceMap = new Map();
     if (uniqueAllianceIds.size > 0) {
         const alliancePromises = Array.from(uniqueAllianceIds).map(id =>
             getAllianceInfo(id).catch(e => {
                 console.error(`Error fetching alliance ${id}:`, e);
-                return { name: 'Unknown Alliance', alliance_id: id };
+                return { name: 'Unknown Alliance' };
             })
         );
         const allianceInfos = await Promise.all(alliancePromises);
-        // FIXED: Properly map alliance IDs to their info
+        // FIXED: Properly map alliance IDs to their info without modifying the original data
         Array.from(uniqueAllianceIds).forEach((id, index) => {
-            const allianceInfo = allianceInfos[index];
-            // Ensure we store the ID in the alliance info for reference
-            allianceMap.set(id, { ...allianceInfo, alliance_id: id });
+            allianceMap.set(id, allianceInfos[index]);
         });
-    }
+    }   
 
     for (let i = 0; i < characters.length; i++) {
         const char = characters[i];
@@ -492,18 +491,18 @@ async function validator(names) {
             };
 
             // FIXED: Properly handle alliance information
-            if (affiliation.alliance_id) {
+            if (affiliation.alliance_id && affiliation.alliance_id > 0) {
                 const allianceInfo = allianceMap.get(affiliation.alliance_id);
                 if (allianceInfo) {
                     result.alliance_name = allianceInfo.name;
-                    result.alliance_id = affiliation.alliance_id; // Use the affiliation ID, not the info ID
+                    result.alliance_id = affiliation.alliance_id; // Use the affiliation ID
                 } else {
                     console.warn(`Alliance info not found for alliance ID ${affiliation.alliance_id} for character ${char.name}`);
-                    // Still set the alliance_id from affiliation even if we couldn't get the name
-                    result.alliance_id = affiliation.alliance_id;
-                    result.alliance_name = `Alliance ${affiliation.alliance_id}`;
+                    // FIXED: Don't assign alliance info if we couldn't fetch it
+                    // Leave alliance_name and alliance_id as null
                 }
             }
+            // FIXED: If no alliance_id in affiliation, alliance_name and alliance_id remain null
 
             if (corpInfo.war_eligible !== undefined) result.war_eligible = corpInfo.war_eligible;
             results.push(result);
@@ -522,6 +521,152 @@ async function validator(names) {
         updateProgress(i + 1, characters.length);
     }
     return results;
+}
+
+function createCharacterItem(character, viewType = 'grid') {
+    const item = document.createElement("div");
+    item.className = `result-item ${viewType}-view`;
+    
+    const placeholder = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3C/svg%3E";
+    
+    // FIXED: Only create alliance section if character actually has an alliance
+    const allianceSection = character.alliance_name && character.alliance_id ? `
+        <div class="org-item">
+            <img src="${placeholder}" 
+                 data-src="https://images.evetech.net/alliances/${character.alliance_id}/logo?size=32"
+                 data-placeholder="${placeholder}"
+                 alt="${character.alliance_name}" 
+                 class="org-logo" 
+                 loading="lazy" 
+                 decoding="async">
+            <a href="https://zkillboard.com/alliance/${character.alliance_id}/" 
+               target="_blank" 
+               class="character-link">${character.alliance_name}</a>
+        </div>
+    ` : '';
+    
+    item.innerHTML = `
+        <img src="${placeholder}" 
+             data-src="https://images.evetech.net/characters/${character.character_id}/portrait?size=64"
+             data-placeholder="${placeholder}"
+             alt="${character.character_name}" 
+             class="character-avatar" 
+             loading="lazy" 
+             decoding="async">
+        <div class="character-content">
+            <div class="character-name">
+                <a href="https://zkillboard.com/character/${character.character_id}/" 
+                   target="_blank" 
+                   class="character-link">${character.character_name}</a>
+            </div>
+            <div class="character-details">
+                <div class="corp-alliance-info">
+                    <div class="org-item">
+                        <img src="${placeholder}" 
+                             data-src="https://images.evetech.net/corporations/${character.corporation_id}/logo?size=32"
+                             data-placeholder="${placeholder}"
+                             alt="${character.corporation_name}" 
+                             class="org-logo" 
+                             loading="lazy" 
+                             decoding="async">
+                        <a href="https://zkillboard.com/corporation/${character.corporation_id}/" 
+                           target="_blank" 
+                           class="character-link">${character.corporation_name}</a>
+                    </div>
+                    ${allianceSection}
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Only observe images and animations for non-virtual scrolling contexts
+    const lazyImages = item.querySelectorAll('img[data-src]');
+    lazyImages.forEach(img => getImageObserver().observe(img));
+    
+    return item;
+}
+
+function updateElementContent(element, character, viewType) {
+    // Update the element's content without recreating it
+    const avatar = element.querySelector('.character-avatar');
+    const characterLink = element.querySelector('.character-name a');
+    const corpLogo = element.querySelector('.corp-alliance-info .org-logo');
+    const corpLink = element.querySelector('.corp-alliance-info .character-link');
+    
+    if (avatar) {
+        avatar.alt = character.character_name;
+        avatar.dataset.src = `https://images.evetech.net/characters/${character.character_id}/portrait?size=64`;
+        if (avatar.dataset.src !== avatar.src) {
+            getImageObserver().observe(avatar);
+        }
+    }
+    
+    if (characterLink) {
+        characterLink.textContent = character.character_name;
+        characterLink.href = `https://zkillboard.com/character/${character.character_id}/`;
+    }
+    
+    if (corpLogo) {
+        corpLogo.alt = character.corporation_name;
+        corpLogo.dataset.src = `https://images.evetech.net/corporations/${character.corporation_id}/logo?size=32`;
+        if (corpLogo.dataset.src !== corpLogo.src) {
+            getImageObserver().observe(corpLogo);
+        }
+    }
+    
+    if (corpLink) {
+        corpLink.textContent = character.corporation_name;
+        corpLink.href = `https://zkillboard.com/corporation/${character.corporation_id}/`;
+    }
+    
+    // FIXED: Handle alliance info properly
+    const corpAllianceInfo = element.querySelector('.corp-alliance-info');
+    let allianceSection = element.querySelector('.org-item:last-child');
+    
+    // Check if the alliance section is actually for alliance (not corp)
+    const isAllianceSection = allianceSection && allianceSection.querySelector('a[href*="/alliance/"]');
+    
+    if (character.alliance_name && character.alliance_id) {
+        if (!isAllianceSection) {
+            // Need to create alliance section
+            const newAllianceSection = document.createElement('div');
+            newAllianceSection.className = 'org-item';
+            newAllianceSection.innerHTML = `
+                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3C/svg%3E" 
+                     data-src="https://images.evetech.net/alliances/${character.alliance_id}/logo?size=32"
+                     alt="${character.alliance_name}" 
+                     class="org-logo" 
+                     loading="lazy" 
+                     decoding="async">
+                <a href="https://zkillboard.com/alliance/${character.alliance_id}/" 
+                   target="_blank" 
+                   class="character-link">${character.alliance_name}</a>
+            `;
+            corpAllianceInfo.appendChild(newAllianceSection);
+            const allianceLogo = newAllianceSection.querySelector('.org-logo');
+            getImageObserver().observe(allianceLogo);
+        } else {
+            // Update existing alliance section
+            const allianceLogo = allianceSection.querySelector('.org-logo');
+            const allianceLink = allianceSection.querySelector('.character-link');
+            
+            if (allianceLogo) {
+                allianceLogo.alt = character.alliance_name;
+                allianceLogo.dataset.src = `https://images.evetech.net/alliances/${character.alliance_id}/logo?size=32`;
+                getImageObserver().observe(allianceLogo);
+            }
+            
+            if (allianceLink) {
+                allianceLink.textContent = character.alliance_name;
+                allianceLink.href = `https://zkillboard.com/alliance/${character.alliance_id}/`;
+            }
+        }
+    } else {
+        // Character has no alliance, remove alliance section if it exists
+        if (isAllianceSection) {
+            allianceSection.remove();
+        }
+    }
 }
 
 function getLocalStorageSize() {
