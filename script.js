@@ -1,4 +1,4 @@
-const VERSION = "0.1.14";
+const VERSION = "0.1.15";
 const ESI_BASE = "https://esi.evetech.net/latest";
 const USER_AGENT = `WarTargetFinder/${VERSION} (+https://github.com/moregh/moregh.github.io/)`;
 const ESI_HEADERS = {
@@ -92,11 +92,36 @@ document.addEventListener('click', function (event) {
     }
 });
 
+// function setupCollapsedIndicatorClick() {
+//     const inputSection = document.getElementById('input-section');
+//     const collapsedIndicator = inputSection.querySelector('.collapsed-indicator');
+
+//     collapsedIndicator.setAttribute('data-action', 'expand-input');
+// }
 function setupCollapsedIndicatorClick() {
     const inputSection = document.getElementById('input-section');
     const collapsedIndicator = inputSection.querySelector('.collapsed-indicator');
 
-    collapsedIndicator.setAttribute('data-action', 'expand-input');
+    // The click is already handled by event delegation, just add hover behavior
+    let hoverTimeout;
+    
+    inputSection.addEventListener('mouseenter', () => {
+        if (inputSection.classList.contains('collapsed')) {
+            clearTimeout(hoverTimeout);
+            hoverTimeout = setTimeout(() => {
+                if (inputSection.classList.contains('collapsed')) {
+                    inputSection.style.maxHeight = 'none';
+                }
+            }, 200);
+        }
+    });
+    
+    inputSection.addEventListener('mouseleave', () => {
+        clearTimeout(hoverTimeout);
+        if (inputSection.classList.contains('collapsed') && !inputSection.matches(':hover')) {
+            inputSection.style.maxHeight = '';
+        }
+    });
 }
 
 // Cache management functions
