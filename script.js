@@ -1,4 +1,4 @@
-const VERSION = "0.1.15";
+const VERSION = "0.1.16";
 const ESI_BASE = "https://esi.evetech.net/latest";
 const USER_AGENT = `WarTargetFinder/${VERSION} (+https://github.com/moregh/moregh.github.io/)`;
 const ESI_HEADERS = {
@@ -763,9 +763,10 @@ function createOptimizedImage(src, alt, className) {
     return img;
 }
 
+
 function createCharacterItem(character, viewType = 'grid') {
     const item = document.createElement("div");
-    item.className = `result-item ${viewType}-view animate-ready`;
+    item.className = `result-item ${viewType}-view`;
     
     const placeholder = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3C/svg%3E";
     
@@ -818,12 +819,9 @@ function createCharacterItem(character, viewType = 'grid') {
         </div>
     `;
     
-    // Observe all lazy images at once
+    // Only observe images and animations for non-virtual scrolling contexts
     const lazyImages = item.querySelectorAll('img[data-src]');
     lazyImages.forEach(img => getImageObserver().observe(img));
-    
-    // Single animation observer
-    getAnimationObserver().observe(item);
     
     return item;
 }
@@ -1001,8 +999,8 @@ function setupVirtualScrolling(containerId, items) {
     }
     
     const isListView = parentGrid.classList.contains('list-view');
-    const itemHeight = isListView ? 90 : 150; // Fixed heights
-    const containerWidth = parentGrid.clientWidth - 60; // Account for padding
+    const itemHeight = isListView ? 90 : 150;
+    const containerWidth = parentGrid.clientWidth - 60;
     const itemsPerRow = isListView ? 1 : Math.max(1, Math.floor(containerWidth / 270));
     const totalRows = Math.ceil(items.length / itemsPerRow);
     const totalHeight = totalRows * itemHeight;
@@ -1025,6 +1023,7 @@ function setupVirtualScrolling(containerId, items) {
     content.style.display = 'grid';
     content.style.gap = '1.35rem';
     content.style.padding = '1.8rem';
+    content.style.willChange = 'transform'; // Optimize for transforms
     
     if (isListView) {
         content.style.gridTemplateColumns = '1fr';
@@ -1039,6 +1038,94 @@ function setupVirtualScrolling(containerId, items) {
     let isUpdating = false;
     let lastStartIndex = -1;
     let lastEndIndex = -1;
+    let animationFrame = null;
+    
+    // Create a reusable element pool to avoid DOM creation/destruction
+    const elementPool = [];
+    const activeElements = [];
+    
+    function createPooledElement(character, viewType) {
+        let element = elementPool.pop();
+        if (!element) {
+            element = createCharacterItem(character, viewType);
+            // Disable animations for virtual scrolling to prevent flicker
+            element.classList.remove('animate-ready');
+            element.style.opacity = '1';
+            element.style.transform = 'translateY(0)';
+        } else {
+            // Update existing element with new data
+            updateElementContent(element, character, viewType);
+        }
+        return element;
+    }
+    
+    function updateElementContent(element, character, viewType) {
+        // Update the element's content without recreating it
+        const avatar = element.querySelector('.character-avatar');
+        const characterLink = element.querySelector('.character-name a');
+        const corpLogo = element.querySelector('.corp-alliance-info .org-logo');
+        const corpLink = element.querySelector('.corp-alliance-info .character-link');
+        
+        if (avatar) {
+            avatar.alt = character.character_name;
+            avatar.dataset.src = `https://images.evetech.net/characters/${character.character_id}/portrait?size=64`;
+            if (avatar.dataset.src !== avatar.src) {
+                getImageObserver().observe(avatar);
+            }
+        }
+        
+        if (characterLink) {
+            characterLink.textContent = character.character_name;
+            characterLink.href = `https://zkillboard.com/character/${character.character_id}/`;
+        }
+        
+        if (corpLogo) {
+            corpLogo.alt = character.corporation_name;
+            corpLogo.dataset.src = `https://images.evetech.net/corporations/${character.corporation_id}/logo?size=32`;
+            if (corpLogo.dataset.src !== corpLogo.src) {
+                getImageObserver().observe(corpLogo);
+            }
+        }
+        
+        if (corpLink) {
+            corpLink.textContent = character.corporation_name;
+            corpLink.href = `https://zkillboard.com/corporation/${character.corporation_id}/`;
+        }
+        
+        // Handle alliance info
+        const allianceSection = element.querySelector('.org-item:last-child');
+        if (character.alliance_name && character.alliance_id) {
+            if (!allianceSection || !allianceSection.querySelector('img[alt="' + character.alliance_name + '"]')) {
+                // Need to rebuild alliance section
+                const corpAllianceInfo = element.querySelector('.corp-alliance-info');
+                if (corpAllianceInfo && corpAllianceInfo.children.length === 1) {
+                    const newAllianceSection = document.createElement('div');
+                    newAllianceSection.className = 'org-item';
+                    newAllianceSection.innerHTML = `
+                        <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3C/svg%3E" 
+                             data-src="https://images.evetech.net/alliances/${character.alliance_id}/logo?size=32"
+                             alt="${character.alliance_name}" 
+                             class="org-logo" 
+                             loading="lazy" 
+                             decoding="async">
+                        <a href="https://zkillboard.com/alliance/${character.alliance_id}/" 
+                           target="_blank" 
+                           class="character-link">${character.alliance_name}</a>
+                    `;
+                    corpAllianceInfo.appendChild(newAllianceSection);
+                    const allianceLogo = newAllianceSection.querySelector('.org-logo');
+                    getImageObserver().observe(allianceLogo);
+                }
+            }
+        } else if (allianceSection && allianceSection.querySelector('img[alt*="alliance"]')) {
+            // Remove alliance section if character has no alliance
+            allianceSection.remove();
+        }
+    }
+    
+    function returnElementToPool(element) {
+        elementPool.push(element);
+    }
     
     function updateVisibleItems() {
         if (isUpdating) return;
@@ -1046,16 +1133,22 @@ function setupVirtualScrolling(containerId, items) {
         
         const scrollTop = container.scrollTop;
         const containerHeight = container.clientHeight;
-        const buffer = 20; // Number of items to render outside visible area
         
-        const startRow = Math.max(0, Math.floor(scrollTop / itemHeight) - buffer);
-        const endRow = Math.min(totalRows, Math.ceil((scrollTop + containerHeight) / itemHeight) + buffer);
+        // Smaller, more stable buffer
+        const visibleRows = Math.ceil(containerHeight / itemHeight);
+        const bufferRows = Math.max(2, Math.ceil(visibleRows * 0.5)); // 50% buffer
+        
+        const centerRow = Math.floor(scrollTop / itemHeight) + Math.floor(visibleRows / 2);
+        const startRow = Math.max(0, centerRow - Math.floor(visibleRows / 2) - bufferRows);
+        const endRow = Math.min(totalRows, centerRow + Math.ceil(visibleRows / 2) + bufferRows);
         
         const startIndex = startRow * itemsPerRow;
         const endIndex = Math.min(items.length, endRow * itemsPerRow);
         
-        // Only update if range has changed significantly
-        if (startIndex === lastStartIndex && endIndex === lastEndIndex) {
+        // Much more conservative update threshold
+        const changeThreshold = Math.max(1, Math.floor(itemsPerRow / 2));
+        if (Math.abs(startIndex - lastStartIndex) < changeThreshold && 
+            Math.abs(endIndex - lastEndIndex) < changeThreshold) {
             isUpdating = false;
             return;
         }
@@ -1063,34 +1156,47 @@ function setupVirtualScrolling(containerId, items) {
         lastStartIndex = startIndex;
         lastEndIndex = endIndex;
         
-        content.style.transform = `translateY(${startRow * itemHeight}px)`;
+        // Use transform for smooth positioning
+        content.style.transform = `translate3d(0, ${startRow * itemHeight}px, 0)`;
         
-        requestAnimationFrame(() => {
-            const fragment = document.createDocumentFragment();
+        // Cancel any pending frame
+        if (animationFrame) {
+            cancelAnimationFrame(animationFrame);
+        }
+        
+        animationFrame = requestAnimationFrame(() => {
+            // Return current elements to pool
+            activeElements.forEach(element => {
+                content.removeChild(element);
+                returnElementToPool(element);
+            });
+            activeElements.length = 0;
             
+            // Add new elements from pool
             for (let i = startIndex; i < endIndex; i++) {
                 if (items[i]) {
-                    const element = createCharacterItem(items[i], isListView ? 'list' : 'grid');
-                    fragment.appendChild(element);
+                    const element = createPooledElement(items[i], isListView ? 'list' : 'grid');
+                    content.appendChild(element);
+                    activeElements.push(element);
                 }
             }
             
-            content.innerHTML = '';
-            content.appendChild(fragment);
             isUpdating = false;
+            animationFrame = null;
         });
     }
     
-    // Throttled scroll handler
-    let scrollTicking = false;
+    // Debounced scroll handler
+    let scrollTimeout = null;
     function onScroll() {
-        if (!scrollTicking) {
-            requestAnimationFrame(() => {
-                updateVisibleItems();
-                scrollTicking = false;
-            });
-            scrollTicking = true;
+        if (scrollTimeout) {
+            clearTimeout(scrollTimeout);
         }
+        
+        scrollTimeout = setTimeout(() => {
+            updateVisibleItems();
+            scrollTimeout = null;
+        }, 16); // ~60fps
     }
     
     container._scrollListener = onScroll;
@@ -1100,10 +1206,19 @@ function setupVirtualScrolling(containerId, items) {
     
     // Store cleanup function
     container._cleanup = () => {
+        if (animationFrame) {
+            cancelAnimationFrame(animationFrame);
+        }
+        if (scrollTimeout) {
+            clearTimeout(scrollTimeout);
+        }
         if (container._scrollListener) {
             container.removeEventListener('scroll', container._scrollListener);
             delete container._scrollListener;
         }
+        // Clear pools
+        elementPool.length = 0;
+        activeElements.length = 0;
     };
 }
 
@@ -1123,6 +1238,11 @@ function startLoading() {
     const rs = document.getElementById("results-section");
     const cb = document.getElementById("checkButton");
     const ec = document.getElementById("error-container");
+
+    // Collapse input section and disable hover during loading
+    const inputSection = document.getElementById('input-section');
+    collapseInputSection();
+    inputSection.classList.add('loading'); // Add class to disable hover
 
     lc.style.display = 'block';
     lc.offsetHeight; // Force reflow
@@ -1157,15 +1277,17 @@ function stopLoading() {
 
     setTimeout(() => {
         rs.classList.add("show");
-        // Collapse the input section after results are shown
-        setTimeout(() => {
-            collapseInputSection();
-        }, 500);
+        // Re-enable hover behavior after loading is complete
+        const inputSection = document.getElementById('input-section');
+        inputSection.classList.remove('loading');
+        
         setTimeout(() => {
             lc.style.display = 'none';
         }, 500);
     }, 300);
 }
+
+
 function showWarning(message) {
     document.getElementById("error-container").innerHTML = `
         <div class="warning-message glass-card">
@@ -1467,7 +1589,6 @@ async function validateNames() {
         return;
     }
 
-
     startLoading();
 
     results = [];
@@ -1489,6 +1610,16 @@ async function validateNames() {
         expandedSections.eligible = false;
         expandedSections.ineligible = false;
 
+        // Reset main result section button states
+        const eligibleButton = document.getElementById('eligible-expand');
+        const ineligibleButton = document.getElementById('ineligible-expand');
+        if (eligibleButton) {
+            eligibleButton.textContent = `Show All (${allResults.eligible.length})`;
+        }
+        if (ineligibleButton) {
+            ineligibleButton.textContent = `Show All (${allResults.ineligible.length})`;
+        }
+
         const { allCorps, allAlliances } = summarizeEntities(results);
 
         // Store all summary data
@@ -1501,9 +1632,25 @@ async function validateNames() {
         expandedSummarySections.alliance = false;
         expandedSummarySections.corporation = false;
 
-        // Update summary totals in buttons
-        document.getElementById("alliance-total").textContent = allAlliances.length;
-        document.getElementById("corporation-total").textContent = allCorps.length;
+        // Reset summary button states  
+        const allianceButton = document.getElementById('alliance-expand');
+        const corporationButton = document.getElementById('corporation-expand');
+        if (allianceButton) {
+            allianceButton.textContent = `Show All (${allAlliances.length})`;
+        }
+        if (corporationButton) {
+            corporationButton.textContent = `Show All (${allCorps.length})`;
+        }
+
+        // Update summary totals in buttons - with null checks
+        const allianceTotal = document.getElementById("alliance-total");
+        const corporationTotal = document.getElementById("corporation-total");
+        if (allianceTotal) {
+            allianceTotal.textContent = allAlliances.length;
+        }
+        if (corporationTotal) {
+            corporationTotal.textContent = allCorps.length;
+        }
 
         updateResultsDisplay();
         updateSummaryDisplay();
