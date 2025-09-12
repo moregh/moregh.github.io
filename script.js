@@ -1,4 +1,4 @@
-const VERSION = "0.2.3";
+const VERSION = "0.2.4";
 const ESI_BASE = "https://esi.evetech.net/latest";
 const USER_AGENT = `WarTargetFinder/${VERSION} (+https://github.com/moregh/moregh.github.io/)`;
 const ESI_HEADERS = {
@@ -1689,12 +1689,17 @@ function createSummaryItem({ id, name, count, type }) {
     const item = document.createElement("div");
     item.className = "summary-item";
 
-    // Use optimized image loading
-    const logo = createOptimizedImage(
-        `https://images.evetech.net/${type}s/${id}/logo?size=32`,
-        name,
-        "summary-logo"
-    );
+    // Create the logo element manually instead of using createOptimizedImage
+    const logo = document.createElement("img");
+    logo.className = "summary-logo";
+    logo.alt = name;
+    logo.loading = "lazy";
+    logo.decoding = "async";
+    
+    const placeholder = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3C/svg%3E";
+    logo.src = placeholder;
+    logo.dataset.src = `https://images.evetech.net/${type}s/${id}/logo?size=32`;
+    
     item.appendChild(logo);
 
     const content = document.createElement("div");
@@ -1712,6 +1717,12 @@ function createSummaryItem({ id, name, count, type }) {
 
     item.appendChild(content);
     item.appendChild(createMouseoverCard({ id, name, count }, type));
+    
+    // FIXED: Observe the logo image after it's in the DOM structure
+    requestAnimationFrame(() => {
+        observerManager.observeImage(logo);
+    });
+    
     return item;
 }
 
