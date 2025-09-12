@@ -1,4 +1,4 @@
-const VERSION = "0.2.5";
+const VERSION = "0.2.6";
 const ESI_BASE = "https://esi.evetech.net/latest";
 const USER_AGENT = `WarTargetFinder/${VERSION} (+https://github.com/moregh/moregh.github.io/)`;
 const ESI_HEADERS = {
@@ -21,7 +21,6 @@ const DB_NAME = 'EVEWarTargetCache';        // IndexedDB name
 const DB_VERSION = 1;                       // Track DB version for upgrades
 
 
-const characterInfoCache = new Map();
 const corporationInfoCache = new Map();
 const allianceInfoCache = new Map();
 const characterNameToIdCache = new Map();
@@ -300,28 +299,6 @@ function getAffiliationCacheKey(id) {
     return `eve_affiliation_${id}`;
 }
 
-function getCachedData(type, id) {
-    try {
-        const cacheKey = getCacheKey(type, id);
-        const cached = JSON.parse(localStorage.getItem(cacheKey) || 'null');
-        if (!cached) return null;
-
-        const { data, timestamp } = cached;
-        const now = Date.now();
-        const expiryTime = timestamp + (CACHE_EXPIRY_HOURS * 60 * 60 * 1000);
-
-        if (now > expiryTime) {
-            localStorage.removeItem(cacheKey);
-            return null;
-        }
-        localLookups++;
-        return data;
-    } catch (e) {
-        console.warn(`Error reading cache for ${type}:${id}`, e);
-        return null;
-    }
-}
-
 async function getCachedNameToId(name) {
     try {
         const db = await initDB();
@@ -388,19 +365,6 @@ async function getCachedAffiliation(characterId) {
     } catch (e) {
         console.warn(`Error accessing affiliation cache for ${characterId}:`, e);
         return null;
-    }
-}
-
-function setCachedData(type, id, data) {
-    try {
-        const cacheKey = getCacheKey(type, id);
-        const cacheData = {
-            data: data,
-            timestamp: Date.now()
-        };
-        localStorage.setItem(cacheKey, JSON.stringify(cacheData));
-    } catch (e) {
-        console.warn(`Error writing cache for ${type}:${id}`, e);
     }
 }
 
@@ -823,58 +787,6 @@ async function getCharacterAffiliations(characterIds) {
     return [...cachedAffiliations, ...fetchedAffiliations];
 }
 
-async function getCorporationInfo(id) {
-    if (corporationInfoCache.has(id)) return corporationInfoCache.get(id);
-
-    const cached = await getCachedCorporationInfo(id);
-    if (cached) {
-        corporationInfoCache.set(id, cached);
-        return cached;
-    }
-    
-    esiLookups++;
-    const res = await fetch(`${ESI_BASE}/corporations/${id}/`, {
-        headers: { 'User-Agent': USER_AGENT }
-    });
-    if (!res.ok) throw new Error(`Failed to get corporation info for ${id}: ${res.status}`);
-    const data = await res.json();
-
-    // Extract only needed data
-    const corporationInfo = {
-        name: data.name,
-        war_eligible: data.war_eligible
-    };
-
-    corporationInfoCache.set(id, corporationInfo);
-    await setCachedCorporationInfo(id, corporationInfo);
-    return corporationInfo;
-}
-
-async function getAllianceInfo(id) {
-    if (allianceInfoCache.has(id)) return allianceInfoCache.get(id);
-
-    const cached = await getCachedAllianceInfo(id);
-    if (cached) {
-        allianceInfoCache.set(id, cached);
-        return cached;
-    }
-    
-    esiLookups++;
-    const res = await fetch(`${ESI_BASE}/alliances/${id}/`, {
-        headers: { 'User-Agent': USER_AGENT }
-    });
-    if (!res.ok) throw new Error(`Failed to get alliance info for ${id}: ${res.status}`);
-    const data = await res.json();
-
-    // Extract only needed data
-    const allianceInfo = {
-        name: data.name
-    };
-
-    allianceInfoCache.set(id, allianceInfo);
-    await setCachedAllianceInfo(id, allianceInfo);
-    return allianceInfo;
-}
 
 async function getIndexedDBSize() {
     try {
@@ -1373,16 +1285,6 @@ function updateElementContent(element, character, viewType) {
     }
 }
 
-function getLocalStorageSize() {
-    let total = 0;
-    for (let key in localStorage) {
-        if (localStorage.hasOwnProperty(key)) {
-            total += localStorage[key].length + key.length;
-        }
-    }
-    return (total / 1024 / 1024).toFixed(1); // Return size in MB
-}
-
 async function getCacheRecordCount() {
     try {
         const db = await initDB();
@@ -1721,16 +1623,6 @@ function createSummaryItem({ id, name, count, type }) {
     return item;
 }
 
-// Virtual scrolling implementation
-const VIRTUAL_ITEM_HEIGHT = 125; // Approximate height of each item in pixels
-const VIRTUAL_BUFFER = 30; // Items to render outside visible area
-const ROWS_TO_SHOW = 5;
-
-let virtualScrollStates = {
-    'eligible-grid': { scrollTop: 0, containerHeight: 0 },
-    'ineligible-grid': { scrollTop: 0, containerHeight: 0 }
-};
-
 function renderGrid(containerId, items, type = 'character', limit = null) {
     const container = document.getElementById(containerId);
     
@@ -1768,88 +1660,6 @@ function renderGrid(containerId, items, type = 'character', limit = null) {
         container.appendChild(fragment);
     }
 }
-
-// Image preloading and caching system
-const imageCache = new Map();
-
-function preloadImage(src) {
-    if (imageCache.has(src)) {
-        return imageCache.get(src);
-    }
-    
-    const img = new Image();
-    const promise = new Promise((resolve, reject) => {
-        img.onload = () => resolve(img);
-        img.onerror = reject;
-        img.src = src;
-    });
-    
-    imageCache.set(src, promise);
-    return promise;
-}
-
-function createCharacterItemWithCachedImages(character, viewType = 'grid') {
-    const item = document.createElement("div");
-    item.className = `result-item ${viewType}-view`;
-    
-    // Pre-cache the images
-    const portraitSrc = `https://images.evetech.net/characters/${character.character_id}/portrait?size=64`;
-    const corpSrc = `https://images.evetech.net/corporations/${character.corporation_id}/logo?size=32`;
-    
-    preloadImage(portraitSrc);
-    preloadImage(corpSrc);
-    
-    if (character.alliance_id) {
-        const allianceSrc = `https://images.evetech.net/alliances/${character.alliance_id}/logo?size=32`;
-        preloadImage(allianceSrc);
-    }
-    
-    const allianceSection = character.alliance_name && character.alliance_id ? `
-        <div class="org-item">
-            <img src="https://images.evetech.net/alliances/${character.alliance_id}/logo?size=32"
-                 alt="${character.alliance_name}" 
-                 class="org-logo" 
-                 loading="lazy" 
-                 decoding="async">
-            <a href="https://zkillboard.com/alliance/${character.alliance_id}/" 
-               target="_blank" 
-               class="character-link">${character.alliance_name}</a>
-        </div>
-    ` : '';
-    
-    item.innerHTML = `
-        <img src="${portraitSrc}"
-             alt="${character.character_name}" 
-             class="character-avatar" 
-             loading="eager" 
-             decoding="async">
-        <div class="character-content">
-            <div class="character-name">
-                <a href="https://zkillboard.com/character/${character.character_id}/" 
-                   target="_blank" 
-                   class="character-link">${character.character_name}</a>
-            </div>
-            <div class="character-details">
-                <div class="corp-alliance-info">
-                    <div class="org-item">
-                        <img src="${corpSrc}"
-                             alt="${character.corporation_name}" 
-                             class="org-logo" 
-                             loading="eager" 
-                             decoding="async">
-                        <a href="https://zkillboard.com/corporation/${character.corporation_id}/" 
-                           target="_blank" 
-                           class="character-link">${character.corporation_name}</a>
-                    </div>
-                    ${allianceSection}
-                </div>
-            </div>
-        </div>
-    `;
-    
-    return item;
-}
-
 
 function setupVirtualScrolling(containerId, items) {
     const container = document.getElementById(containerId);
@@ -2780,18 +2590,3 @@ document.addEventListener('DOMContentLoaded', function () {
     // update version
     updateVersionDisplay();
 });
-
-function cleanupDeadImageObservations() {
-    if (globalImageObserver) {
-        // Get all currently observed targets
-        const observedElements = [];
-        
-        // We can't directly access observed elements, so we'll track them
-        // Add this tracking to createCharacterItem instead
-        document.querySelectorAll('img[data-src]').forEach(img => {
-            if (!document.contains(img)) {
-                globalImageObserver.unobserve(img);
-            }
-        });
-    }
-}
