@@ -237,9 +237,9 @@ body {
 }
 
 .input-header h2 {
-    font-size: 1.62rem;
+    font-size: 1.2rem;
     font-weight: 600;
-    color: var(--text-primary);
+    color: var(--primary-dark);
 }
 
 .input-info {
@@ -316,11 +316,11 @@ textarea::placeholder {
     justify-content: center;
     gap: 0.72rem;
     margin: 1.35rem auto 0;
-    padding: 0.7rem 2rem;
+    padding: 0.7rem 0.7rem;
     background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
     color: white;
     border: none;
-    border-radius: 25px;
+    border-radius: 50px;
     font-size: 0.99rem;
     font-weight: 600;
     cursor: pointer;
@@ -1689,8 +1689,8 @@ textarea::placeholder {
     transform: translateY(-20px) !important;
     pointer-events: none !important;
 }
-/* Updated header styles */
-/* Enhanced header styles with target icon */
+
+/* Header styles */
 .compact-header {
     padding: 1rem 0 0.5rem 0;
     border-bottom: 1px solid var(--border-color);
@@ -1759,22 +1759,22 @@ textarea::placeholder {
 }
 
 .target-icon {
-    width: 2.5rem;
-    height: 2.5rem;
+    width: 1.6rem;
+    height: 1.6rem;
     color: var(--primary-color);
     transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     filter: drop-shadow(0 0 8px rgba(0, 212, 255, 0.3));
 }
 
 .title-link h1 {
-    font-size: clamp(1.8rem, 4vw, 2.4rem);
+    font-size: clamp(1rem, 4vw, 2rem);
     font-weight: 800;
     margin: 0;
-    line-height: 1.1;
+    line-height: 0.8;
     text-shadow: none;
     display: flex;
     flex-direction: column;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.05em;
 }
 
 .title-primary {
@@ -1790,15 +1790,16 @@ textarea::placeholder {
 }
 
 .title-secondary {
-    background: linear-gradient(135deg, #66e0ff 0%, var(--secondary-color) 50%, #4ade80 100%);
+    background: linear-gradient(135deg, #66e0ff 0%, var(--secondary-color) 50%, #4adebc 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.1em;
-    margin-top: -0.15em;
+    letter-spacing: 0.12em;
+    margin-top: 0;
     opacity: 0.9;
+    display: block;
 }
 
 /* Add subtle animation to the title */
