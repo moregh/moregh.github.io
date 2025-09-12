@@ -1,4 +1,4 @@
-const VERSION = "0.1.19";
+const VERSION = "0.1.20";
 const ESI_BASE = "https://esi.evetech.net/latest";
 const USER_AGENT = `WarTargetFinder/${VERSION} (+https://github.com/moregh/moregh.github.io/)`;
 const ESI_HEADERS = {
@@ -7,14 +7,15 @@ const ESI_HEADERS = {
     'User-Agent': USER_AGENT,
     'X-User-Agent': `WarTargetFinder/${VERSION}`
 };
-const CACHE_EXPIRY_HOURS = 12;
-const INITIAL_USER_RESULTS_COUNT = 6;
-const INITIAL_CORP_ALLIANCE_COUNT = 5;
-const LOAD_MORE_COUNT = 12;
-const MAX_ESI_CALL_SIZE = 100;
-const MAX_CONCURRENT_IMAGES = 8;
-const CHUNK_SIZE = 50; // Process corporations/alliances in chunks of 50
-const CHUNK_DELAY = 100; // 100ms delay between chunks to be nice to ESI
+const CACHE_EXPIRY_HOURS = 12;              // cache all data for this long
+const INITIAL_USER_RESULTS_COUNT = 6;       // initial number of user results to show
+const INITIAL_CORP_ALLIANCE_COUNT = 5;      // initial number of corps/alliances to show
+const LOAD_MORE_COUNT = 12;                 // number of results to load when "Load More" is clicked
+const MAX_ESI_CALL_SIZE = 100;              // max number of names/IDs per ESI call
+const MAX_CONCURRENT_IMAGES = 8;            // max concurrent image loads
+const CHUNK_SIZE = 50;                      // Process corporations/alliances in chunks of 50
+const CHUNK_DELAY = 100;                    // 100ms delay between chunks to be nice to ESI
+const STATS_UPDATE_DELAY = 100;             // Delay stats update until results are available
 
 const characterInfoCache = new Map();
 const corporationInfoCache = new Map();
@@ -94,12 +95,6 @@ document.addEventListener('click', function (event) {
     }
 });
 
-// function setupCollapsedIndicatorClick() {
-//     const inputSection = document.getElementById('input-section');
-//     const collapsedIndicator = inputSection.querySelector('.collapsed-indicator');
-
-//     collapsedIndicator.setAttribute('data-action', 'expand-input');
-// }
 function setupCollapsedIndicatorClick() {
     const inputSection = document.getElementById('input-section');
     const collapsedIndicator = inputSection.querySelector('.collapsed-indicator');
@@ -480,7 +475,7 @@ async function processInChunks(items, processFn, chunkSize = CHUNK_SIZE, delay =
     return results;
 }
 
-// Updated validator function with proper chunking for corps and alliances
+// Updated validator function with smart caching delays
 async function validator(names) {
     // Step 1: Get character IDs (chunked with progress)
     const characters = await getCharacterIds(names);
@@ -511,65 +506,56 @@ async function validator(names) {
     const uniqueCorpIds = Array.from(new Set(affiliations.map(a => a.corporation_id)));
     const uniqueAllianceIds = Array.from(new Set(affiliations.map(a => a.alliance_id).filter(id => id)));
 
-    // Step 4: Get corporation info in proper chunks
+    // Step 4: Get corporation info with smart caching
     updateProgress(0, uniqueCorpIds.length, "Getting corporation information...");
     
-    const corpChunks = chunkArray(uniqueCorpIds, CHUNK_SIZE);
+    // Check which corps need API calls vs cache
+    const cachedCorps = [];
+    const uncachedCorpIds = [];
+    
+    uniqueCorpIds.forEach(corpId => {
+        if (corporationInfoCache.has(corpId) || getCachedData('corporation', corpId)) {
+            cachedCorps.push(corpId);
+        } else {
+            uncachedCorpIds.push(corpId);
+        }
+    });
+
     const corpMap = new Map();
     let processedCorps = 0;
 
-    for (let i = 0; i < corpChunks.length; i++) {
-        const chunk = corpChunks[i];
-        
-        // Process all corps in this chunk concurrently
-        const chunkPromises = chunk.map(async (corpId) => {
+    // Process cached corps instantly (no chunks, no delays)
+    if (cachedCorps.length > 0) {
+        for (const corpId of cachedCorps) {
             try {
-                const info = await getCorporationInfo(corpId);
-                return { id: corpId, info };
+                const info = await getCorporationInfo(corpId); // This will be instant from cache
+                corpMap.set(corpId, info);
+                processedCorps++;
+                updateProgress(processedCorps, uniqueCorpIds.length, 
+                    `Getting corporation information (${processedCorps}/${uniqueCorpIds.length})...`);
             } catch (e) {
-                console.error(`Error fetching corporation ${corpId}:`, e);
-                return { id: corpId, info: { name: 'Unknown Corporation', war_eligible: false } };
+                console.error(`Error fetching cached corporation ${corpId}:`, e);
+                corpMap.set(corpId, { name: 'Unknown Corporation', war_eligible: false });
+                processedCorps++;
             }
-        });
-
-        const chunkResults = await Promise.all(chunkPromises);
-        
-        // Store results in map
-        chunkResults.forEach(result => {
-            if (result && result.info) {
-                corpMap.set(result.id, result.info);
-            }
-        });
-
-        processedCorps += chunk.length;
-        updateProgress(processedCorps, uniqueCorpIds.length, 
-            `Getting corporation information (${processedCorps}/${uniqueCorpIds.length})...`);
-
-        // Delay between chunks
-        if (i + 1 < corpChunks.length) {
-            await new Promise(resolve => setTimeout(resolve, CHUNK_DELAY));
         }
     }
 
-    // Step 5: Get alliance info in proper chunks (if any alliances exist)
-    if (uniqueAllianceIds.length > 0) {
-        updateProgress(0, uniqueAllianceIds.length, "Getting alliance information...");
+    // Process uncached corps in chunks with delays (only if we have API calls to make)
+    if (uncachedCorpIds.length > 0) {
+        const corpChunks = chunkArray(uncachedCorpIds, CHUNK_SIZE);
         
-        const allianceChunks = chunkArray(uniqueAllianceIds, CHUNK_SIZE);
-        const allianceMap = new Map();
-        let processedAlliances = 0;
-
-        for (let i = 0; i < allianceChunks.length; i++) {
-            const chunk = allianceChunks[i];
+        for (let i = 0; i < corpChunks.length; i++) {
+            const chunk = corpChunks[i];
             
-            // Process all alliances in this chunk concurrently
-            const chunkPromises = chunk.map(async (allianceId) => {
+            // Process all corps in this chunk concurrently
+            const chunkPromises = chunk.map(async (corpId) => {
                 try {
-                    const info = await getAllianceInfo(allianceId);
-                    return { id: allianceId, info };
+                    const info = await getCorporationInfo(corpId);
+                    return { id: corpId, info };
                 } catch (e) {
-                    console.error(`Error fetching alliance ${allianceId}:`, e);
-                    return { id: allianceId, info: { name: 'Unknown Alliance' } };
+                    console.error(`Error fetching corporation ${corpId}:`, e);
+                    return { id: corpId, info: { name: 'Unknown Corporation', war_eligible: false } };
                 }
             });
 
@@ -578,17 +564,92 @@ async function validator(names) {
             // Store results in map
             chunkResults.forEach(result => {
                 if (result && result.info) {
-                    allianceMap.set(result.id, result.info);
+                    corpMap.set(result.id, result.info);
                 }
             });
 
-            processedAlliances += chunk.length;
-            updateProgress(processedAlliances, uniqueAllianceIds.length, 
-                `Getting alliance information (${processedAlliances}/${uniqueAllianceIds.length})...`);
+            processedCorps += chunk.length;
+            updateProgress(processedCorps, uniqueCorpIds.length, 
+                `Getting corporation information (${processedCorps}/${uniqueCorpIds.length})...`);
 
-            // Delay between chunks
-            if (i + 1 < allianceChunks.length) {
+            // Only delay between chunks if we have more API calls to make
+            if (i + 1 < corpChunks.length) {
                 await new Promise(resolve => setTimeout(resolve, CHUNK_DELAY));
+            }
+        }
+    }
+
+    // Step 5: Get alliance info with smart caching (if any alliances exist)
+    if (uniqueAllianceIds.length > 0) {
+        updateProgress(0, uniqueAllianceIds.length, "Getting alliance information...");
+        
+        // Check which alliances need API calls vs cache
+        const cachedAlliances = [];
+        const uncachedAllianceIds = [];
+        
+        uniqueAllianceIds.forEach(allianceId => {
+            if (allianceInfoCache.has(allianceId) || getCachedData('alliance', allianceId)) {
+                cachedAlliances.push(allianceId);
+            } else {
+                uncachedAllianceIds.push(allianceId);
+            }
+        });
+
+        const allianceMap = new Map();
+        let processedAlliances = 0;
+
+        // Process cached alliances instantly (no chunks, no delays)
+        if (cachedAlliances.length > 0) {
+            for (const allianceId of cachedAlliances) {
+                try {
+                    const info = await getAllianceInfo(allianceId); // This will be instant from cache
+                    allianceMap.set(allianceId, info);
+                    processedAlliances++;
+                    updateProgress(processedAlliances, uniqueAllianceIds.length, 
+                        `Getting alliance information (${processedAlliances}/${uniqueAllianceIds.length})...`);
+                } catch (e) {
+                    console.error(`Error fetching cached alliance ${allianceId}:`, e);
+                    allianceMap.set(allianceId, { name: 'Unknown Alliance' });
+                    processedAlliances++;
+                }
+            }
+        }
+
+        // Process uncached alliances in chunks with delays (only if we have API calls to make)
+        if (uncachedAllianceIds.length > 0) {
+            const allianceChunks = chunkArray(uncachedAllianceIds, CHUNK_SIZE);
+
+            for (let i = 0; i < allianceChunks.length; i++) {
+                const chunk = allianceChunks[i];
+                
+                // Process all alliances in this chunk concurrently
+                const chunkPromises = chunk.map(async (allianceId) => {
+                    try {
+                        const info = await getAllianceInfo(allianceId);
+                        return { id: allianceId, info };
+                    } catch (e) {
+                        console.error(`Error fetching alliance ${allianceId}:`, e);
+                        return { id: allianceId, info: { name: 'Unknown Alliance' } };
+                    }
+                });
+
+                const chunkResults = await Promise.all(chunkPromises);
+                
+                // Store results in map
+                chunkResults.forEach(result => {
+                    if (result && result.info) {
+                        allianceMap.set(result.id, result.info);
+                    }
+                });
+
+                processedAlliances += chunk.length;
+                updateProgress(processedAlliances, uniqueAllianceIds.length, 
+                    `Getting alliance information (${processedAlliances}/${uniqueAllianceIds.length})...`);
+
+                // Only delay between chunks if we have more API calls to make
+                if (i + 1 < allianceChunks.length) {
+                    await new Promise(resolve => setTimeout(resolve, CHUNK_DELAY));
+                }
             }
         }
 
@@ -1892,7 +1953,7 @@ async function validateNames() {
         setTimeout(() => {
             updateStats(allResults.eligible, allResults.ineligible);
             updatePerformanceStats();
-        }, 100);
+        }, STATS_UPDATE_DELAY);
 
     } catch (err) {
         if (err.message.includes("504")) {
@@ -1908,13 +1969,20 @@ async function validateNames() {
             console.error("Too many items error:", err);
         }
         else {
-            showError("Error contacting EVE ESI servers. Please try again later.");
+            showError("Unexpected error contacting EVE ESI servers. Check console log for more details.");
             console.error("Unhandled ESI error:", err);
         }
     } finally {
         stopLoading();
     }
 }
+function updateVersionDisplay() {
+    const versionElement = document.getElementById('version-display');
+    if (versionElement) {
+        versionElement.textContent = `v${VERSION}`;
+    }
+}
+
 
 // Event listeners
 document.addEventListener('DOMContentLoaded', function () {
@@ -1931,4 +1999,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Setup collapsed indicator click functionality
     setupCollapsedIndicatorClick();
+
+    // update version
+    updateVersionDisplay();
 });
