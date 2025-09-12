@@ -1065,6 +1065,7 @@ textarea::placeholder {
     background: linear-gradient(135deg, transparent, rgba(255, 255, 255, 0.02), transparent);
     opacity: 0;
     transition: opacity 0.27s ease;
+    pointer-events: none;
 }
 
 .result-item:hover {
@@ -1091,6 +1092,7 @@ textarea::placeholder {
 
 .result-item:hover::before {
     opacity: 1;
+    pointer-events: none; 
 }
 
 .eligible .result-item {
