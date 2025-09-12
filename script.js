@@ -1,4 +1,4 @@
-const VERSION = "0.1.22";
+const VERSION = "0.2.0";
 const ESI_BASE = "https://esi.evetech.net/latest";
 const USER_AGENT = `WarTargetFinder/${VERSION} (+https://github.com/moregh/moregh.github.io/)`;
 const ESI_HEADERS = {
@@ -16,6 +16,9 @@ const MAX_CONCURRENT_IMAGES = 8;            // max concurrent image loads
 const CHUNK_SIZE = 50;                      // Process corporations/alliances in chunks of 50
 const CHUNK_DELAY = 100;                    // 100ms delay between chunks to be nice to ESI
 const STATS_UPDATE_DELAY = 100;             // Delay stats update until results are available
+const DB_NAME = 'EVEWarTargetCache';        // IndexedDB name
+const DB_VERSION = 1;                       // Track DB version for upgrades
+
 
 const characterInfoCache = new Map();
 const corporationInfoCache = new Map();
@@ -27,6 +30,7 @@ let queryStartTime = 0;
 let queryEndTime = 0;
 let esiLookups = 0;
 let localLookups = 0;
+let dbInstance = null;
 
 let timerInterval = null, startTime = 0;
 let currentView = 'grid';
@@ -43,6 +47,59 @@ let completeResults = [];
 let corpToCharactersMap = new Map();
 let allianceToCorpsMap = new Map();
 
+
+async function initDB() {
+    if (dbInstance) return dbInstance;
+    
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+        
+        request.onerror = () => {
+            console.error('Failed to open IndexedDB:', request.error);
+            reject(request.error);
+        };
+        
+        request.onsuccess = () => {
+            dbInstance = request.result;
+            resolve(dbInstance);
+        };
+        
+        request.onupgradeneeded = (event) => {
+            const db = event.target.result;
+            
+            // Character name to ID mapping table
+            if (!db.objectStoreNames.contains('character_names')) {
+                const nameStore = db.createObjectStore('character_names', { keyPath: 'name_lower' });
+                nameStore.createIndex('timestamp', 'timestamp');
+            }
+            
+            // Character affiliations table
+            if (!db.objectStoreNames.contains('character_affiliations')) {
+                const affiliationStore = db.createObjectStore('character_affiliations', { keyPath: 'character_id' });
+                affiliationStore.createIndex('timestamp', 'timestamp');
+            }
+            
+            // Corporation info table
+            if (!db.objectStoreNames.contains('corporations')) {
+                const corpStore = db.createObjectStore('corporations', { keyPath: 'corporation_id' });
+                corpStore.createIndex('timestamp', 'timestamp');
+            }
+            
+            // Alliance info table
+            if (!db.objectStoreNames.contains('alliances')) {
+                const allianceStore = db.createObjectStore('alliances', { keyPath: 'alliance_id' });
+                allianceStore.createIndex('timestamp', 'timestamp');
+            }
+        };
+    });
+}
+
+// Helper function to check if data is expired
+function isExpired(timestamp) {
+    const now = Date.now();
+    const expiryTime = timestamp + (CACHE_EXPIRY_HOURS * 60 * 60 * 1000);
+    return now > expiryTime;
+}
 
 
 function collapseInputSection() {
@@ -156,46 +213,71 @@ function getCachedData(type, id) {
     }
 }
 
-function getCachedNameToId(name) {
+async function getCachedNameToId(name) {
     try {
-        const cacheKey = getNameCacheKey(name);
-        const cached = JSON.parse(localStorage.getItem(cacheKey) || 'null');
-        if (!cached) return null;
-
-        const { data, timestamp } = cached;
-        const now = Date.now();
-        const expiryTime = timestamp + (CACHE_EXPIRY_HOURS * 60 * 60 * 1000);
-
-        if (now > expiryTime) {
-            localStorage.removeItem(cacheKey);
-            return null;
-        }
-        localLookups++;
-        return data;
+        const db = await initDB();
+        const transaction = db.transaction(['character_names'], 'readonly');
+        const store = transaction.objectStore('character_names');
+        
+        return new Promise((resolve) => {
+            const request = store.get(name.toLowerCase());
+            
+            request.onsuccess = () => {
+                const result = request.result;
+                if (!result || isExpired(result.timestamp)) {
+                    resolve(null);
+                    return;
+                }
+                
+                // Don't increment localLookups here - it's counted in getCharacterIds
+                resolve({
+                    id: result.character_id,
+                    name: result.character_name
+                });
+            };
+            
+            request.onerror = () => {
+                console.warn(`Error reading name cache for ${name}:`, request.error);
+                resolve(null);
+            };
+        });
     } catch (e) {
-        console.warn(`Error reading name cache for ${name}`, e);
+        console.warn(`Error accessing name cache for ${name}:`, e);
         return null;
     }
 }
 
-function getCachedAffiliation(id) {
+async function getCachedAffiliation(characterId) {
     try {
-        const cacheKey = getAffiliationCacheKey(id);
-        const cached = JSON.parse(localStorage.getItem(cacheKey) || 'null');
-        if (!cached) return null;
-
-        const { data, timestamp } = cached;
-        const now = Date.now();
-        const expiryTime = timestamp + (CACHE_EXPIRY_HOURS * 60 * 60 * 1000);
-
-        if (now > expiryTime) {
-            localStorage.removeItem(cacheKey);
-            return null;
-        }
-        localLookups++;
-        return data;
+        const db = await initDB();
+        const transaction = db.transaction(['character_affiliations'], 'readonly');
+        const store = transaction.objectStore('character_affiliations');
+        
+        return new Promise((resolve) => {
+            const request = store.get(characterId);
+            
+            request.onsuccess = () => {
+                const result = request.result;
+                if (!result || isExpired(result.timestamp)) {
+                    resolve(null);
+                    return;
+                }
+                
+                // Don't increment localLookups here - it's counted in getCharacterAffiliations
+                resolve({
+                    character_id: result.character_id,
+                    corporation_id: result.corporation_id,
+                    alliance_id: result.alliance_id
+                });
+            };
+            
+            request.onerror = () => {
+                console.warn(`Error reading affiliation cache for ${characterId}:`, request.error);
+                resolve(null);
+            };
+        });
     } catch (e) {
-        console.warn(`Error reading affiliation cache for ${id}`, e);
+        console.warn(`Error accessing affiliation cache for ${characterId}:`, e);
         return null;
     }
 }
@@ -213,54 +295,192 @@ function setCachedData(type, id, data) {
     }
 }
 
-function setCachedNameToId(name, characterData) {
+async function setCachedNameToId(name, characterData) {
     try {
-        const cacheKey = getNameCacheKey(name);
+        const db = await initDB();
+        const transaction = db.transaction(['character_names'], 'readwrite');
+        const store = transaction.objectStore('character_names');
+        
         const cacheData = {
-            data: { id: characterData.id, name: characterData.name },
+            name_lower: name.toLowerCase(),
+            character_id: characterData.id,
+            character_name: characterData.name,
             timestamp: Date.now()
         };
-        localStorage.setItem(cacheKey, JSON.stringify(cacheData));
-        characterNameToIdCache.set(name.toLowerCase(), { id: characterData.id, name: characterData.name });
-    } catch (e) {
-        console.warn(`Error writing name cache for ${name}`, e);
-    }
-}
-
-function setCachedAffiliation(id, affiliationData) {
-    try {
-        const cacheKey = getAffiliationCacheKey(id);
-        const cacheData = {
-            data: affiliationData,
-            timestamp: Date.now()
-        };
-        localStorage.setItem(cacheKey, JSON.stringify(cacheData));
-        characterAffiliationCache.set(id, affiliationData);
-    } catch (e) {
-        console.warn(`Error writing affiliation cache for ${id}`, e);
-    }
-}
-
-function clearExpiredCache() {
-    try {
-        const keys = Object.keys(localStorage);
-        const now = Date.now();
-        const expiryMs = CACHE_EXPIRY_HOURS * 60 * 60 * 1000;
-
-        keys.forEach(key => {
-            if (key.startsWith('eve_')) {
-                try {
-                    const cached = JSON.parse(localStorage.getItem(key));
-                    if (now > cached.timestamp + expiryMs) {
-                        localStorage.removeItem(key);
-                    }
-                } catch (e) {
-                    localStorage.removeItem(key);
-                }
-            }
+        
+        store.put(cacheData);
+        
+        // Also update in-memory cache
+        characterNameToIdCache.set(name.toLowerCase(), { 
+            id: characterData.id, 
+            name: characterData.name 
         });
     } catch (e) {
-        console.warn('Error clearing expired cache', e);
+        console.warn(`Error writing name cache for ${name}:`, e);
+    }
+}
+
+async function setCachedAffiliation(characterId, affiliationData) {
+    try {
+        const db = await initDB();
+        const transaction = db.transaction(['character_affiliations'], 'readwrite');
+        const store = transaction.objectStore('character_affiliations');
+        
+        const cacheData = {
+            character_id: characterId,
+            corporation_id: affiliationData.corporation_id,
+            alliance_id: affiliationData.alliance_id || null,
+            timestamp: Date.now()
+        };
+        
+        store.put(cacheData);
+        
+        // Also update in-memory cache
+        characterAffiliationCache.set(characterId, affiliationData);
+    } catch (e) {
+        console.warn(`Error writing affiliation cache for ${characterId}:`, e);
+    }
+}
+
+async function getCachedCorporationInfo(corporationId) {
+    try {
+        const db = await initDB();
+        const transaction = db.transaction(['corporations'], 'readonly');
+        const store = transaction.objectStore('corporations');
+        
+        return new Promise((resolve) => {
+            const request = store.get(corporationId);
+            
+            request.onsuccess = () => {
+                const result = request.result;
+                if (!result || isExpired(result.timestamp)) {
+                    resolve(null);
+                    return;
+                }
+                
+                // Don't increment localLookups here - it's counted in validator
+                resolve({
+                    name: result.name,
+                    war_eligible: result.war_eligible
+                });
+            };
+            
+            request.onerror = () => {
+                console.warn(`Error reading corporation cache for ${corporationId}:`, request.error);
+                resolve(null);
+            };
+        });
+    } catch (e) {
+        console.warn(`Error accessing corporation cache for ${corporationId}:`, e);
+        return null;
+    }
+}
+
+async function setCachedCorporationInfo(corporationId, corporationData) {
+    try {
+        const db = await initDB();
+        const transaction = db.transaction(['corporations'], 'readwrite');
+        const store = transaction.objectStore('corporations');
+        
+        const cacheData = {
+            corporation_id: corporationId,
+            name: corporationData.name,
+            war_eligible: corporationData.war_eligible,
+            timestamp: Date.now()
+        };
+        
+        store.put(cacheData);
+        
+        // Also update in-memory cache
+        corporationInfoCache.set(corporationId, corporationData);
+    } catch (e) {
+        console.warn(`Error writing corporation cache for ${corporationId}:`, e);
+    }
+}
+
+async function getCachedAllianceInfo(allianceId) {
+    try {
+        const db = await initDB();
+        const transaction = db.transaction(['alliances'], 'readonly');
+        const store = transaction.objectStore('alliances');
+        
+        return new Promise((resolve) => {
+            const request = store.get(allianceId);
+            
+            request.onsuccess = () => {
+                const result = request.result;
+                if (!result || isExpired(result.timestamp)) {
+                    resolve(null);
+                    return;
+                }
+                
+                // Don't increment localLookups here - it's counted in validator
+                resolve({
+                    name: result.name
+                });
+            };
+            
+            request.onerror = () => {
+                console.warn(`Error reading alliance cache for ${allianceId}:`, request.error);
+                resolve(null);
+            };
+        });
+    } catch (e) {
+        console.warn(`Error accessing alliance cache for ${allianceId}:`, e);
+        return null;
+    }
+}
+
+
+async function setCachedAllianceInfo(allianceId, allianceData) {
+    try {
+        const db = await initDB();
+        const transaction = db.transaction(['alliances'], 'readwrite');
+        const store = transaction.objectStore('alliances');
+        
+        const cacheData = {
+            alliance_id: allianceId,
+            name: allianceData.name,
+            timestamp: Date.now()
+        };
+        
+        store.put(cacheData);
+        
+        // Also update in-memory cache
+        allianceInfoCache.set(allianceId, allianceData);
+    } catch (e) {
+        console.warn(`Error writing alliance cache for ${allianceId}:`, e);
+    }
+}
+
+
+
+async function clearExpiredCache() {
+    try {
+        const db = await initDB();
+        const now = Date.now();
+        const expiryMs = CACHE_EXPIRY_HOURS * 60 * 60 * 1000;
+        
+        const stores = ['character_names', 'character_affiliations', 'corporations', 'alliances'];
+        
+        for (const storeName of stores) {
+            const transaction = db.transaction([storeName], 'readwrite');
+            const store = transaction.objectStore('timestamps');
+            const index = store.index('timestamp');
+            
+            const range = IDBKeyRange.upperBound(now - expiryMs);
+            const deleteRequest = index.openCursor(range);
+            
+            deleteRequest.onsuccess = (event) => {
+                const cursor = event.target.result;
+                if (cursor) {
+                    cursor.delete();
+                    cursor.continue();
+                }
+            };
+        }
+    } catch (e) {
+        console.warn('Error clearing expired cache:', e);
     }
 }
 
@@ -294,7 +514,7 @@ async function getCharacterIds(names) {
             continue;
         }
 
-        const cached = getCachedNameToId(name);
+        const cached = await getCachedNameToId(name);
         if (cached) {
             characterNameToIdCache.set(lowerName, cached);
             cachedCharacters.push(cached);
@@ -332,9 +552,9 @@ async function getCharacterIds(names) {
                 const characters = data.characters || [];
                 
                 // Cache each character immediately
-                characters.forEach(char => {
-                    setCachedNameToId(char.name, char);
-                });
+                for (const char of characters) {
+                    await setCachedNameToId(char.name, char);
+                }
                 
                 return characters;
             },
@@ -348,6 +568,7 @@ async function getCharacterIds(names) {
 
     return [...cachedCharacters, ...fetchedCharacters];
 }
+
 
 function chunkArray(array, chunkSize) {
     const chunks = [];
@@ -368,7 +589,7 @@ async function getCharacterAffiliations(characterIds) {
             continue;
         }
 
-        const cached = getCachedAffiliation(id);
+        const cached = await getCachedAffiliation(id);
         if (cached) {
             characterAffiliationCache.set(id, cached);
             cachedAffiliations.push(cached);
@@ -390,9 +611,9 @@ async function getCharacterAffiliations(characterIds) {
         if (!res.ok) throw new Error(`Failed to get character affiliations: ${res.status}`);
         fetchedAffiliations = await res.json();
 
-        fetchedAffiliations.forEach(affiliation => {
-            setCachedAffiliation(affiliation.character_id, affiliation);
-        });
+        for (const affiliation of fetchedAffiliations) {
+            await setCachedAffiliation(affiliation.character_id, affiliation);
+        }
     }
 
     return [...cachedAffiliations, ...fetchedAffiliations];
@@ -401,11 +622,12 @@ async function getCharacterAffiliations(characterIds) {
 async function getCorporationInfo(id) {
     if (corporationInfoCache.has(id)) return corporationInfoCache.get(id);
 
-    const cached = getCachedData('corporation', id);
+    const cached = await getCachedCorporationInfo(id);
     if (cached) {
         corporationInfoCache.set(id, cached);
         return cached;
     }
+    
     esiLookups++;
     const res = await fetch(`${ESI_BASE}/corporations/${id}/`, {
         headers: { 'User-Agent': USER_AGENT }
@@ -413,19 +635,26 @@ async function getCorporationInfo(id) {
     if (!res.ok) throw new Error(`Failed to get corporation info for ${id}: ${res.status}`);
     const data = await res.json();
 
-    corporationInfoCache.set(id, data);
-    setCachedData('corporation', id, data);
-    return data;
+    // Extract only needed data
+    const corporationInfo = {
+        name: data.name,
+        war_eligible: data.war_eligible
+    };
+
+    corporationInfoCache.set(id, corporationInfo);
+    await setCachedCorporationInfo(id, corporationInfo);
+    return corporationInfo;
 }
 
 async function getAllianceInfo(id) {
     if (allianceInfoCache.has(id)) return allianceInfoCache.get(id);
 
-    const cached = getCachedData('alliance', id);
+    const cached = await getCachedAllianceInfo(id);
     if (cached) {
         allianceInfoCache.set(id, cached);
         return cached;
     }
+    
     esiLookups++;
     const res = await fetch(`${ESI_BASE}/alliances/${id}/`, {
         headers: { 'User-Agent': USER_AGENT }
@@ -433,10 +662,29 @@ async function getAllianceInfo(id) {
     if (!res.ok) throw new Error(`Failed to get alliance info for ${id}: ${res.status}`);
     const data = await res.json();
 
-    allianceInfoCache.set(id, data);
-    setCachedData('alliance', id, data);
-    return data;
+    // Extract only needed data
+    const allianceInfo = {
+        name: data.name
+    };
+
+    allianceInfoCache.set(id, allianceInfo);
+    await setCachedAllianceInfo(id, allianceInfo);
+    return allianceInfo;
 }
+
+async function getIndexedDBSize() {
+    try {
+        if ('storage' in navigator && 'estimate' in navigator.storage) {
+            const estimate = await navigator.storage.estimate();
+            return ((estimate.usage || 0) / 1024 / 1024).toFixed(1);
+        }
+        return 'Unknown';
+    } catch (e) {
+        return 'Unknown';
+    }
+}
+
+
 
 async function processInChunks(items, processFn, chunkSize = CHUNK_SIZE, delay = CHUNK_DELAY) {
     const results = [];
@@ -475,8 +723,11 @@ async function processInChunks(items, processFn, chunkSize = CHUNK_SIZE, delay =
     return results;
 }
 
-// Updated validator function with smart caching delays
 async function validator(names) {
+    // Reset counters at start
+    localLookups = 0;
+    esiLookups = 0;
+
     // Step 1: Get character IDs (chunked with progress)
     const characters = await getCharacterIds(names);
     const characterIds = characters.map(char => char.id);
@@ -514,8 +765,9 @@ async function validator(names) {
     const uncachedCorpIds = [];
     
     uniqueCorpIds.forEach(corpId => {
-        if (corporationInfoCache.has(corpId) || getCachedData('corporation', corpId)) {
+        if (corporationInfoCache.has(corpId)) {
             cachedCorps.push(corpId);
+            localLookups++; // Count in-memory cache hit
         } else {
             uncachedCorpIds.push(corpId);
         }
@@ -528,7 +780,7 @@ async function validator(names) {
     if (cachedCorps.length > 0) {
         for (const corpId of cachedCorps) {
             try {
-                const info = await getCorporationInfo(corpId); // This will be instant from cache
+                const info = corporationInfoCache.get(corpId);
                 corpMap.set(corpId, info);
                 processedCorps++;
                 updateProgress(processedCorps, uniqueCorpIds.length, 
@@ -541,9 +793,40 @@ async function validator(names) {
         }
     }
 
-    // Process uncached corps in chunks with delays (only if we have API calls to make)
+    // Check IndexedDB cache for uncached corps (batched)
+    const cachedFromDB = [];
+    const uncachedFromDB = [];
+
     if (uncachedCorpIds.length > 0) {
-        const corpChunks = chunkArray(uncachedCorpIds, CHUNK_SIZE);
+        // Batch check IndexedDB
+        const dbCachePromises = uncachedCorpIds.map(async corpId => {
+            const cached = await getCachedCorporationInfo(corpId);
+            return { corpId, cached };
+        });
+
+        const dbResults = await Promise.all(dbCachePromises);
+        
+        dbResults.forEach(result => {
+            if (result.cached) {
+                corpMap.set(result.corpId, result.cached);
+                corporationInfoCache.set(result.corpId, result.cached);
+                cachedFromDB.push(result.corpId);
+                processedCorps++;
+                localLookups++; // Count IndexedDB cache hit
+            } else {
+                uncachedFromDB.push(result.corpId);
+            }
+        });
+
+        if (cachedFromDB.length > 0) {
+            updateProgress(processedCorps, uniqueCorpIds.length, 
+                `Getting corporation information (${processedCorps}/${uniqueCorpIds.length})...`);
+        }
+    }
+
+    // Process uncached corps in chunks with delays (only if we have API calls to make)
+    if (uncachedFromDB.length > 0) {
+        const corpChunks = chunkArray(uncachedFromDB, CHUNK_SIZE);
         
         for (let i = 0; i < corpChunks.length; i++) {
             const chunk = corpChunks[i];
@@ -551,11 +834,29 @@ async function validator(names) {
             // Process all corps in this chunk concurrently
             const chunkPromises = chunk.map(async (corpId) => {
                 try {
-                    const info = await getCorporationInfo(corpId);
-                    return { id: corpId, info };
+                    esiLookups++;
+                    const res = await fetch(`${ESI_BASE}/corporations/${corpId}/`, {
+                        headers: { 'User-Agent': USER_AGENT }
+                    });
+                    if (!res.ok) throw new Error(`Failed to get corporation info for ${corpId}: ${res.status}`);
+                    const data = await res.json();
+
+                    // Extract only needed data
+                    const corporationInfo = {
+                        name: data.name,
+                        war_eligible: data.war_eligible
+                    };
+
+                    // Cache in memory and IndexedDB
+                    corporationInfoCache.set(corpId, corporationInfo);
+                    await setCachedCorporationInfo(corpId, corporationInfo);
+                    
+                    return { id: corpId, info: corporationInfo };
                 } catch (e) {
                     console.error(`Error fetching corporation ${corpId}:`, e);
-                    return { id: corpId, info: { name: 'Unknown Corporation', war_eligible: false } };
+                    const fallbackInfo = { name: 'Unknown Corporation', war_eligible: false };
+                    corporationInfoCache.set(corpId, fallbackInfo);
+                    return { id: corpId, info: fallbackInfo };
                 }
             });
 
@@ -580,6 +881,7 @@ async function validator(names) {
     }
 
     // Step 5: Get alliance info with smart caching (if any alliances exist)
+    const allianceMap = new Map();
     if (uniqueAllianceIds.length > 0) {
         updateProgress(0, uniqueAllianceIds.length, "Getting alliance information...");
         
@@ -588,21 +890,21 @@ async function validator(names) {
         const uncachedAllianceIds = [];
         
         uniqueAllianceIds.forEach(allianceId => {
-            if (allianceInfoCache.has(allianceId) || getCachedData('alliance', allianceId)) {
+            if (allianceInfoCache.has(allianceId)) {
                 cachedAlliances.push(allianceId);
+                localLookups++; // Count in-memory cache hit
             } else {
                 uncachedAllianceIds.push(allianceId);
             }
         });
 
-        const allianceMap = new Map();
         let processedAlliances = 0;
 
         // Process cached alliances instantly (no chunks, no delays)
         if (cachedAlliances.length > 0) {
             for (const allianceId of cachedAlliances) {
                 try {
-                    const info = await getAllianceInfo(allianceId); // This will be instant from cache
+                    const info = allianceInfoCache.get(allianceId);
                     allianceMap.set(allianceId, info);
                     processedAlliances++;
                     updateProgress(processedAlliances, uniqueAllianceIds.length, 
@@ -615,9 +917,40 @@ async function validator(names) {
             }
         }
 
-        // Process uncached alliances in chunks with delays (only if we have API calls to make)
+        // Check IndexedDB cache for uncached alliances (batched)
+        const cachedAlliancesFromDB = [];
+        const uncachedAlliancesFromDB = [];
+
         if (uncachedAllianceIds.length > 0) {
-            const allianceChunks = chunkArray(uncachedAllianceIds, CHUNK_SIZE);
+            // Batch check IndexedDB
+            const dbCachePromises = uncachedAllianceIds.map(async allianceId => {
+                const cached = await getCachedAllianceInfo(allianceId);
+                return { allianceId, cached };
+            });
+
+            const dbResults = await Promise.all(dbCachePromises);
+            
+            dbResults.forEach(result => {
+                if (result.cached) {
+                    allianceMap.set(result.allianceId, result.cached);
+                    allianceInfoCache.set(result.allianceId, result.cached);
+                    cachedAlliancesFromDB.push(result.allianceId);
+                    processedAlliances++;
+                    localLookups++; // Count IndexedDB cache hit
+                } else {
+                    uncachedAlliancesFromDB.push(result.allianceId);
+                }
+            });
+
+            if (cachedAlliancesFromDB.length > 0) {
+                updateProgress(processedAlliances, uniqueAllianceIds.length, 
+                    `Getting alliance information (${processedAlliances}/${uniqueAllianceIds.length})...`);
+            }
+        }
+
+        // Process uncached alliances in chunks with delays (only if we have API calls to make)
+        if (uncachedAlliancesFromDB.length > 0) {
+            const allianceChunks = chunkArray(uncachedAlliancesFromDB, CHUNK_SIZE);
 
             for (let i = 0; i < allianceChunks.length; i++) {
                 const chunk = allianceChunks[i];
@@ -625,11 +958,28 @@ async function validator(names) {
                 // Process all alliances in this chunk concurrently
                 const chunkPromises = chunk.map(async (allianceId) => {
                     try {
-                        const info = await getAllianceInfo(allianceId);
-                        return { id: allianceId, info };
+                        esiLookups++;
+                        const res = await fetch(`${ESI_BASE}/alliances/${allianceId}/`, {
+                            headers: { 'User-Agent': USER_AGENT }
+                        });
+                        if (!res.ok) throw new Error(`Failed to get alliance info for ${allianceId}: ${res.status}`);
+                        const data = await res.json();
+
+                        // Extract only needed data
+                        const allianceInfo = {
+                            name: data.name
+                        };
+
+                        // Cache in memory and IndexedDB
+                        allianceInfoCache.set(allianceId, allianceInfo);
+                        await setCachedAllianceInfo(allianceId, allianceInfo);
+                        
+                        return { id: allianceId, info: allianceInfo };
                     } catch (e) {
                         console.error(`Error fetching alliance ${allianceId}:`, e);
-                        return { id: allianceId, info: { name: 'Unknown Alliance' } };
+                        const fallbackInfo = { name: 'Unknown Alliance' };
+                        allianceInfoCache.set(allianceId, fallbackInfo);
+                        return { id: allianceId, info: fallbackInfo };
                     }
                 });
 
@@ -652,105 +1002,61 @@ async function validator(names) {
                 }
             }
         }
-
-        // Step 6: Build final results (with alliances)
-        updateProgress(0, characters.length, "Building final results...");
-        const results = [];
-
-        for (let i = 0; i < characters.length; i++) {
-            const char = characters[i];
-            try {
-                const affiliation = affiliationMap.get(char.id);
-                if (!affiliation) {
-                    throw new Error(`No affiliation found for character ${char.name}`);
-                }
-
-                const corpInfo = corpMap.get(affiliation.corporation_id);
-                if (!corpInfo) {
-                    throw new Error(`No corporation info found for corporation ${affiliation.corporation_id}`);
-                }
-
-                let result = {
-                    character_name: char.name,
-                    character_id: char.id,
-                    corporation_name: corpInfo.name,
-                    corporation_id: affiliation.corporation_id,
-                    alliance_name: null,
-                    alliance_id: null,
-                    war_eligible: false
-                };
-
-                if (affiliation.alliance_id) {
-                    const allianceInfo = allianceMap.get(affiliation.alliance_id);
-                    if (allianceInfo) {
-                        result.alliance_name = allianceInfo.name;
-                        result.alliance_id = affiliation.alliance_id;
-                    }
-                }
-
-                if (corpInfo.war_eligible !== undefined) result.war_eligible = corpInfo.war_eligible;
-                results.push(result);
-            } catch (e) {
-                console.error(`Error processing character ${char.name}:`, e);
-                results.push({
-                    character_name: char.name,
-                    character_id: char.id,
-                    corporation_name: 'Error loading',
-                    corporation_id: null,
-                    alliance_name: null,
-                    alliance_id: null,
-                    war_eligible: false
-                });
-            }
-            updateProgress(i + 1, characters.length, "Building final results...");
-        }
-        return results;
-    } else {
-        // Step 6: Build final results (no alliances)
-        updateProgress(0, characters.length, "Building final results...");
-        const results = [];
-
-        for (let i = 0; i < characters.length; i++) {
-            const char = characters[i];
-            try {
-                const affiliation = affiliationMap.get(char.id);
-                if (!affiliation) {
-                    throw new Error(`No affiliation found for character ${char.name}`);
-                }
-
-                const corpInfo = corpMap.get(affiliation.corporation_id);
-                if (!corpInfo) {
-                    throw new Error(`No corporation info found for corporation ${affiliation.corporation_id}`);
-                }
-
-                let result = {
-                    character_name: char.name,
-                    character_id: char.id,
-                    corporation_name: corpInfo.name,
-                    corporation_id: affiliation.corporation_id,
-                    alliance_name: null,
-                    alliance_id: null,
-                    war_eligible: false
-                };
-
-                if (corpInfo.war_eligible !== undefined) result.war_eligible = corpInfo.war_eligible;
-                results.push(result);
-            } catch (e) {
-                console.error(`Error processing character ${char.name}:`, e);
-                results.push({
-                    character_name: char.name,
-                    character_id: char.id,
-                    corporation_name: 'Error loading',
-                    corporation_id: null,
-                    alliance_name: null,
-                    alliance_id: null,
-                    war_eligible: false
-                });
-            }
-            updateProgress(i + 1, characters.length, "Building final results...");
-        }
-        return results;
     }
+
+    // Step 6: Build final results
+    updateProgress(0, characters.length, "Building final results...");
+    const results = [];
+
+    for (let i = 0; i < characters.length; i++) {
+        const char = characters[i];
+        try {
+            const affiliation = affiliationMap.get(char.id);
+            if (!affiliation) {
+                throw new Error(`No affiliation found for character ${char.name}`);
+            }
+
+            const corpInfo = corpMap.get(affiliation.corporation_id);
+            if (!corpInfo) {
+                throw new Error(`No corporation info found for corporation ${affiliation.corporation_id}`);
+            }
+
+            let result = {
+                character_name: char.name,
+                character_id: char.id,
+                corporation_name: corpInfo.name,
+                corporation_id: affiliation.corporation_id,
+                alliance_name: null,
+                alliance_id: null,
+                war_eligible: false
+            };
+
+            if (affiliation.alliance_id) {
+                const allianceInfo = allianceMap.get(affiliation.alliance_id);
+                if (allianceInfo) {
+                    result.alliance_name = allianceInfo.name;
+                    result.alliance_id = affiliation.alliance_id;
+                }
+            }
+
+            if (corpInfo.war_eligible !== undefined) result.war_eligible = corpInfo.war_eligible;
+            results.push(result);
+        } catch (e) {
+            console.error(`Error processing character ${char.name}:`, e);
+            results.push({
+                character_name: char.name,
+                character_id: char.id,
+                corporation_name: 'Error loading',
+                corporation_id: null,
+                alliance_name: null,
+                alliance_id: null,
+                war_eligible: false
+            });
+        }
+        updateProgress(i + 1, characters.length, "Building final results...");
+    }
+    
+    return results;
 }
 
 
@@ -846,14 +1152,60 @@ function getLocalStorageSize() {
     }
     return (total / 1024 / 1024).toFixed(1); // Return size in MB
 }
-function updatePerformanceStats() {
+
+async function getCacheRecordCount() {
+    try {
+        const db = await initDB();
+        const stores = ['character_names', 'character_affiliations', 'corporations', 'alliances'];
+        let totalCount = 0;
+        
+        // Use Promise.all to count all stores concurrently for better performance
+        const countPromises = stores.map(storeName => {
+            return new Promise((resolve) => {
+                const transaction = db.transaction([storeName], 'readonly');
+                const store = transaction.objectStore(storeName);
+                const countRequest = store.count();
+                
+                countRequest.onsuccess = () => {
+                    resolve(countRequest.result);
+                };
+                
+                countRequest.onerror = () => {
+                    showWarning(`DB error whilst counting records in ${storeName}`);
+                    console.warn(`Error counting records in ${storeName}:`, countRequest.error);
+                    resolve(0);
+                };
+            });
+        });
+        
+        const counts = await Promise.all(countPromises);
+        totalCount = counts.reduce((sum, count) => sum + count, 0);
+        
+        return totalCount;
+    } catch (e) {
+        showWarning('DB error whilst getting cache record count');
+        console.warn('Error getting cache record count:', e);
+        return 0;
+    }
+}
+
+async function updatePerformanceStats() {
     const queryTime = Math.round(queryEndTime - queryStartTime);
-    const storageSize = getLocalStorageSize();
+    const recordCount = await getCacheRecordCount();
 
     document.getElementById("query-time").textContent = queryTime;
     document.getElementById("esi-lookups").textContent = esiLookups;
     document.getElementById("cache-info").textContent = localLookups;
-    document.getElementById("cache-size").textContent = `Size: ${storageSize} MB`;
+    
+    // Update the cache size element to show record count
+    const cacheSizeElement = document.getElementById("cache-size");
+    if (cacheSizeElement) {
+        if (recordCount === 1) {
+            cacheSizeElement.textContent = `1 entry`;
+        } else {
+            cacheSizeElement.textContent = `${recordCount.toLocaleString()} entries`;
+        }
+    }
 }
 
 let progressElements = null;
@@ -1535,18 +1887,26 @@ function stopLoading() {
     }, 300);
 }
 
+function showInformation(message) {
+    document.getElementById("error-container").innerHTML = `
+        <div class="info-message glass-card">
+        <div class="information-icon">
+    `;
+}
+
 
 function showWarning(message) {
     document.getElementById("error-container").innerHTML = `
-        <div class="warning-message glass-card">
-        <div class="warning-icon">⚠️</div>
-        <div class="warning-content">
-            <div class="warning-title">Warning</div>
-            <div class="warning-text">${message}</div>
+        <div class="info-message glass-card">
+        <div class="info-icon">✅</div>
+        <div class="info-content">
+            <div class="info-title">Info</div>
+            <div class="info-text">${message}</div>
         </div>
         </div>
     `;
 }
+
 
 function showError(message) {
     document.getElementById("error-container").innerHTML = `
@@ -1576,6 +1936,231 @@ function getStatsElements() {
     return statsElements;
 }
 
+async function getCorporationInfoBatch(corporationIds) {
+    const corpMap = new Map();
+    let processedCorps = 0;
+
+    // Step 1: Check in-memory cache first
+    const cachedCorps = [];
+    const uncachedFromMemory = [];
+    
+    corporationIds.forEach(corpId => {
+        if (corporationInfoCache.has(corpId)) {
+            corpMap.set(corpId, corporationInfoCache.get(corpId));
+            cachedCorps.push(corpId);
+        } else {
+            uncachedFromMemory.push(corpId);
+        }
+    });
+
+    processedCorps = cachedCorps.length;
+    if (processedCorps > 0) {
+        updateProgress(processedCorps, corporationIds.length, 
+            `Getting corporation information (${processedCorps}/${corporationIds.length})...`);
+    }
+
+    // Step 2: Check IndexedDB cache for remaining IDs
+    const cachedFromDB = [];
+    const uncachedFromDB = [];
+
+    if (uncachedFromMemory.length > 0) {
+        // Batch check IndexedDB
+        const dbCachePromises = uncachedFromMemory.map(async corpId => {
+            const cached = await getCachedCorporationInfo(corpId);
+            return { corpId, cached };
+        });
+
+        const dbResults = await Promise.all(dbCachePromises);
+        
+        dbResults.forEach(result => {
+            if (result.cached) {
+                corpMap.set(result.corpId, result.cached);
+                corporationInfoCache.set(result.corpId, result.cached);
+                cachedFromDB.push(result.corpId);
+                processedCorps++;
+            } else {
+                uncachedFromDB.push(result.corpId);
+            }
+        });
+
+        if (cachedFromDB.length > 0) {
+            updateProgress(processedCorps, corporationIds.length, 
+                `Getting corporation information (${processedCorps}/${corporationIds.length})...`);
+        }
+    }
+
+    // Step 3: Fetch remaining corporations from API in chunks with delays
+    if (uncachedFromDB.length > 0) {
+        const corpChunks = chunkArray(uncachedFromDB, CHUNK_SIZE);
+        
+        for (let i = 0; i < corpChunks.length; i++) {
+            const chunk = corpChunks[i];
+            
+            // Process all corps in this chunk concurrently
+            const chunkPromises = chunk.map(async (corpId) => {
+                try {
+                    esiLookups++;
+                    const res = await fetch(`${ESI_BASE}/corporations/${corpId}/`, {
+                        headers: { 'User-Agent': USER_AGENT }
+                    });
+                    if (!res.ok) throw new Error(`Failed to get corporation info for ${corpId}: ${res.status}`);
+                    const data = await res.json();
+
+                    // Extract only needed data
+                    const corporationInfo = {
+                        name: data.name,
+                        war_eligible: data.war_eligible
+                    };
+
+                    // Cache in memory and IndexedDB
+                    corporationInfoCache.set(corpId, corporationInfo);
+                    await setCachedCorporationInfo(corpId, corporationInfo);
+                    
+                    return { id: corpId, info: corporationInfo };
+                } catch (e) {
+                    console.error(`Error fetching corporation ${corpId}:`, e);
+                    const fallbackInfo = { name: 'Unknown Corporation', war_eligible: false };
+                    corporationInfoCache.set(corpId, fallbackInfo);
+                    return { id: corpId, info: fallbackInfo };
+                }
+            });
+
+            const chunkResults = await Promise.all(chunkPromises);
+            
+            // Store results in map
+            chunkResults.forEach(result => {
+                if (result && result.info) {
+                    corpMap.set(result.id, result.info);
+                }
+            });
+
+            processedCorps += chunk.length;
+            updateProgress(processedCorps, corporationIds.length, 
+                `Getting corporation information (${processedCorps}/${corporationIds.length})...`);
+
+            // Only delay between chunks if we have more API calls to make
+            if (i + 1 < corpChunks.length) {
+                await new Promise(resolve => setTimeout(resolve, CHUNK_DELAY));
+            }
+        }
+    }
+
+    return corpMap;
+}
+
+// Fixed batched alliance lookup function for IndexedDB
+async function getAllianceInfoBatch(allianceIds) {
+    const allianceMap = new Map();
+    let processedAlliances = 0;
+
+    // Step 1: Check in-memory cache first
+    const cachedAlliances = [];
+    const uncachedFromMemory = [];
+    
+    allianceIds.forEach(allianceId => {
+        if (allianceInfoCache.has(allianceId)) {
+            allianceMap.set(allianceId, allianceInfoCache.get(allianceId));
+            cachedAlliances.push(allianceId);
+        } else {
+            uncachedFromMemory.push(allianceId);
+        }
+    });
+
+    processedAlliances = cachedAlliances.length;
+    if (processedAlliances > 0) {
+        updateProgress(processedAlliances, allianceIds.length, 
+            `Getting alliance information (${processedAlliances}/${allianceIds.length})...`);
+    }
+
+    // Step 2: Check IndexedDB cache for remaining IDs
+    const cachedFromDB = [];
+    const uncachedFromDB = [];
+
+    if (uncachedFromMemory.length > 0) {
+        // Batch check IndexedDB
+        const dbCachePromises = uncachedFromMemory.map(async allianceId => {
+            const cached = await getCachedAllianceInfo(allianceId);
+            return { allianceId, cached };
+        });
+
+        const dbResults = await Promise.all(dbCachePromises);
+        
+        dbResults.forEach(result => {
+            if (result.cached) {
+                allianceMap.set(result.allianceId, result.cached);
+                allianceInfoCache.set(result.allianceId, result.cached);
+                cachedFromDB.push(result.allianceId);
+                processedAlliances++;
+            } else {
+                uncachedFromDB.push(result.allianceId);
+            }
+        });
+
+        if (cachedFromDB.length > 0) {
+            updateProgress(processedAlliances, allianceIds.length, 
+                `Getting alliance information (${processedAlliances}/${allianceIds.length})...`);
+        }
+    }
+
+    // Step 3: Fetch remaining alliances from API in chunks with delays
+    if (uncachedFromDB.length > 0) {
+        const allianceChunks = chunkArray(uncachedFromDB, CHUNK_SIZE);
+
+        for (let i = 0; i < allianceChunks.length; i++) {
+            const chunk = allianceChunks[i];
+            
+            // Process all alliances in this chunk concurrently
+            const chunkPromises = chunk.map(async (allianceId) => {
+                try {
+                    esiLookups++;
+                    const res = await fetch(`${ESI_BASE}/alliances/${allianceId}/`, {
+                        headers: { 'User-Agent': USER_AGENT }
+                    });
+                    if (!res.ok) throw new Error(`Failed to get alliance info for ${allianceId}: ${res.status}`);
+                    const data = await res.json();
+
+                    // Extract only needed data
+                    const allianceInfo = {
+                        name: data.name
+                    };
+
+                    // Cache in memory and IndexedDB
+                    allianceInfoCache.set(allianceId, allianceInfo);
+                    await setCachedAllianceInfo(allianceId, allianceInfo);
+                    
+                    return { id: allianceId, info: allianceInfo };
+                } catch (e) {
+                    console.error(`Error fetching alliance ${allianceId}:`, e);
+                    const fallbackInfo = { name: 'Unknown Alliance' };
+                    allianceInfoCache.set(allianceId, fallbackInfo);
+                    return { id: allianceId, info: fallbackInfo };
+                }
+            });
+
+            const chunkResults = await Promise.all(chunkPromises);
+            
+            // Store results in map
+            chunkResults.forEach(result => {
+                if (result && result.info) {
+                    allianceMap.set(result.id, result.info);
+                }
+            });
+
+            processedAlliances += chunk.length;
+            updateProgress(processedAlliances, allianceIds.length, 
+                `Getting alliance information (${processedAlliances}/${allianceIds.length})...`);
+
+            // Only delay between chunks if we have more API calls to make
+            if (i + 1 < allianceChunks.length) {
+                await new Promise(resolve => setTimeout(resolve, CHUNK_DELAY));
+            }
+        }
+    }
+
+    return allianceMap;
+}
+
+
 function updateStats(eligible, ineligible) {
     const elements = getStatsElements();
     const eligibleLen = eligible.length;
@@ -1587,7 +2172,7 @@ function updateStats(eligible, ineligible) {
     if (elements.totalCount) elements.totalCount.textContent = totalLen;
     if (elements.eligibleTotal) elements.eligibleTotal.textContent = eligibleLen;
     if (elements.ineligibleTotal) elements.ineligibleTotal.textContent = ineligibleLen;
-    updateTitle(eligibleLen);
+    updateTitle(eligibleLen, totalLen);
 }
 
 function summarizeEntities(results) {
@@ -1940,6 +2525,14 @@ function updateVersionDisplay() {
 
 // Event listeners
 document.addEventListener('DOMContentLoaded', function () {
+    // Initialize IndexedDB
+    initDB().then(() => {
+        console.log('IndexedDB initialized successfully');
+        clearExpiredCache();
+    }).catch(err => {
+        console.error('Failed to initialize IndexedDB:', err);
+    });
+
     const textarea = document.getElementById('names');
     textarea.addEventListener('input', debouncedUpdateCharacterCount);
     textarea.addEventListener('keydown', function (e) {
