@@ -484,7 +484,7 @@ async function clearExpiredCache() {
     }
 }
 
-clearExpiredCache();
+// clearExpiredCache();
 
 function clientValidate(name) {
     name = name.trim();
