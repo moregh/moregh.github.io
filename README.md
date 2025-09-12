@@ -120,4 +120,4 @@ This project is licensed under the AGPL License - see the [LICENSE](LICENSE) fil
 
 **Disclaimer**: This application is not affiliated with or endorsed by CCP Games. EVE Online and all related characters, names, marks, and logos are intellectual property of CCP hf.
 
-For support, feature requests, or bug reports, please [open an issue](https://github.com/moregh/war-target-finder/issues) on GitHub.
+For support, feature requests, or bug reports, please [open an issue](https://github.com/moregh/moregh.github.io/issues) on GitHub.
