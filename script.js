@@ -1,3 +1,22 @@
+/*
+    War Target Finder - find highsec war targets in EVE Online
+    
+    Copyright (C) 2025 moregh (https://github.com/moregh/)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU Affero General Public License as
+    published by the Free Software Foundation, either version 3 of the
+    License, or (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU Affero General Public License for more details.
+
+    You should have received a copy of the GNU Affero General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>. 
+*/
+
 // configuration
 const CACHE_EXPIRY_HOURS = 12;              // cache all data for this long
 const LONG_CACHE_EXPIRY_HOURS = 168;        // cache 'static' data for this long
@@ -11,7 +30,7 @@ const CHUNK_DELAY = 100;                    // 100ms delay between chunks to be 
 const STATS_UPDATE_DELAY = 100;             // Delay stats update until results are available
 const DB_NAME = 'EVEWarTargetCache';        // IndexedDB name
 const DB_VERSION = 1;                       // Track DB version for upgrades
-const VERSION = "0.2.7";                    // Current version
+const VERSION = "0.2.8";                    // Current version
 
 // program constants
 const ESI_BASE = "https://esi.evetech.net/latest";
@@ -701,7 +720,6 @@ async function getCharacterIds(names) {
         updateProgress(0, uncachedNames.length, `Looking up ${uncachedNames.length} character names...`);
         
         fetchedCharacters = await processInChunks(
-            // Split uncached names into chunks of MAX_ESI_CALL_SIZE
             chunkArray(uncachedNames, MAX_ESI_CALL_SIZE),
             async (nameChunk, index, totalChunks) => {
                 esiLookups++;
@@ -715,7 +733,6 @@ async function getCharacterIds(names) {
                 });
                 
                 if (!res.ok) {
-                    showError(`Failed to get character IDs for batch ${index + 1}: ${res.status}`);
                     throw new Error(`Failed to get character IDs for batch ${index + 1}: ${res.status}`);
                 }
                 
@@ -729,8 +746,8 @@ async function getCharacterIds(names) {
                 
                 return characters;
             },
-            MAX_ESI_CALL_SIZE, // chunk size
-            CHUNK_DELAY        // chunk delay
+            MAX_ESI_CALL_SIZE,
+            CHUNK_DELAY
         );
         
         // Flatten the results (each chunk returns an array of characters)
@@ -739,7 +756,6 @@ async function getCharacterIds(names) {
 
     return [...cachedCharacters, ...fetchedCharacters];
 }
-
 
 function chunkArray(array, chunkSize) {
     const chunks = [];
@@ -754,6 +770,7 @@ async function getCharacterAffiliations(characterIds) {
     const cachedAffiliations = [];
     const uncachedIds = [];
 
+    // Check cache first
     for (const id of characterIds) {
         if (characterAffiliationCache.has(id)) {
             cachedAffiliations.push(characterAffiliationCache.get(id));
@@ -773,26 +790,45 @@ async function getCharacterAffiliations(characterIds) {
     let fetchedAffiliations = [];
 
     if (uncachedIds.length > 0) {
-        esiLookups++;
-        const res = await fetch(`${ESI_BASE}/characters/affiliation/`, {
-            method: 'POST',
-            headers: ESI_HEADERS,
-            body: JSON.stringify(uncachedIds)
-        });
-        if (!res.ok) {
-            showError(`Failed to get character affiliations: ${res.status}`);
-            throw new Error(`Failed to get character affiliations: ${res.status}`);
-        }
-        fetchedAffiliations = await res.json();
-
-        for (const affiliation of fetchedAffiliations) {
-            await setCachedAffiliation(affiliation.character_id, affiliation);
-        }
+        // Process uncached IDs in chunks to respect ESI limits
+        updateProgress(0, uncachedIds.length, `Getting character affiliations...`);
+        
+        fetchedAffiliations = await processInChunks(
+            chunkArray(uncachedIds, MAX_ESI_CALL_SIZE),
+            async (idChunk, index, totalChunks) => {
+                esiLookups++;
+                updateProgress(index * MAX_ESI_CALL_SIZE, uncachedIds.length, 
+                    `Getting character affiliations (batch ${index + 1}/${totalChunks})...`);
+                
+                const res = await fetch(`${ESI_BASE}/characters/affiliation/`, {
+                    method: 'POST',
+                    headers: ESI_HEADERS,
+                    body: JSON.stringify(idChunk)
+                });
+                
+                if (!res.ok) {
+                    throw new Error(`Failed to get character affiliations for batch ${index + 1}: ${res.status}`);
+                }
+                
+                const affiliations = await res.json();
+                
+                // Cache each affiliation immediately
+                for (const affiliation of affiliations) {
+                    await setCachedAffiliation(affiliation.character_id, affiliation);
+                }
+                
+                return affiliations;
+            },
+            MAX_ESI_CALL_SIZE,
+            CHUNK_DELAY
+        );
+        
+        // Flatten the results (each chunk returns an array of affiliations)
+        fetchedAffiliations = fetchedAffiliations.flat().filter(affiliation => affiliation !== null);
     }
 
     return [...cachedAffiliations, ...fetchedAffiliations];
 }
-
 
 async function getIndexedDBSize() {
     try {
