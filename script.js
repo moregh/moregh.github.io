@@ -1,4 +1,4 @@
-const VERSION = "0.2.4";
+const VERSION = "0.2.5";
 const ESI_BASE = "https://esi.evetech.net/latest";
 const USER_AGENT = `WarTargetFinder/${VERSION} (+https://github.com/moregh/moregh.github.io/)`;
 const ESI_HEADERS = {
@@ -52,8 +52,8 @@ class ManagedObservers {
     constructor() {
         this.imageObserver = null;
         this.animationObserver = null;
-        this.observedImages = new WeakSet();
-        this.observedAnimations = new WeakSet();
+        this.observedImages = new Set(); // Track DOM elements directly
+        this.observedAnimations = new Set();
     }
 
     getImageObserver() {
@@ -65,8 +65,7 @@ class ManagedObservers {
                         if (img.dataset.src && !img.src.startsWith('https://') && document.contains(img)) {
                             img.dataset.loading = 'true';
                             imageLoadQueue.push(img);
-                            // FIXED: Don't call observeImage here - just unobserve directly
-                            this.imageObserver.unobserve(img);
+                            this.imageObserver.unobserve(img); // Clean unobserve
                             this.observedImages.delete(img);
                             processImageQueue();
                         }
@@ -84,10 +83,9 @@ class ManagedObservers {
         if (!this.animationObserver) {
             this.animationObserver = new IntersectionObserver((entries) => {
                 entries.forEach(entry => {
-                    if (entry.isIntersecting) {
+                    if (entry.isIntersecting && document.contains(entry.target)) {
                         entry.target.classList.add('animate-in');
-                        // FIXED: Don't call observeAnimation here - just unobserve directly
-                        this.animationObserver.unobserve(entry.target);
+                        this.animationObserver.unobserve(entry.target); // Clean unobserve
                         this.observedAnimations.delete(entry.target);
                     }
                 });
@@ -100,8 +98,7 @@ class ManagedObservers {
     }
 
     observeImage(img) {
-        // Check if already observed to prevent duplicates
-        if (this.observedImages.has(img) || !document.contains(img)) return;
+        if (!img || this.observedImages.has(img) || !document.contains(img)) return;
         
         try {
             this.getImageObserver().observe(img);
@@ -112,8 +109,7 @@ class ManagedObservers {
     }
 
     observeAnimation(element) {
-        // Check if already observed to prevent duplicates
-        if (this.observedAnimations.has(element) || !document.contains(element)) return;
+        if (!element || this.observedAnimations.has(element) || !document.contains(element)) return;
         
         try {
             this.getAnimationObserver().observe(element);
@@ -124,21 +120,37 @@ class ManagedObservers {
     }
 
     cleanup() {
-        if (this.imageObserver) {
-            this.imageObserver.disconnect();
-            this.imageObserver = null;
-        }
-        if (this.animationObserver) {
-            this.animationObserver.disconnect();
-            this.animationObserver = null;
-        }
-        this.observedImages = new WeakSet();
-        this.observedAnimations = new WeakSet();
+        // Unobserve all tracked elements before disconnecting
+        this.observedImages.forEach(img => {
+            try { this.imageObserver?.unobserve(img); } catch(e) {}
+        });
+        this.observedAnimations.forEach(element => {
+            try { this.animationObserver?.unobserve(element); } catch(e) {}
+        });
+
+        this.imageObserver?.disconnect();
+        this.animationObserver?.disconnect();
+        
+        this.imageObserver = null;
+        this.animationObserver = null;
+        this.observedImages.clear();
+        this.observedAnimations.clear();
     }
 
     cleanupDeadElements() {
-        // This method is called periodically to clean up dead observations
-        // WeakSet will handle cleanup automatically for garbage collected elements
+        // Clean up elements that are no longer in DOM
+        for (const img of this.observedImages) {
+            if (!document.contains(img)) {
+                this.imageObserver?.unobserve(img);
+                this.observedImages.delete(img);
+            }
+        }
+        for (const element of this.observedAnimations) {
+            if (!document.contains(element)) {
+                this.animationObserver?.unobserve(element);
+                this.observedAnimations.delete(element);
+            }
+        }
     }
 }
 
@@ -1599,23 +1611,6 @@ function loadSingleImage(img) {
 }
 
 
-function createOptimizedImage(src, alt, className) {
-    const img = document.createElement("img");
-    img.className = className;
-    img.alt = alt;
-    img.loading = "lazy";
-    img.decoding = "async";
-    
-    const placeholder = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3C/svg%3E";
-    img.src = placeholder;
-    img.dataset.src = src;
-    img.dataset.placeholder = placeholder;
-
-    // DON'T observe here - observe after element is added to DOM
-    return img;
-}
-
-
 function createCharacterItem(character, viewType = 'grid') {
     const item = document.createElement("div");
     item.className = `result-item ${viewType}-view animate-ready`;
@@ -1858,20 +1853,16 @@ function createCharacterItemWithCachedImages(character, viewType = 'grid') {
 
 function setupVirtualScrolling(containerId, items) {
     const container = document.getElementById(containerId);
-
-    // handle case where container is not found
-    if (!container) {
-        console.warn(`Container with id "${containerId}" not found`);
+    if (!container || !items || items.length === 0) {
+        console.warn(`Cannot setup virtual scrolling: container "${containerId}" not found or no items`);
         return;
     }
     
-    // Find the parent grid - try different selectors
+    // Find the parent grid with better error handling
     let parentGrid = container.closest('.result-grid');
     if (!parentGrid) {
-        // If closest doesn't work, try parent element
         parentGrid = container.parentElement;
-        // If parent doesn't have result-grid class, the container itself might be the grid
-        if (!parentGrid || !parentGrid.classList.contains('result-grid')) {
+        if (!parentGrid?.classList?.contains('result-grid')) {
             parentGrid = container;
         }
     }
@@ -1881,33 +1872,40 @@ function setupVirtualScrolling(containerId, items) {
         return;
     }
     
-    // Clear any existing virtual scroll setup
+    // Clean up any existing virtual scroll setup first
+    if (container._cleanup) {
+        container._cleanup();
+        delete container._cleanup;
+    }
+    
+    // Clear any existing scroll listener
     if (container._scrollListener) {
         container.removeEventListener('scroll', container._scrollListener);
         delete container._scrollListener;
     }
     
-    // Add CSS classes instead of inline styles
+    // Add CSS classes
     parentGrid.classList.add('virtual-enabled');
     
-    const isListView = parentGrid.classList.contains('list-view');
+    const isListView = currentView === 'list';
     const itemHeight = isListView ? 90 : 150;
-    const containerWidth = parentGrid.clientWidth - 60;
+    const containerWidth = Math.max(270, parentGrid.clientWidth - 60); // Minimum width fallback
     const itemsPerRow = isListView ? 1 : Math.max(1, Math.floor(containerWidth / 270));
     const totalRows = Math.ceil(items.length / itemsPerRow);
     const totalHeight = totalRows * itemHeight;
     
-    // Apply CSS classes instead of inline styles
+    // Apply CSS classes
     container.className = 'virtual-scroll-container';
     
-    // Create structure with CSS classes
+    // Create structure
     const spacer = document.createElement('div');
     spacer.className = 'virtual-scroll-spacer';
-    spacer.style.height = totalHeight + 'px'; // Only dynamic style needed
+    spacer.style.height = totalHeight + 'px';
     
     const content = document.createElement('div');
     content.className = `virtual-scroll-content ${isListView ? 'list-view' : ''}`;
     
+    // Clear and setup DOM
     container.innerHTML = '';
     spacer.appendChild(content);
     container.appendChild(spacer);
@@ -1915,10 +1913,19 @@ function setupVirtualScrolling(containerId, items) {
     let isUpdating = false;
     let lastStartIndex = -1;
     let lastEndIndex = -1;
+    let animationFrame = null;
     
     function updateVisibleItems() {
-        if (isUpdating) return;
+        if (isUpdating || !document.contains(container)) {
+            return;
+        }
+        
         isUpdating = true;
+        
+        // Cancel previous animation frame
+        if (animationFrame) {
+            cancelAnimationFrame(animationFrame);
+        }
         
         const scrollTop = container.scrollTop;
         const containerHeight = container.clientHeight;
@@ -1938,10 +1945,14 @@ function setupVirtualScrolling(containerId, items) {
         lastStartIndex = startIndex;
         lastEndIndex = endIndex;
         
-        // Only transform is dynamic
-        content.style.transform = `translateY(${startRow * itemHeight}px)`;
-        
-        requestAnimationFrame(() => {
+        animationFrame = requestAnimationFrame(() => {
+            if (!document.contains(container) || !document.contains(content)) {
+                isUpdating = false;
+                return;
+            }
+            
+            content.style.transform = `translateY(${startRow * itemHeight}px)`;
+            
             const fragment = document.createDocumentFragment();
             
             for (let i = startIndex; i < endIndex; i++) {
@@ -1954,55 +1965,73 @@ function setupVirtualScrolling(containerId, items) {
             content.innerHTML = '';
             content.appendChild(fragment);
             isUpdating = false;
+            animationFrame = null;
         });
     }
     
-    let scrollTicking = false;
+    // Throttled scroll handler
+    let scrollTimeout = null;
     function onScroll() {
-        if (!scrollTicking) {
-            requestAnimationFrame(() => {
-                updateVisibleItems();
-                scrollTicking = false;
-            });
-            scrollTicking = true;
+        if (scrollTimeout) {
+            clearTimeout(scrollTimeout);
         }
+        scrollTimeout = setTimeout(() => {
+            updateVisibleItems();
+            scrollTimeout = null;
+        }, 16); // ~60fps throttling
     }
     
     container._scrollListener = onScroll;
     container.addEventListener('scroll', onScroll, { passive: true });
     
+    // Initial render
     updateVisibleItems();
     
+    // Enhanced cleanup function
     container._cleanup = () => {
-    if (container._scrollListener) {
-        container.removeEventListener('scroll', container._scrollListener);
-        delete container._scrollListener;
-    }
-    
-    // Clean up observers for elements in this container
-    const images = container.querySelectorAll('img[data-src]');
-    const animations = container.querySelectorAll('.animate-ready, .animate-in');
-    
-    images.forEach(img => {
-        if (observerManager.imageObserver) {
-            observerManager.imageObserver.unobserve(img);
+        if (animationFrame) {
+            cancelAnimationFrame(animationFrame);
+            animationFrame = null;
         }
-    });
-    
-    animations.forEach(element => {
-        if (observerManager.animationObserver) {
-            observerManager.animationObserver.unobserve(element);
+        
+        if (scrollTimeout) {
+            clearTimeout(scrollTimeout);
+            scrollTimeout = null;
         }
-    });
-    
-    // Remove CSS classes when cleaning up
-    if (parentGrid && parentGrid.classList) {
-        parentGrid.classList.remove('virtual-enabled');
-    }
-    if (container) {
-        container.className = container.className.replace('virtual-scroll-container', '').trim() || 'result-grid';
-    }
-};
+        
+        if (container._scrollListener) {
+            container.removeEventListener('scroll', container._scrollListener);
+            delete container._scrollListener;
+        }
+        
+        // Clean up observers for elements in this container
+        const images = container.querySelectorAll('img[data-src]');
+        const animations = container.querySelectorAll('.animate-ready, .animate-in');
+        
+        images.forEach(img => {
+            if (observerManager.imageObserver && observerManager.observedImages.has(img)) {
+                observerManager.imageObserver.unobserve(img);
+                observerManager.observedImages.delete(img);
+            }
+        });
+        
+        animations.forEach(element => {
+            if (observerManager.animationObserver && observerManager.observedAnimations.has(element)) {
+                observerManager.animationObserver.unobserve(element);
+                observerManager.observedAnimations.delete(element);
+            }
+        });
+        
+        // Remove CSS classes
+        if (parentGrid?.classList) {
+            parentGrid.classList.remove('virtual-enabled');
+        }
+        if (container) {
+            container.className = container.className.replace('virtual-scroll-container', '').trim() || 'result-grid';
+        }
+        
+        delete container._cleanup;
+    };
 }
 
 let lastTimerUpdate = 0;
