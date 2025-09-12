@@ -1,4 +1,4 @@
-const VERSION = "0.2.1";
+const VERSION = "0.2.2";
 const ESI_BASE = "https://esi.evetech.net/latest";
 const USER_AGENT = `WarTargetFinder/${VERSION} (+https://github.com/moregh/moregh.github.io/)`;
 const ESI_HEADERS = {
@@ -8,6 +8,7 @@ const ESI_HEADERS = {
     'X-User-Agent': `WarTargetFinder/${VERSION}`
 };
 const CACHE_EXPIRY_HOURS = 12;              // cache all data for this long
+const LONG_CACHE_EXPIRY_HOURS = 168;        // cache 'static' data for this long
 const INITIAL_USER_RESULTS_COUNT = 6;       // initial number of user results to show
 const INITIAL_CORP_ALLIANCE_COUNT = 5;      // initial number of corps/alliances to show
 const LOAD_MORE_COUNT = 12;                 // number of results to load when "Load More" is clicked
@@ -455,36 +456,131 @@ async function setCachedAllianceInfo(allianceId, allianceData) {
 
 
 
+// Fixed cache cleanup function
 async function clearExpiredCache() {
     try {
         const db = await initDB();
+        if (!db) {
+            console.warn('IndexedDB not available, skipping cache cleanup');
+            return;
+        }
+        
         const now = Date.now();
-        const expiryMs = CACHE_EXPIRY_HOURS * 60 * 60 * 1000;
+        const shortExpiryMs = CACHE_EXPIRY_HOURS * 60 * 60 * 1000;
+        const longExpiryMs = LONG_CACHE_EXPIRY_HOURS * 60 * 60 * 1000;
         
-        const stores = ['character_names', 'character_affiliations', 'corporations', 'alliances'];
-        
-        for (const storeName of stores) {
-            const transaction = db.transaction([storeName], 'readwrite');
-            const store = transaction.objectStore('timestamps');
-            const index = store.index('timestamp');
+        // Clear expired affiliations (short-term)
+        try {
+            const affiliationTransaction = db.transaction(['character_affiliations'], 'readwrite');
+            const affiliationStore = affiliationTransaction.objectStore('character_affiliations');
+            const affiliationIndex = affiliationStore.index('timestamp');
             
-            const range = IDBKeyRange.upperBound(now - expiryMs);
-            const deleteRequest = index.openCursor(range);
+            const affiliationRange = IDBKeyRange.upperBound(now - shortExpiryMs);
+            const affiliationRequest = affiliationIndex.openCursor(affiliationRange);
             
-            deleteRequest.onsuccess = (event) => {
+            affiliationRequest.onsuccess = (event) => {
                 const cursor = event.target.result;
                 if (cursor) {
                     cursor.delete();
                     cursor.continue();
                 }
             };
+            
+            affiliationRequest.onerror = () => {
+                console.warn('Error clearing expired affiliations:', affiliationRequest.error);
+            };
+        } catch (e) {
+            console.warn('Error setting up affiliation cleanup:', e);
         }
+        
+        // Clear expired names (long-term)
+        try {
+            const nameTransaction = db.transaction(['character_names'], 'readwrite');
+            const nameStore = nameTransaction.objectStore('character_names');
+            const nameIndex = nameStore.index('timestamp');
+            
+            const nameRange = IDBKeyRange.upperBound(now - longExpiryMs);
+            const nameRequest = nameIndex.openCursor(nameRange);
+            
+            nameRequest.onsuccess = (event) => {
+                const cursor = event.target.result;
+                if (cursor) {
+                    cursor.delete();
+                    cursor.continue();
+                }
+            };
+            
+            nameRequest.onerror = () => {
+                console.warn('Error clearing expired names:', nameRequest.error);
+            };
+        } catch (e) {
+            console.warn('Error setting up name cleanup:', e);
+        }
+        
+        // Clear expired alliances (long-term)
+        try {
+            const allianceTransaction = db.transaction(['alliances'], 'readwrite');
+            const allianceStore = allianceTransaction.objectStore('alliances');
+            const allianceIndex = allianceStore.index('timestamp');
+            
+            const allianceRange = IDBKeyRange.upperBound(now - longExpiryMs);
+            const allianceRequest = allianceIndex.openCursor(allianceRange);
+            
+            allianceRequest.onsuccess = (event) => {
+                const cursor = event.target.result;
+                if (cursor) {
+                    cursor.delete();
+                    cursor.continue();
+                }
+            };
+            
+            allianceRequest.onerror = () => {
+                console.warn('Error clearing expired alliances:', allianceRequest.error);
+            };
+        } catch (e) {
+            console.warn('Error setting up alliance cleanup:', e);
+        }
+        
+        // Handle corporations with dual timestamps (more complex)
+        try {
+            const corpTransaction = db.transaction(['corporations'], 'readwrite');
+            const corpStore = corpTransaction.objectStore('corporations');
+            const corpCursor = corpStore.openCursor();
+            
+            corpCursor.onsuccess = (event) => {
+                const cursor = event.target.result;
+                if (cursor) {
+                    const record = cursor.value;
+                    const nameExpired = isExpired(record.name_timestamp || record.timestamp, true);
+                    const warExpired = isExpired(record.war_eligible_timestamp || record.timestamp, false);
+                    
+                    if (nameExpired) {
+                        // If name is expired, delete entire record
+                        cursor.delete();
+                    } else if (warExpired && record.war_eligible_timestamp) {
+                        // If only war eligibility is expired, update record to remove war_eligible
+                        const updatedRecord = { ...record };
+                        delete updatedRecord.war_eligible;
+                        delete updatedRecord.war_eligible_timestamp;
+                        cursor.update(updatedRecord);
+                    }
+                    cursor.continue();
+                }
+            };
+            
+            corpCursor.onerror = () => {
+                console.warn('Error clearing expired corporations:', corpCursor.error);
+            };
+        } catch (e) {
+            console.warn('Error setting up corporation cleanup:', e);
+        }
+        
+        
     } catch (e) {
-        console.warn('Error clearing expired cache:', e);
+        console.warn('Error during cache cleanup:', e);
     }
 }
-
-// clearExpiredCache();
+clearExpiredCache();
 
 function clientValidate(name) {
     name = name.trim();
@@ -2553,7 +2649,6 @@ function updateVersionDisplay() {
 document.addEventListener('DOMContentLoaded', function () {
     // Initialize IndexedDB
     initDB().then(() => {
-        console.log('IndexedDB initialized successfully');
         clearExpiredCache();
     }).catch(err => {
         console.error('Failed to initialize IndexedDB:', err);
