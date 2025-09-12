@@ -1,4 +1,4 @@
-const VERSION = "0.2.2";
+const VERSION = "0.2.3";
 const ESI_BASE = "https://esi.evetech.net/latest";
 const USER_AGENT = `WarTargetFinder/${VERSION} (+https://github.com/moregh/moregh.github.io/)`;
 const ESI_HEADERS = {
@@ -48,6 +48,102 @@ let completeResults = [];
 let corpToCharactersMap = new Map();
 let allianceToCorpsMap = new Map();
 
+class ManagedObservers {
+    constructor() {
+        this.imageObserver = null;
+        this.animationObserver = null;
+        this.observedImages = new WeakSet();
+        this.observedAnimations = new WeakSet();
+    }
+
+    getImageObserver() {
+        if (!this.imageObserver) {
+            this.imageObserver = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        const img = entry.target;
+                        if (img.dataset.src && !img.src.startsWith('https://') && document.contains(img)) {
+                            img.dataset.loading = 'true';
+                            imageLoadQueue.push(img);
+                            // FIXED: Don't call observeImage here - just unobserve directly
+                            this.imageObserver.unobserve(img);
+                            this.observedImages.delete(img);
+                            processImageQueue();
+                        }
+                    }
+                });
+            }, {
+                rootMargin: '50px',
+                threshold: 0.1
+            });
+        }
+        return this.imageObserver;
+    }
+
+    getAnimationObserver() {
+        if (!this.animationObserver) {
+            this.animationObserver = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('animate-in');
+                        // FIXED: Don't call observeAnimation here - just unobserve directly
+                        this.animationObserver.unobserve(entry.target);
+                        this.observedAnimations.delete(entry.target);
+                    }
+                });
+            }, {
+                rootMargin: '20px 0px',
+                threshold: 0.01
+            });
+        }
+        return this.animationObserver;
+    }
+
+    observeImage(img) {
+        // Check if already observed to prevent duplicates
+        if (this.observedImages.has(img) || !document.contains(img)) return;
+        
+        try {
+            this.getImageObserver().observe(img);
+            this.observedImages.add(img);
+        } catch (error) {
+            console.warn('Failed to observe image:', error);
+        }
+    }
+
+    observeAnimation(element) {
+        // Check if already observed to prevent duplicates
+        if (this.observedAnimations.has(element) || !document.contains(element)) return;
+        
+        try {
+            this.getAnimationObserver().observe(element);
+            this.observedAnimations.add(element);
+        } catch (error) {
+            console.warn('Failed to observe animation element:', error);
+        }
+    }
+
+    cleanup() {
+        if (this.imageObserver) {
+            this.imageObserver.disconnect();
+            this.imageObserver = null;
+        }
+        if (this.animationObserver) {
+            this.animationObserver.disconnect();
+            this.animationObserver = null;
+        }
+        this.observedImages = new WeakSet();
+        this.observedAnimations = new WeakSet();
+    }
+
+    cleanupDeadElements() {
+        // This method is called periodically to clean up dead observations
+        // WeakSet will handle cleanup automatically for garbage collected elements
+    }
+}
+
+// Create single instance
+const observerManager = new ManagedObservers();
 
 async function initDB() {
     if (dbInstance) return dbInstance;
@@ -1457,53 +1553,10 @@ function createMouseoverCard(entity, type) {
     return card;
 }
 
-// Global observer for all images to reduce overhead
-let globalImageObserver = null;
 let imageLoadQueue = [];
 let currentlyLoading = 0;
 
 
-function getImageObserver() {
-    if (!globalImageObserver) {
-        globalImageObserver = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    const img = entry.target;
-                    if (img.dataset.src && !img.src.startsWith('https://') && document.contains(img)) {
-                        img.dataset.loading = 'true';
-                        imageLoadQueue.push(img);
-                        globalImageObserver.unobserve(img);
-                        processImageQueue();
-                    }
-                }
-            });
-        }, {
-            rootMargin: '50px',
-            threshold: 0.1
-        });
-    }
-    return globalImageObserver;
-}
-
-// Add this new animation observer
-let animationObserver = null;
-
-function getAnimationObserver() {
-    if (!animationObserver) {
-        animationObserver = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    entry.target.classList.add('animate-in');
-                    animationObserver.unobserve(entry.target);
-                }
-            });
-        }, {
-            rootMargin: '20px 0px',
-            threshold: 0.01
-        });
-    }
-    return animationObserver;
-}
 
 function processImageQueue() {
     while (imageLoadQueue.length > 0 && currentlyLoading < MAX_CONCURRENT_IMAGES) {
@@ -1545,16 +1598,6 @@ function loadSingleImage(img) {
     img.src = realSrc;
 }
 
-function cleanupObservers() {
-    if (globalImageObserver) {
-        globalImageObserver.disconnect();
-        globalImageObserver = null;
-    }
-    if (animationObserver) {
-        animationObserver.disconnect();
-        animationObserver = null;
-    }
-}
 
 function createOptimizedImage(src, alt, className) {
     const img = document.createElement("img");
@@ -1568,7 +1611,7 @@ function createOptimizedImage(src, alt, className) {
     img.dataset.src = src;
     img.dataset.placeholder = placeholder;
 
-    getImageObserver().observe(img);
+    // DON'T observe here - observe after element is added to DOM
     return img;
 }
 
@@ -1624,13 +1667,19 @@ function createCharacterItem(character, viewType = 'grid') {
             </div>
         </div>
     `;
-    
-    // Observe all lazy images immediately - no setTimeout needed
+
     const lazyImages = item.querySelectorAll('img[data-src]');
-    lazyImages.forEach(img => getImageObserver().observe(img));
+    lazyImages.forEach(img => {
+        // Add a small delay to ensure DOM is ready
+        requestAnimationFrame(() => {
+            observerManager.observeImage(img);
+        });
+    });
     
-    // Single animation observer
-    getAnimationObserver().observe(item);
+    // Observe animation after DOM is ready
+    requestAnimationFrame(() => {
+        observerManager.observeAnimation(item);
+    });
     
     return item;
 }
@@ -1914,29 +1963,35 @@ function setupVirtualScrolling(containerId, items) {
     updateVisibleItems();
     
     container._cleanup = () => {
-        if (container._scrollListener) {
-            container.removeEventListener('scroll', container._scrollListener);
-            delete container._scrollListener;
+    if (container._scrollListener) {
+        container.removeEventListener('scroll', container._scrollListener);
+        delete container._scrollListener;
+    }
+    
+    // Clean up observers for elements in this container
+    const images = container.querySelectorAll('img[data-src]');
+    const animations = container.querySelectorAll('.animate-ready, .animate-in');
+    
+    images.forEach(img => {
+        if (observerManager.imageObserver) {
+            observerManager.imageObserver.unobserve(img);
         }
-        if (globalImageObserver) {
-            container.querySelectorAll('img[data-src]').forEach(img => {
-                globalImageObserver.unobserve(img);
-            });
+    });
+    
+    animations.forEach(element => {
+        if (observerManager.animationObserver) {
+            observerManager.animationObserver.unobserve(element);
         }
-        if (animationObserver) {
-            container.querySelectorAll('.animate-ready').forEach(element => {
-                animationObserver.unobserve(element);
-            });
-        }
-        // Remove CSS classes when cleaning up
-        if (parentGrid && parentGrid.classList) {
-            parentGrid.classList.remove('virtual-enabled');
-        }
-        // Reset container to original class
-        if (container) {
-            container.className = container.className.replace('virtual-scroll-container', '').trim() || 'result-grid';
-        }
-    };
+    });
+    
+    // Remove CSS classes when cleaning up
+    if (parentGrid && parentGrid.classList) {
+        parentGrid.classList.remove('virtual-enabled');
+    }
+    if (container) {
+        container.className = container.className.replace('virtual-scroll-container', '').trim() || 'result-grid';
+    }
+};
 }
 
 let lastTimerUpdate = 0;
@@ -1979,6 +2034,8 @@ function startLoading() {
     esiLookups = 0;
     localLookups = 0;
     queryStartTime = performance.now();
+
+    observerManager.cleanup(); // Clear all observers before new search
 
     startTime = Date.now();
     timerInterval = setInterval(updateTimer, 100);
@@ -2408,6 +2465,9 @@ function loadMoreSummary(type) {
 }
 
 function updateResultsDisplay() {
+    // Clean up previous results first
+    observerManager.cleanupDeadElements();
+    
     const eligibleToShow = expandedSections.eligible
         ? allResults.eligible
         : allResults.eligible.slice(0, displayedResults.eligible);
@@ -2419,7 +2479,6 @@ function updateResultsDisplay() {
     renderGrid("eligible-grid", eligibleToShow, 'character');
     renderGrid("ineligible-grid", ineligibleToShow, 'character');
 
-    // Update load more buttons
     updateLoadMoreButtons();
     updateShowingCount();
 }
@@ -2662,6 +2721,16 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
+    window.addEventListener('beforeunload', () => {
+        observerManager.cleanup();
+    });
+
+    // Cleanup on page visibility change (mobile optimization)
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            observerManager.cleanupDeadElements();
+        }
+     });
     // Initialize character count
     updateCharacterCount();
 
