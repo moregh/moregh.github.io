@@ -7,7 +7,12 @@
   <meta name="application-name" content="War Target Finder">
   <title>WTF - EVE Online War Target Finder</title>
   <link rel="stylesheet" href="styles.css">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+  <link rel="manifest" href="site.webmanifest">
 </head>
+
 <body>
   <script type="text/javascript" src="script.js" defer></script>
   <div class="background-effects">
@@ -16,21 +21,30 @@
     <div class="floating-orb orb-3"></div>
     <div class="grid-overlay"></div>
   </div>
-<div class="container">
-  <header class="compact-header">
-    <div class="header-content">
-      <div class="header-main">
-        <a href="#" data-action="reload-page" class="title-link">
-          <h1>War Target Finder</h1>
-        </a>
-        <div class="header-meta">
-          <span class="subtitle">Find targets for EVE Online highsec warfare</span>
-          <span class="version-badge" id="version-display">v0.0.0</span>
+  <div class="container">
+    <div class="header-main">
+      <a href="#" data-action="reload-page" class="title-link">
+        <div class="title-container">
+          <div class="title-icon">
+            <svg class="target-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5" />
+              <circle cx="12" cy="12" r="6" stroke="currentColor" stroke-width="1.5" />
+              <circle cx="12" cy="12" r="2" fill="currentColor" />
+              <path d="M12 2v4M12 18v4M2 12h4M18 12h4" stroke="currentColor" stroke-width="1.5"
+                stroke-linecap="round" />
+            </svg>
+          </div>
+          <h1>
+            <span class="title-primary">War Target</span>
+            <span class="title-secondary">Finder</span>
+          </h1>
         </div>
+      </a>
+      <div class="header-meta">
+        <span class="subtitle">Find targets for EVE Online highsec warfare</span>
+        <span class="version-badge" id="version-display">v0.0.0</span>
       </div>
     </div>
-  </header>
-
     <div class="input-section glass-card" id="input-section">
       <div class="collapsed-indicator">
         <span>📝 Click or hover to add more characters</span>
