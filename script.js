@@ -723,19 +723,13 @@ async function processInChunks(items, processFn, chunkSize = CHUNK_SIZE, delay =
     return results;
 }
 
-async function validator(names) {
-    // Reset counters at start
-    localLookups = 0;
-    esiLookups = 0;
+// Refactored validator functions - broken into logical blocks
 
-    // Step 1: Get character IDs (chunked with progress)
-    const characters = await getCharacterIds(names);
-    const characterIds = characters.map(char => char.id);
-
-    // Check if we got all the characters we expected
-    if (characters.length !== names.length) {
+// Function to handle missing character warnings
+async function handleMissingCharacters(characters, originalNames) {
+    if (characters.length !== originalNames.length) {
         const foundNames = new Set(characters.map(c => c.name.toLowerCase()));
-        const missingNames = names.filter(name => !foundNames.has(name.toLowerCase()));
+        const missingNames = originalNames.filter(name => !foundNames.has(name.toLowerCase()));
         console.warn(`Could not find ${missingNames.length} character(s):`, missingNames);
         
         if (missingNames.length > 0) {
@@ -743,24 +737,13 @@ async function validator(names) {
             await new Promise(resolve => setTimeout(resolve, 1500));
         }
     }
+}
 
-    // Step 2: Get character affiliations
-    updateProgress(0, characterIds.length, "Getting character affiliations...");
-    const affiliations = await getCharacterAffiliations(characterIds);
-
-    const affiliationMap = new Map();
-    affiliations.forEach(affiliation => {
-        affiliationMap.set(affiliation.character_id, affiliation);
-    });
-
-    // Step 3: Get unique corp and alliance IDs
-    const uniqueCorpIds = Array.from(new Set(affiliations.map(a => a.corporation_id)));
-    const uniqueAllianceIds = Array.from(new Set(affiliations.map(a => a.alliance_id).filter(id => id)));
-
-    // Step 4: Get corporation info with smart caching
+// Function to get corporation information with smart caching
+async function getCorporationInfoWithCaching(uniqueCorpIds) {
     updateProgress(0, uniqueCorpIds.length, "Getting corporation information...");
     
-    // Check which corps need API calls vs cache
+    // Step 1: Check which corps need API calls vs cache
     const cachedCorps = [];
     const uncachedCorpIds = [];
     
@@ -776,7 +759,7 @@ async function validator(names) {
     const corpMap = new Map();
     let processedCorps = 0;
 
-    // Process cached corps instantly (no chunks, no delays)
+    // Step 2: Process cached corps instantly (no chunks, no delays)
     if (cachedCorps.length > 0) {
         for (const corpId of cachedCorps) {
             try {
@@ -793,218 +776,225 @@ async function validator(names) {
         }
     }
 
-    // Check IndexedDB cache for uncached corps (batched)
-    const cachedFromDB = [];
-    const uncachedFromDB = [];
-
-    if (uncachedCorpIds.length > 0) {
-        // Batch check IndexedDB
-        const dbCachePromises = uncachedCorpIds.map(async corpId => {
-            const cached = await getCachedCorporationInfo(corpId);
-            return { corpId, cached };
-        });
-
-        const dbResults = await Promise.all(dbCachePromises);
-        
-        dbResults.forEach(result => {
-            if (result.cached) {
-                corpMap.set(result.corpId, result.cached);
-                corporationInfoCache.set(result.corpId, result.cached);
-                cachedFromDB.push(result.corpId);
-                processedCorps++;
-                localLookups++; // Count IndexedDB cache hit
-            } else {
-                uncachedFromDB.push(result.corpId);
-            }
-        });
-
-        if (cachedFromDB.length > 0) {
-            updateProgress(processedCorps, uniqueCorpIds.length, 
-                `Getting corporation information (${processedCorps}/${uniqueCorpIds.length})...`);
-        }
+    // Step 3: Check IndexedDB cache for uncached corps (batched)
+    const uncachedFromDB = await checkIndexedDBCache(uncachedCorpIds, corpMap, 'corporation');
+    processedCorps += (uncachedCorpIds.length - uncachedFromDB.length);
+    
+    if (processedCorps > cachedCorps.length) {
+        updateProgress(processedCorps, uniqueCorpIds.length, 
+            `Getting corporation information (${processedCorps}/${uniqueCorpIds.length})...`);
     }
 
-    // Process uncached corps in chunks with delays (only if we have API calls to make)
+    // Step 4: Process uncached corps with API calls (chunked with delays)
     if (uncachedFromDB.length > 0) {
-        const corpChunks = chunkArray(uncachedFromDB, CHUNK_SIZE);
-        
-        for (let i = 0; i < corpChunks.length; i++) {
-            const chunk = corpChunks[i];
-            
-            // Process all corps in this chunk concurrently
-            const chunkPromises = chunk.map(async (corpId) => {
-                try {
-                    esiLookups++;
-                    const res = await fetch(`${ESI_BASE}/corporations/${corpId}/`, {
-                        headers: { 'User-Agent': USER_AGENT }
-                    });
-                    if (!res.ok) throw new Error(`Failed to get corporation info for ${corpId}: ${res.status}`);
-                    const data = await res.json();
+        await processUncachedCorporations(uncachedFromDB, corpMap, processedCorps, uniqueCorpIds.length);
+    }
 
-                    // Extract only needed data
-                    const corporationInfo = {
-                        name: data.name,
-                        war_eligible: data.war_eligible
-                    };
+    return corpMap;
+}
 
-                    // Cache in memory and IndexedDB
-                    corporationInfoCache.set(corpId, corporationInfo);
-                    await setCachedCorporationInfo(corpId, corporationInfo);
-                    
-                    return { id: corpId, info: corporationInfo };
-                } catch (e) {
-                    console.error(`Error fetching corporation ${corpId}:`, e);
-                    const fallbackInfo = { name: 'Unknown Corporation', war_eligible: false };
-                    corporationInfoCache.set(corpId, fallbackInfo);
-                    return { id: corpId, info: fallbackInfo };
-                }
-            });
+// Function to get alliance information with smart caching
+async function getAllianceInfoWithCaching(uniqueAllianceIds) {
+    if (uniqueAllianceIds.length === 0) {
+        return new Map();
+    }
 
-            const chunkResults = await Promise.all(chunkPromises);
-            
-            // Store results in map
-            chunkResults.forEach(result => {
-                if (result && result.info) {
-                    corpMap.set(result.id, result.info);
-                }
-            });
+    updateProgress(0, uniqueAllianceIds.length, "Getting alliance information...");
+    
+    // Step 1: Check which alliances need API calls vs cache
+    const cachedAlliances = [];
+    const uncachedAllianceIds = [];
+    
+    uniqueAllianceIds.forEach(allianceId => {
+        if (allianceInfoCache.has(allianceId)) {
+            cachedAlliances.push(allianceId);
+            localLookups++; // Count in-memory cache hit
+        } else {
+            uncachedAllianceIds.push(allianceId);
+        }
+    });
 
-            processedCorps += chunk.length;
-            updateProgress(processedCorps, uniqueCorpIds.length, 
-                `Getting corporation information (${processedCorps}/${uniqueCorpIds.length})...`);
+    const allianceMap = new Map();
+    let processedAlliances = 0;
 
-            // Only delay between chunks if we have more API calls to make
-            if (i + 1 < corpChunks.length) {
-                await new Promise(resolve => setTimeout(resolve, CHUNK_DELAY));
+    // Step 2: Process cached alliances instantly (no chunks, no delays)
+    if (cachedAlliances.length > 0) {
+        for (const allianceId of cachedAlliances) {
+            try {
+                const info = allianceInfoCache.get(allianceId);
+                allianceMap.set(allianceId, info);
+                processedAlliances++;
+                updateProgress(processedAlliances, uniqueAllianceIds.length, 
+                    `Getting alliance information (${processedAlliances}/${uniqueAllianceIds.length})...`);
+            } catch (e) {
+                console.error(`Error fetching cached alliance ${allianceId}:`, e);
+                allianceMap.set(allianceId, { name: 'Unknown Alliance' });
+                processedAlliances++;
             }
         }
     }
 
-    // Step 5: Get alliance info with smart caching (if any alliances exist)
-    const allianceMap = new Map();
-    if (uniqueAllianceIds.length > 0) {
-        updateProgress(0, uniqueAllianceIds.length, "Getting alliance information...");
+    // Step 3: Check IndexedDB cache for uncached alliances (batched)
+    const uncachedFromDB = await checkIndexedDBCache(uncachedAllianceIds, allianceMap, 'alliance');
+    processedAlliances += (uncachedAllianceIds.length - uncachedFromDB.length);
+    
+    if (processedAlliances > cachedAlliances.length) {
+        updateProgress(processedAlliances, uniqueAllianceIds.length, 
+            `Getting alliance information (${processedAlliances}/${uniqueAllianceIds.length})...`);
+    }
+
+    // Step 4: Process uncached alliances with API calls (chunked with delays)
+    if (uncachedFromDB.length > 0) {
+        await processUncachedAlliances(uncachedFromDB, allianceMap, processedAlliances, uniqueAllianceIds.length);
+    }
+
+    return allianceMap;
+}
+
+// Generic function to check IndexedDB cache for multiple IDs
+async function checkIndexedDBCache(uncachedIds, resultMap, type) {
+    if (uncachedIds.length === 0) return [];
+
+    const getCacheFunction = type === 'corporation' ? getCachedCorporationInfo : getCachedAllianceInfo;
+    const inMemoryCache = type === 'corporation' ? corporationInfoCache : allianceInfoCache;
+    
+    // Batch check IndexedDB
+    const dbCachePromises = uncachedIds.map(async id => {
+        const cached = await getCacheFunction(id);
+        return { id, cached };
+    });
+
+    const dbResults = await Promise.all(dbCachePromises);
+    const stillUncached = [];
+    
+    dbResults.forEach(result => {
+        if (result.cached) {
+            resultMap.set(result.id, result.cached);
+            inMemoryCache.set(result.id, result.cached);
+            localLookups++; // Count IndexedDB cache hit
+        } else {
+            stillUncached.push(result.id);
+        }
+    });
+
+    return stillUncached;
+}
+
+// Function to process uncached corporations via API
+async function processUncachedCorporations(uncachedIds, corpMap, startingCount, totalCount) {
+    const corpChunks = chunkArray(uncachedIds, CHUNK_SIZE);
+    let processedCorps = startingCount;
+    
+    for (let i = 0; i < corpChunks.length; i++) {
+        const chunk = corpChunks[i];
         
-        // Check which alliances need API calls vs cache
-        const cachedAlliances = [];
-        const uncachedAllianceIds = [];
-        
-        uniqueAllianceIds.forEach(allianceId => {
-            if (allianceInfoCache.has(allianceId)) {
-                cachedAlliances.push(allianceId);
-                localLookups++; // Count in-memory cache hit
-            } else {
-                uncachedAllianceIds.push(allianceId);
+        // Process all corps in this chunk concurrently
+        const chunkPromises = chunk.map(async (corpId) => {
+            try {
+                esiLookups++;
+                const res = await fetch(`${ESI_BASE}/corporations/${corpId}/`, {
+                    headers: { 'User-Agent': USER_AGENT }
+                });
+                if (!res.ok) throw new Error(`Failed to get corporation info for ${corpId}: ${res.status}`);
+                const data = await res.json();
+
+                // Extract only needed data
+                const corporationInfo = {
+                    name: data.name,
+                    war_eligible: data.war_eligible
+                };
+
+                // Cache in memory and IndexedDB
+                corporationInfoCache.set(corpId, corporationInfo);
+                await setCachedCorporationInfo(corpId, corporationInfo);
+                
+                return { id: corpId, info: corporationInfo };
+            } catch (e) {
+                console.error(`Error fetching corporation ${corpId}:`, e);
+                const fallbackInfo = { name: 'Unknown Corporation', war_eligible: false };
+                corporationInfoCache.set(corpId, fallbackInfo);
+                return { id: corpId, info: fallbackInfo };
             }
         });
 
-        let processedAlliances = 0;
-
-        // Process cached alliances instantly (no chunks, no delays)
-        if (cachedAlliances.length > 0) {
-            for (const allianceId of cachedAlliances) {
-                try {
-                    const info = allianceInfoCache.get(allianceId);
-                    allianceMap.set(allianceId, info);
-                    processedAlliances++;
-                    updateProgress(processedAlliances, uniqueAllianceIds.length, 
-                        `Getting alliance information (${processedAlliances}/${uniqueAllianceIds.length})...`);
-                } catch (e) {
-                    console.error(`Error fetching cached alliance ${allianceId}:`, e);
-                    allianceMap.set(allianceId, { name: 'Unknown Alliance' });
-                    processedAlliances++;
-                }
+        const chunkResults = await Promise.all(chunkPromises);
+        
+        // Store results in map
+        chunkResults.forEach(result => {
+            if (result && result.info) {
+                corpMap.set(result.id, result.info);
             }
-        }
+        });
 
-        // Check IndexedDB cache for uncached alliances (batched)
-        const cachedAlliancesFromDB = [];
-        const uncachedAlliancesFromDB = [];
+        processedCorps += chunk.length;
+        updateProgress(processedCorps, totalCount, 
+            `Getting corporation information (${processedCorps}/${totalCount})...`);
 
-        if (uncachedAllianceIds.length > 0) {
-            // Batch check IndexedDB
-            const dbCachePromises = uncachedAllianceIds.map(async allianceId => {
-                const cached = await getCachedAllianceInfo(allianceId);
-                return { allianceId, cached };
-            });
-
-            const dbResults = await Promise.all(dbCachePromises);
-            
-            dbResults.forEach(result => {
-                if (result.cached) {
-                    allianceMap.set(result.allianceId, result.cached);
-                    allianceInfoCache.set(result.allianceId, result.cached);
-                    cachedAlliancesFromDB.push(result.allianceId);
-                    processedAlliances++;
-                    localLookups++; // Count IndexedDB cache hit
-                } else {
-                    uncachedAlliancesFromDB.push(result.allianceId);
-                }
-            });
-
-            if (cachedAlliancesFromDB.length > 0) {
-                updateProgress(processedAlliances, uniqueAllianceIds.length, 
-                    `Getting alliance information (${processedAlliances}/${uniqueAllianceIds.length})...`);
-            }
-        }
-
-        // Process uncached alliances in chunks with delays (only if we have API calls to make)
-        if (uncachedAlliancesFromDB.length > 0) {
-            const allianceChunks = chunkArray(uncachedAlliancesFromDB, CHUNK_SIZE);
-
-            for (let i = 0; i < allianceChunks.length; i++) {
-                const chunk = allianceChunks[i];
-                
-                // Process all alliances in this chunk concurrently
-                const chunkPromises = chunk.map(async (allianceId) => {
-                    try {
-                        esiLookups++;
-                        const res = await fetch(`${ESI_BASE}/alliances/${allianceId}/`, {
-                            headers: { 'User-Agent': USER_AGENT }
-                        });
-                        if (!res.ok) throw new Error(`Failed to get alliance info for ${allianceId}: ${res.status}`);
-                        const data = await res.json();
-
-                        // Extract only needed data
-                        const allianceInfo = {
-                            name: data.name
-                        };
-
-                        // Cache in memory and IndexedDB
-                        allianceInfoCache.set(allianceId, allianceInfo);
-                        await setCachedAllianceInfo(allianceId, allianceInfo);
-                        
-                        return { id: allianceId, info: allianceInfo };
-                    } catch (e) {
-                        console.error(`Error fetching alliance ${allianceId}:`, e);
-                        const fallbackInfo = { name: 'Unknown Alliance' };
-                        allianceInfoCache.set(allianceId, fallbackInfo);
-                        return { id: allianceId, info: fallbackInfo };
-                    }
-                });
-
-                const chunkResults = await Promise.all(chunkPromises);
-                
-                // Store results in map
-                chunkResults.forEach(result => {
-                    if (result && result.info) {
-                        allianceMap.set(result.id, result.info);
-                    }
-                });
-
-                processedAlliances += chunk.length;
-                updateProgress(processedAlliances, uniqueAllianceIds.length, 
-                    `Getting alliance information (${processedAlliances}/${uniqueAllianceIds.length})...`);
-
-                // Only delay between chunks if we have more API calls to make
-                if (i + 1 < allianceChunks.length) {
-                    await new Promise(resolve => setTimeout(resolve, CHUNK_DELAY));
-                }
-            }
+        // Only delay between chunks if we have more API calls to make
+        if (i + 1 < corpChunks.length) {
+            await new Promise(resolve => setTimeout(resolve, CHUNK_DELAY));
         }
     }
+}
 
-    // Step 6: Build final results
+// Function to process uncached alliances via API
+async function processUncachedAlliances(uncachedIds, allianceMap, startingCount, totalCount) {
+    const allianceChunks = chunkArray(uncachedIds, CHUNK_SIZE);
+    let processedAlliances = startingCount;
+
+    for (let i = 0; i < allianceChunks.length; i++) {
+        const chunk = allianceChunks[i];
+        
+        // Process all alliances in this chunk concurrently
+        const chunkPromises = chunk.map(async (allianceId) => {
+            try {
+                esiLookups++;
+                const res = await fetch(`${ESI_BASE}/alliances/${allianceId}/`, {
+                    headers: { 'User-Agent': USER_AGENT }
+                });
+                if (!res.ok) throw new Error(`Failed to get alliance info for ${allianceId}: ${res.status}`);
+                const data = await res.json();
+
+                // Extract only needed data
+                const allianceInfo = {
+                    name: data.name
+                };
+
+                // Cache in memory and IndexedDB
+                allianceInfoCache.set(allianceId, allianceInfo);
+                await setCachedAllianceInfo(allianceId, allianceInfo);
+                
+                return { id: allianceId, info: allianceInfo };
+            } catch (e) {
+                console.error(`Error fetching alliance ${allianceId}:`, e);
+                const fallbackInfo = { name: 'Unknown Alliance' };
+                allianceInfoCache.set(allianceId, fallbackInfo);
+                return { id: allianceId, info: fallbackInfo };
+            }
+        });
+
+        const chunkResults = await Promise.all(chunkPromises);
+        
+        // Store results in map
+        chunkResults.forEach(result => {
+            if (result && result.info) {
+                allianceMap.set(result.id, result.info);
+            }
+        });
+
+        processedAlliances += chunk.length;
+        updateProgress(processedAlliances, totalCount, 
+            `Getting alliance information (${processedAlliances}/${totalCount})...`);
+
+        // Only delay between chunks if we have more API calls to make
+        if (i + 1 < allianceChunks.length) {
+            await new Promise(resolve => setTimeout(resolve, CHUNK_DELAY));
+        }
+    }
+}
+
+// Function to build final character results
+function buildCharacterResults(characters, affiliationMap, corpMap, allianceMap) {
     updateProgress(0, characters.length, "Building final results...");
     const results = [];
 
@@ -1057,6 +1047,42 @@ async function validator(names) {
     }
     
     return results;
+}
+
+// Main validator function - now much cleaner and focused
+async function validator(names) {
+    // Reset counters at start
+    localLookups = 0;
+    esiLookups = 0;
+
+    // Step 1: Get character IDs
+    const characters = await getCharacterIds(names);
+    const characterIds = characters.map(char => char.id);
+
+    // Step 2: Handle missing characters
+    await handleMissingCharacters(characters, names);
+
+    // Step 3: Get character affiliations
+    updateProgress(0, characterIds.length, "Getting character affiliations...");
+    const affiliations = await getCharacterAffiliations(characterIds);
+
+    const affiliationMap = new Map();
+    affiliations.forEach(affiliation => {
+        affiliationMap.set(affiliation.character_id, affiliation);
+    });
+
+    // Step 4: Get unique IDs and fetch organization info
+    const uniqueCorpIds = Array.from(new Set(affiliations.map(a => a.corporation_id)));
+    const uniqueAllianceIds = Array.from(new Set(affiliations.map(a => a.alliance_id).filter(id => id)));
+
+    // Step 5: Get corporation and alliance information
+    const [corpMap, allianceMap] = await Promise.all([
+        getCorporationInfoWithCaching(uniqueCorpIds),
+        getAllianceInfoWithCaching(uniqueAllianceIds)
+    ]);
+
+    // Step 6: Build and return final results
+    return buildCharacterResults(characters, affiliationMap, corpMap, allianceMap);
 }
 
 
