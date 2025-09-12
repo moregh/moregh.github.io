@@ -1,4 +1,4 @@
-const VERSION = "0.1.21";
+const VERSION = "0.1.22";
 const ESI_BASE = "https://esi.evetech.net/latest";
 const USER_AGENT = `WarTargetFinder/${VERSION} (+https://github.com/moregh/moregh.github.io/)`;
 const ESI_HEADERS = {
@@ -1476,6 +1476,11 @@ function updateTimer() {
     lastTimerUpdate = now;
 }
 
+function updateTitle(count, total) {
+    document.title = `${count}/${total} targets - War Target Finder`;
+}
+
+
 function startLoading() {
     const lc = document.getElementById("loading-container");
     const rs = document.getElementById("results-section");
@@ -1582,6 +1587,7 @@ function updateStats(eligible, ineligible) {
     if (elements.totalCount) elements.totalCount.textContent = totalLen;
     if (elements.eligibleTotal) elements.eligibleTotal.textContent = eligibleLen;
     if (elements.ineligibleTotal) elements.ineligibleTotal.textContent = ineligibleLen;
+    updateTitle(eligibleLen);
 }
 
 function summarizeEntities(results) {
