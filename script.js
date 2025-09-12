@@ -1,12 +1,4 @@
-const VERSION = "0.2.6";
-const ESI_BASE = "https://esi.evetech.net/latest";
-const USER_AGENT = `WarTargetFinder/${VERSION} (+https://github.com/moregh/moregh.github.io/)`;
-const ESI_HEADERS = {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
-    'User-Agent': USER_AGENT,
-    'X-User-Agent': `WarTargetFinder/${VERSION}`
-};
+// configuration
 const CACHE_EXPIRY_HOURS = 12;              // cache all data for this long
 const LONG_CACHE_EXPIRY_HOURS = 168;        // cache 'static' data for this long
 const INITIAL_USER_RESULTS_COUNT = 6;       // initial number of user results to show
@@ -19,20 +11,33 @@ const CHUNK_DELAY = 100;                    // 100ms delay between chunks to be 
 const STATS_UPDATE_DELAY = 100;             // Delay stats update until results are available
 const DB_NAME = 'EVEWarTargetCache';        // IndexedDB name
 const DB_VERSION = 1;                       // Track DB version for upgrades
+const VERSION = "0.2.7";                    // Current version
 
+// program constants
+const ESI_BASE = "https://esi.evetech.net/latest";
+const USER_AGENT = `WarTargetFinder/${VERSION} (+https://github.com/moregh/moregh.github.io/)`;
+const ESI_HEADERS = {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+    'User-Agent': USER_AGENT,
+    'X-User-Agent': `WarTargetFinder/${VERSION}`
+};
 
+// program caches
 const corporationInfoCache = new Map();
 const allianceInfoCache = new Map();
 const characterNameToIdCache = new Map();
 const characterAffiliationCache = new Map();
 
+// program variables
 let queryStartTime = 0;
 let queryEndTime = 0;
 let esiLookups = 0;
 let localLookups = 0;
 let dbInstance = null;
 
-let timerInterval = null, startTime = 0;
+let timerInterval = null
+let startTime = 0;
 let currentView = 'grid';
 let allResults = { eligible: [], ineligible: [] };
 let displayedResults = { eligible: 0, ineligible: 0 };
@@ -42,6 +47,7 @@ let expandedSections = { eligible: false, ineligible: false };
 let allSummaryData = { alliance: [], corporation: [] };
 let displayedSummaryResults = { alliance: 0, corporation: 0 };
 let expandedSummarySections = { alliance: false, corporation: false };
+
 // Store complete results for mouseover functionality
 let completeResults = [];
 let corpToCharactersMap = new Map();
@@ -163,6 +169,7 @@ async function initDB() {
         const request = indexedDB.open(DB_NAME, DB_VERSION);
         
         request.onerror = () => {
+            showError(`Failed to open IndexedDB: ${request.error}`);
             console.error('Failed to open IndexedDB:', request.error);
             reject(request.error);
         };
@@ -315,7 +322,6 @@ async function getCachedNameToId(name) {
                     return;
                 }
                 
-                // Don't increment localLookups here - it's counted in getCharacterIds
                 resolve({
                     id: result.character_id,
                     name: result.character_name
@@ -349,7 +355,6 @@ async function getCachedAffiliation(characterId) {
                     return;
                 }
                 
-                // Don't increment localLookups here - it's counted in getCharacterAffiliations
                 resolve({
                     character_id: result.character_id,
                     corporation_id: result.corporation_id,
@@ -431,7 +436,6 @@ async function getCachedCorporationInfo(corporationId) {
                     return;
                 }
                 
-                // Don't increment localLookups here - it's counted in validator
                 resolve({
                     name: result.name,
                     war_eligible: result.war_eligible
@@ -464,7 +468,6 @@ async function setCachedCorporationInfo(corporationId, corporationData) {
         
         store.put(cacheData);
         
-        // Also update in-memory cache
         corporationInfoCache.set(corporationId, corporationData);
     } catch (e) {
         console.warn(`Error writing corporation cache for ${corporationId}:`, e);
@@ -487,7 +490,6 @@ async function getCachedAllianceInfo(allianceId) {
                     return;
                 }
                 
-                // Don't increment localLookups here - it's counted in validator
                 resolve({
                     name: result.name
                 });
@@ -713,6 +715,7 @@ async function getCharacterIds(names) {
                 });
                 
                 if (!res.ok) {
+                    showError(`Failed to get character IDs for batch ${index + 1}: ${res.status}`);
                     throw new Error(`Failed to get character IDs for batch ${index + 1}: ${res.status}`);
                 }
                 
@@ -776,7 +779,10 @@ async function getCharacterAffiliations(characterIds) {
             headers: ESI_HEADERS,
             body: JSON.stringify(uncachedIds)
         });
-        if (!res.ok) throw new Error(`Failed to get character affiliations: ${res.status}`);
+        if (!res.ok) {
+            showError(`Failed to get character affiliations: ${res.status}`);
+            throw new Error(`Failed to get character affiliations: ${res.status}`);
+        }
         fetchedAffiliations = await res.json();
 
         for (const affiliation of fetchedAffiliations) {
@@ -820,6 +826,7 @@ async function processInChunks(items, processFn, chunkSize = CHUNK_SIZE, delay =
                 }
             }
         } catch (e) {
+            showWarning(`Error processing chunk ${i + 1}/${totalChunks}: ${e}`);
             console.error(`Error processing chunk ${i + 1}/${totalChunks}:`, e);
             // For character ID lookups, we want to continue even if one chunk fails
             // Return empty array for failed chunks
@@ -838,8 +845,6 @@ async function processInChunks(items, processFn, chunkSize = CHUNK_SIZE, delay =
     
     return results;
 }
-
-// Refactored validator functions - broken into logical blocks
 
 // Function to handle missing character warnings
 async function handleMissingCharacters(characters, originalNames) {
@@ -885,6 +890,7 @@ async function getCorporationInfoWithCaching(uniqueCorpIds) {
                 updateProgress(processedCorps, uniqueCorpIds.length, 
                     `Getting corporation information (${processedCorps}/${uniqueCorpIds.length})...`);
             } catch (e) {
+                showError(`Error fetching cached corporation ${corpId}: ${e}`);
                 console.error(`Error fetching cached corporation ${corpId}:`, e);
                 corpMap.set(corpId, { name: 'Unknown Corporation', war_eligible: false });
                 processedCorps++;
@@ -943,6 +949,7 @@ async function getAllianceInfoWithCaching(uniqueAllianceIds) {
                 updateProgress(processedAlliances, uniqueAllianceIds.length, 
                     `Getting alliance information (${processedAlliances}/${uniqueAllianceIds.length})...`);
             } catch (e) {
+                showError(`Error fetching cached alliance ${allianceId}: ${e}`);
                 console.error(`Error fetching cached alliance ${allianceId}:`, e);
                 allianceMap.set(allianceId, { name: 'Unknown Alliance' });
                 processedAlliances++;
@@ -1011,7 +1018,10 @@ async function processUncachedCorporations(uncachedIds, corpMap, startingCount, 
                 const res = await fetch(`${ESI_BASE}/corporations/${corpId}/`, {
                     headers: { 'User-Agent': USER_AGENT }
                 });
-                if (!res.ok) throw new Error(`Failed to get corporation info for ${corpId}: ${res.status}`);
+                if (!res.ok) {
+                    showError(`Failed to get corporation info for ${corpId}: ${res.status}`);
+                    throw new Error(`Failed to get corporation info for ${corpId}: ${res.status}`);
+                }
                 const data = await res.json();
 
                 // Extract only needed data
@@ -1026,6 +1036,7 @@ async function processUncachedCorporations(uncachedIds, corpMap, startingCount, 
                 
                 return { id: corpId, info: corporationInfo };
             } catch (e) {
+                showError(`Error fetching corporation ${corpId}: ${e}`);
                 console.error(`Error fetching corporation ${corpId}:`, e);
                 const fallbackInfo = { name: 'Unknown Corporation', war_eligible: false };
                 corporationInfoCache.set(corpId, fallbackInfo);
@@ -1068,7 +1079,10 @@ async function processUncachedAlliances(uncachedIds, allianceMap, startingCount,
                 const res = await fetch(`${ESI_BASE}/alliances/${allianceId}/`, {
                     headers: { 'User-Agent': USER_AGENT }
                 });
-                if (!res.ok) throw new Error(`Failed to get alliance info for ${allianceId}: ${res.status}`);
+                if (!res.ok) {
+                    showError(`Failed to get alliance info for ${allianceId}: ${res.status}`);
+                    throw new Error(`Failed to get alliance info for ${allianceId}: ${res.status}`);
+                }
                 const data = await res.json();
 
                 // Extract only needed data
@@ -1119,11 +1133,13 @@ function buildCharacterResults(characters, affiliationMap, corpMap, allianceMap)
         try {
             const affiliation = affiliationMap.get(char.id);
             if (!affiliation) {
+                showError(`No affiliation found for character ${char.name}`);
                 throw new Error(`No affiliation found for character ${char.name}`);
             }
 
             const corpInfo = corpMap.get(affiliation.corporation_id);
             if (!corpInfo) {
+                showError(`No corporation info found for corporation ${affiliation.corporation_id}`);
                 throw new Error(`No corporation info found for corporation ${affiliation.corporation_id}`);
             }
 
@@ -1148,6 +1164,7 @@ function buildCharacterResults(characters, affiliationMap, corpMap, allianceMap)
             if (corpInfo.war_eligible !== undefined) result.war_eligible = corpInfo.war_eligible;
             results.push(result);
         } catch (e) {
+            showError(`Error processing character ${char.name}: ${e}`);
             console.error(`Error processing character ${char.name}:`, e);
             results.push({
                 character_name: char.name,
@@ -1586,7 +1603,6 @@ function createSummaryItem({ id, name, count, type }) {
     const item = document.createElement("div");
     item.className = "summary-item";
 
-    // Create the logo element manually instead of using createOptimizedImage
     const logo = document.createElement("img");
     logo.className = "summary-logo";
     logo.alt = name;
@@ -1664,6 +1680,7 @@ function renderGrid(containerId, items, type = 'character', limit = null) {
 function setupVirtualScrolling(containerId, items) {
     const container = document.getElementById(containerId);
     if (!container || !items || items.length === 0) {
+        showWarning(`Cannot setup virtual scrolling: container "${containerId}" not found or no items`);
         console.warn(`Cannot setup virtual scrolling: container "${containerId}" not found or no items`);
         return;
     }
@@ -1869,7 +1886,7 @@ function startLoading() {
     // Collapse input section and disable hover during loading
     const inputSection = document.getElementById('input-section');
     collapseInputSection();
-    inputSection.classList.add('loading'); // Add class to disable hover
+    inputSection.classList.add('loading');
 
     lc.style.display = 'block';
     lc.offsetHeight; // Force reflow
@@ -2032,7 +2049,10 @@ async function getCorporationInfoBatch(corporationIds) {
                     const res = await fetch(`${ESI_BASE}/corporations/${corpId}/`, {
                         headers: { 'User-Agent': USER_AGENT }
                     });
-                    if (!res.ok) throw new Error(`Failed to get corporation info for ${corpId}: ${res.status}`);
+                    if (!res.ok) {
+                        showError(`Failed to get corporation info for ${corpId}: ${res.status}`);
+                        throw new Error(`Failed to get corporation info for ${corpId}: ${res.status}`);
+                    }
                     const data = await res.json();
 
                     // Extract only needed data
@@ -2047,6 +2067,7 @@ async function getCorporationInfoBatch(corporationIds) {
                     
                     return { id: corpId, info: corporationInfo };
                 } catch (e) {
+                    showError(`Error fetching corporation ${corpId}:`, e);
                     console.error(`Error fetching corporation ${corpId}:`, e);
                     const fallbackInfo = { name: 'Unknown Corporation', war_eligible: false };
                     corporationInfoCache.set(corpId, fallbackInfo);
@@ -2145,7 +2166,10 @@ async function getAllianceInfoBatch(allianceIds) {
                     const res = await fetch(`${ESI_BASE}/alliances/${allianceId}/`, {
                         headers: { 'User-Agent': USER_AGENT }
                     });
-                    if (!res.ok) throw new Error(`Failed to get alliance info for ${allianceId}: ${res.status}`);
+                    if (!res.ok) {
+                        showError(`Failed to get alliance info for ${allianceId}: ${res.status}`);
+                        throw new Error(`Failed to get alliance info for ${allianceId}: ${res.status}`);
+                    }
                     const data = await res.json();
 
                     // Extract only needed data
@@ -2159,6 +2183,7 @@ async function getAllianceInfoBatch(allianceIds) {
                     
                     return { id: allianceId, info: allianceInfo };
                 } catch (e) {
+                    showError(`Error fetching alliance ${allianceId}:`, e);
                     console.error(`Error fetching alliance ${allianceId}:`, e);
                     const fallbackInfo = { name: 'Unknown Alliance' };
                     allianceInfoCache.set(allianceId, fallbackInfo);
@@ -2391,7 +2416,6 @@ function updateShowingCount() {
     }
 }
 
-// Add this before updateCharacterCount function
 let characterCountTimeout = null;
 
 function debouncedUpdateCharacterCount() {
@@ -2560,6 +2584,7 @@ document.addEventListener('DOMContentLoaded', function () {
     initDB().then(() => {
         clearExpiredCache();
     }).catch(err => {
+        showError(`Failed to initialize IndexedDB: ${err}`);
         console.error('Failed to initialize IndexedDB:', err);
     });
 
