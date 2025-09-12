@@ -499,11 +499,13 @@ textarea::placeholder {
     transition: all 0.54s ease;
     position: relative;
     z-index: 50;
+    display: none; /* Hide completely when not shown */
 }
 
 .results-section.show {
     opacity: 1;
     transform: translateY(0);
+    display: block; /* Show when results are available */
 }
 
 /* Stats dashboard */
@@ -1984,5 +1986,242 @@ textarea::placeholder {
     
     .version-badge {
         align-self: flex-end;
+    }
+}
+/* Footer disclaimer and copyright styles */
+.disclaimer,
+.copyright {
+    margin-top: 1rem;
+    padding: 1.5rem 2rem;
+    text-align: center;
+    font-size: 0.8rem;
+    line-height: 1.5;
+    position: relative;
+    overflow: visible; /* Allow icon to show outside container */
+}
+
+.disclaimer {
+    margin-top: 2.5rem; /* Extra space for the warning icon */
+}
+
+.disclaimer {
+    background: linear-gradient(135deg, 
+        rgba(251, 191, 36, 0.08) 0%, 
+        rgba(251, 191, 36, 0.04) 50%, 
+        rgba(251, 191, 36, 0.08) 100%);
+    border: 0.9px solid rgba(251, 191, 36, 0.2);
+    border-radius: 13.5px;
+    color: var(--text-secondary);
+    backdrop-filter: blur(12px);
+    box-shadow: 0 4px 16px rgba(251, 191, 36, 0.1);
+}
+
+.disclaimer::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, 
+        transparent, 
+        rgba(251, 191, 36, 0.3), 
+        transparent);
+    opacity: 0.6;
+}
+
+.disclaimer::after {
+    content: '⚠️';
+    position: absolute;
+    top: -18px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--background-dark);
+    padding: 0.2rem 0.6rem;
+    border-radius: 50%;
+    font-size: 1rem;
+    filter: drop-shadow(0 0 8px rgba(251, 191, 36, 0.5));
+    border: 2px solid rgba(251, 191, 36, 0.3);
+    box-shadow: 0 0 0 3px var(--background-dark);
+}
+
+.copyright {
+    background: linear-gradient(135deg, 
+        rgba(0, 212, 255, 0.06) 0%, 
+        rgba(74, 222, 128, 0.06) 100%);
+    border: 0.9px solid rgba(0, 212, 255, 0.15);
+    border-radius: 13.5px;
+    color: var(--text-muted);
+    backdrop-filter: blur(12px);
+    box-shadow: 0 4px 16px rgba(0, 212, 255, 0.08);
+    font-weight: 500;
+    letter-spacing: 0.025em;
+    margin-bottom: 1rem;
+    padding: 0.8rem 2rem; /* Reduced from 1.5rem to 0.8rem */
+}
+
+.copyright::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, 
+        transparent, 
+        rgba(0, 212, 255, 0.3), 
+        rgba(74, 222, 128, 0.3),
+        transparent);
+    opacity: 0.4;
+}
+
+/* Subtle hover effects */
+.disclaimer:hover {
+    border-color: rgba(251, 191, 36, 0.3);
+    box-shadow: 0 6px 20px rgba(251, 191, 36, 0.15);
+    transform: translateY(-1px);
+    transition: all 0.3s ease;
+}
+
+.copyright:hover {
+    border-color: rgba(0, 212, 255, 0.25);
+    box-shadow: 0 6px 20px rgba(0, 212, 255, 0.12);
+    transform: translateY(-1px);
+    transition: all 0.3s ease;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .disclaimer,
+    .copyright {
+        margin-left: 0.45rem;
+        margin-right: 0.45rem;
+        padding: 1.2rem 1.5rem;
+        font-size: 0.75rem;
+    }
+    
+    .disclaimer::after {
+        top: -6px;
+        font-size: 0.9rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .disclaimer,
+    .copyright {
+        margin-left: 0;
+        margin-right: 0;
+        padding: 1rem 1.2rem;
+        font-size: 0.7rem;
+        line-height: 1.4;
+    }
+    
+    .disclaimer::after {
+        display: none; /* Hide warning icon on very small screens */
+    }
+}
+
+/* Add subtle animation for disclaimer warning */
+@keyframes warningGlow {
+    0%, 100% {
+        filter: drop-shadow(0 0 8px rgba(251, 191, 36, 0.3));
+    }
+    50% {
+        filter: drop-shadow(0 0 12px rgba(251, 191, 36, 0.6));
+    }
+}
+
+.disclaimer::after {
+    animation: warningGlow 3s ease-in-out infinite;
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    .disclaimer::after {
+        animation: none;
+        filter: drop-shadow(0 0 8px rgba(251, 191, 36, 0.5));
+    }
+    
+    .disclaimer:hover,
+    .copyright:hover {
+        transform: none;
+    }
+}
+
+.container > .disclaimer {
+    margin-top: 2.5rem; /* Space for warning icon */
+}
+
+.container > .copyright {
+    margin-top: 1rem; /* Normal spacing after disclaimer */
+}
+/* Copyright link styling */
+.copyright a {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-weight: 600;
+    letter-spacing: 0.025em;
+    position: relative;
+    transition: all 0.3s ease;
+    padding: 0.2rem 0.4rem;
+    border-radius: 6px;
+    background: rgba(0, 212, 255, 0.08);
+    border: 1px solid rgba(0, 212, 255, 0.15);
+}
+
+.copyright a::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 50%;
+    width: 0;
+    height: 1.5px;
+    background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    transform: translateX(-50%);
+    border-radius: 1px;
+}
+
+.copyright a:hover {
+    color: #66e0ff;
+    background: rgba(0, 212, 255, 0.15);
+    border-color: rgba(0, 212, 255, 0.3);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 212, 255, 0.2);
+}
+
+.copyright a:hover::after {
+    width: calc(100% - 0.8rem);
+}
+
+.copyright a:focus {
+    outline: none;
+    background: rgba(0, 212, 255, 0.2);
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.3);
+}
+
+.copyright a:active {
+    transform: translateY(0);
+    transition-duration: 0.1s;
+}
+
+/* Mobile adjustments */
+@media (max-width: 768px) {
+    .copyright a {
+        padding: 0.15rem 0.3rem;
+        font-size: inherit; /* Use parent font size */
+    }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    .copyright a,
+    .copyright a::after {
+        transition: none;
+    }
+    
+    .copyright a:hover {
+        transform: none;
     }
 }
