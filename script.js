@@ -30,7 +30,7 @@ const CHUNK_DELAY = 25;                     // 25ms delay between chunks to be n
 const STATS_UPDATE_DELAY = 100;             // Delay stats update until results are available
 const DB_NAME = 'EVEWarTargetCache';        // IndexedDB name
 const DB_VERSION = 1;                       // Track DB version for upgrades
-const VERSION = "0.3.0";                    // Current version
+const VERSION = "0.3.1";                    // Current version
 
 // Performance configuration
 const PERFORMANCE_CONFIG = {
@@ -1657,7 +1657,7 @@ function addScrollStateDetection() {
     let scrollTimeout;
     
     document.addEventListener('scroll', (e) => {
-        if (e.target.classList.contains('virtual-scroll-container')) {
+        if (e.target && e.target.classList && e.target.classList.contains('virtual-scroll-container')) {
             e.target.classList.add('scrolling');
             imageObserverEnabled = false; // Pause image loading during scroll
             
