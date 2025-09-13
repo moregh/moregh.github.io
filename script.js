@@ -30,7 +30,7 @@ const CHUNK_DELAY = 100;                    // 100ms delay between chunks to be 
 const STATS_UPDATE_DELAY = 100;             // Delay stats update until results are available
 const DB_NAME = 'EVEWarTargetCache';        // IndexedDB name
 const DB_VERSION = 1;                       // Track DB version for upgrades
-const VERSION = "0.2.8";                    // Current version
+const VERSION = "0.2.9";                    // Current version
 
 // program constants
 const ESI_BASE = "https://esi.evetech.net/latest";
@@ -123,7 +123,7 @@ class ManagedObservers {
 
     observeImage(img) {
         if (!img || this.observedImages.has(img) || !document.contains(img)) return;
-        
+
         try {
             this.getImageObserver().observe(img);
             this.observedImages.add(img);
@@ -134,7 +134,7 @@ class ManagedObservers {
 
     observeAnimation(element) {
         if (!element || this.observedAnimations.has(element) || !document.contains(element)) return;
-        
+
         try {
             this.getAnimationObserver().observe(element);
             this.observedAnimations.add(element);
@@ -146,15 +146,15 @@ class ManagedObservers {
     cleanup() {
         // Unobserve all tracked elements before disconnecting
         this.observedImages.forEach(img => {
-            try { this.imageObserver?.unobserve(img); } catch(e) {}
+            try { this.imageObserver?.unobserve(img); } catch (e) { }
         });
         this.observedAnimations.forEach(element => {
-            try { this.animationObserver?.unobserve(element); } catch(e) {}
+            try { this.animationObserver?.unobserve(element); } catch (e) { }
         });
 
         this.imageObserver?.disconnect();
         this.animationObserver?.disconnect();
-        
+
         this.imageObserver = null;
         this.animationObserver = null;
         this.observedImages.clear();
@@ -183,42 +183,42 @@ const observerManager = new ManagedObservers();
 
 async function initDB() {
     if (dbInstance) return dbInstance;
-    
+
     return new Promise((resolve, reject) => {
         const request = indexedDB.open(DB_NAME, DB_VERSION);
-        
+
         request.onerror = () => {
             showError(`Failed to open IndexedDB: ${request.error}`);
             console.error('Failed to open IndexedDB:', request.error);
             reject(request.error);
         };
-        
+
         request.onsuccess = () => {
             dbInstance = request.result;
             resolve(dbInstance);
         };
-        
+
         request.onupgradeneeded = (event) => {
             const db = event.target.result;
-            
+
             // Character name to ID mapping table
             if (!db.objectStoreNames.contains('character_names')) {
                 const nameStore = db.createObjectStore('character_names', { keyPath: 'name_lower' });
                 nameStore.createIndex('timestamp', 'timestamp');
             }
-            
+
             // Character affiliations table
             if (!db.objectStoreNames.contains('character_affiliations')) {
                 const affiliationStore = db.createObjectStore('character_affiliations', { keyPath: 'character_id' });
                 affiliationStore.createIndex('timestamp', 'timestamp');
             }
-            
+
             // Corporation info table
             if (!db.objectStoreNames.contains('corporations')) {
                 const corpStore = db.createObjectStore('corporations', { keyPath: 'corporation_id' });
                 corpStore.createIndex('timestamp', 'timestamp');
             }
-            
+
             // Alliance info table
             if (!db.objectStoreNames.contains('alliances')) {
                 const allianceStore = db.createObjectStore('alliances', { keyPath: 'alliance_id' });
@@ -292,7 +292,7 @@ function setupCollapsedIndicatorClick() {
 
     // The click is already handled by event delegation, just add hover behavior
     let hoverTimeout;
-    
+
     inputSection.addEventListener('mouseenter', () => {
         if (inputSection.classList.contains('collapsed')) {
             clearTimeout(hoverTimeout);
@@ -303,7 +303,7 @@ function setupCollapsedIndicatorClick() {
             }, 200);
         }
     });
-    
+
     inputSection.addEventListener('mouseleave', () => {
         clearTimeout(hoverTimeout);
         if (inputSection.classList.contains('collapsed') && !inputSection.matches(':hover')) {
@@ -330,23 +330,23 @@ async function getCachedNameToId(name) {
         const db = await initDB();
         const transaction = db.transaction(['character_names'], 'readonly');
         const store = transaction.objectStore('character_names');
-        
+
         return new Promise((resolve) => {
             const request = store.get(name.toLowerCase());
-            
+
             request.onsuccess = () => {
                 const result = request.result;
                 if (!result || isExpired(result.timestamp)) {
                     resolve(null);
                     return;
                 }
-                
+
                 resolve({
                     id: result.character_id,
                     name: result.character_name
                 });
             };
-            
+
             request.onerror = () => {
                 console.warn(`Error reading name cache for ${name}:`, request.error);
                 resolve(null);
@@ -363,24 +363,24 @@ async function getCachedAffiliation(characterId) {
         const db = await initDB();
         const transaction = db.transaction(['character_affiliations'], 'readonly');
         const store = transaction.objectStore('character_affiliations');
-        
+
         return new Promise((resolve) => {
             const request = store.get(characterId);
-            
+
             request.onsuccess = () => {
                 const result = request.result;
                 if (!result || isExpired(result.timestamp)) {
                     resolve(null);
                     return;
                 }
-                
+
                 resolve({
                     character_id: result.character_id,
                     corporation_id: result.corporation_id,
                     alliance_id: result.alliance_id
                 });
             };
-            
+
             request.onerror = () => {
                 console.warn(`Error reading affiliation cache for ${characterId}:`, request.error);
                 resolve(null);
@@ -397,20 +397,20 @@ async function setCachedNameToId(name, characterData) {
         const db = await initDB();
         const transaction = db.transaction(['character_names'], 'readwrite');
         const store = transaction.objectStore('character_names');
-        
+
         const cacheData = {
             name_lower: name.toLowerCase(),
             character_id: characterData.id,
             character_name: characterData.name,
             timestamp: Date.now()
         };
-        
+
         store.put(cacheData);
-        
+
         // Also update in-memory cache
-        characterNameToIdCache.set(name.toLowerCase(), { 
-            id: characterData.id, 
-            name: characterData.name 
+        characterNameToIdCache.set(name.toLowerCase(), {
+            id: characterData.id,
+            name: characterData.name
         });
     } catch (e) {
         console.warn(`Error writing name cache for ${name}:`, e);
@@ -422,16 +422,16 @@ async function setCachedAffiliation(characterId, affiliationData) {
         const db = await initDB();
         const transaction = db.transaction(['character_affiliations'], 'readwrite');
         const store = transaction.objectStore('character_affiliations');
-        
+
         const cacheData = {
             character_id: characterId,
             corporation_id: affiliationData.corporation_id,
             alliance_id: affiliationData.alliance_id || null,
             timestamp: Date.now()
         };
-        
+
         store.put(cacheData);
-        
+
         // Also update in-memory cache
         characterAffiliationCache.set(characterId, affiliationData);
     } catch (e) {
@@ -444,23 +444,23 @@ async function getCachedCorporationInfo(corporationId) {
         const db = await initDB();
         const transaction = db.transaction(['corporations'], 'readonly');
         const store = transaction.objectStore('corporations');
-        
+
         return new Promise((resolve) => {
             const request = store.get(corporationId);
-            
+
             request.onsuccess = () => {
                 const result = request.result;
                 if (!result || isExpired(result.timestamp)) {
                     resolve(null);
                     return;
                 }
-                
+
                 resolve({
                     name: result.name,
                     war_eligible: result.war_eligible
                 });
             };
-            
+
             request.onerror = () => {
                 console.warn(`Error reading corporation cache for ${corporationId}:`, request.error);
                 resolve(null);
@@ -477,16 +477,16 @@ async function setCachedCorporationInfo(corporationId, corporationData) {
         const db = await initDB();
         const transaction = db.transaction(['corporations'], 'readwrite');
         const store = transaction.objectStore('corporations');
-        
+
         const cacheData = {
             corporation_id: corporationId,
             name: corporationData.name,
             war_eligible: corporationData.war_eligible,
             timestamp: Date.now()
         };
-        
+
         store.put(cacheData);
-        
+
         corporationInfoCache.set(corporationId, corporationData);
     } catch (e) {
         console.warn(`Error writing corporation cache for ${corporationId}:`, e);
@@ -498,22 +498,22 @@ async function getCachedAllianceInfo(allianceId) {
         const db = await initDB();
         const transaction = db.transaction(['alliances'], 'readonly');
         const store = transaction.objectStore('alliances');
-        
+
         return new Promise((resolve) => {
             const request = store.get(allianceId);
-            
+
             request.onsuccess = () => {
                 const result = request.result;
                 if (!result || isExpired(result.timestamp)) {
                     resolve(null);
                     return;
                 }
-                
+
                 resolve({
                     name: result.name
                 });
             };
-            
+
             request.onerror = () => {
                 console.warn(`Error reading alliance cache for ${allianceId}:`, request.error);
                 resolve(null);
@@ -531,15 +531,15 @@ async function setCachedAllianceInfo(allianceId, allianceData) {
         const db = await initDB();
         const transaction = db.transaction(['alliances'], 'readwrite');
         const store = transaction.objectStore('alliances');
-        
+
         const cacheData = {
             alliance_id: allianceId,
             name: allianceData.name,
             timestamp: Date.now()
         };
-        
+
         store.put(cacheData);
-        
+
         // Also update in-memory cache
         allianceInfoCache.set(allianceId, allianceData);
     } catch (e) {
@@ -557,20 +557,20 @@ async function clearExpiredCache() {
             console.warn('IndexedDB not available, skipping cache cleanup');
             return;
         }
-        
+
         const now = Date.now();
         const shortExpiryMs = CACHE_EXPIRY_HOURS * 60 * 60 * 1000;
         const longExpiryMs = LONG_CACHE_EXPIRY_HOURS * 60 * 60 * 1000;
-        
+
         // Clear expired affiliations (short-term)
         try {
             const affiliationTransaction = db.transaction(['character_affiliations'], 'readwrite');
             const affiliationStore = affiliationTransaction.objectStore('character_affiliations');
             const affiliationIndex = affiliationStore.index('timestamp');
-            
+
             const affiliationRange = IDBKeyRange.upperBound(now - shortExpiryMs);
             const affiliationRequest = affiliationIndex.openCursor(affiliationRange);
-            
+
             affiliationRequest.onsuccess = (event) => {
                 const cursor = event.target.result;
                 if (cursor) {
@@ -578,23 +578,23 @@ async function clearExpiredCache() {
                     cursor.continue();
                 }
             };
-            
+
             affiliationRequest.onerror = () => {
                 console.warn('Error clearing expired affiliations:', affiliationRequest.error);
             };
         } catch (e) {
             console.warn('Error setting up affiliation cleanup:', e);
         }
-        
+
         // Clear expired names (long-term)
         try {
             const nameTransaction = db.transaction(['character_names'], 'readwrite');
             const nameStore = nameTransaction.objectStore('character_names');
             const nameIndex = nameStore.index('timestamp');
-            
+
             const nameRange = IDBKeyRange.upperBound(now - longExpiryMs);
             const nameRequest = nameIndex.openCursor(nameRange);
-            
+
             nameRequest.onsuccess = (event) => {
                 const cursor = event.target.result;
                 if (cursor) {
@@ -602,23 +602,23 @@ async function clearExpiredCache() {
                     cursor.continue();
                 }
             };
-            
+
             nameRequest.onerror = () => {
                 console.warn('Error clearing expired names:', nameRequest.error);
             };
         } catch (e) {
             console.warn('Error setting up name cleanup:', e);
         }
-        
+
         // Clear expired alliances (long-term)
         try {
             const allianceTransaction = db.transaction(['alliances'], 'readwrite');
             const allianceStore = allianceTransaction.objectStore('alliances');
             const allianceIndex = allianceStore.index('timestamp');
-            
+
             const allianceRange = IDBKeyRange.upperBound(now - longExpiryMs);
             const allianceRequest = allianceIndex.openCursor(allianceRange);
-            
+
             allianceRequest.onsuccess = (event) => {
                 const cursor = event.target.result;
                 if (cursor) {
@@ -626,27 +626,27 @@ async function clearExpiredCache() {
                     cursor.continue();
                 }
             };
-            
+
             allianceRequest.onerror = () => {
                 console.warn('Error clearing expired alliances:', allianceRequest.error);
             };
         } catch (e) {
             console.warn('Error setting up alliance cleanup:', e);
         }
-        
+
         // Handle corporations with dual timestamps (more complex)
         try {
             const corpTransaction = db.transaction(['corporations'], 'readwrite');
             const corpStore = corpTransaction.objectStore('corporations');
             const corpCursor = corpStore.openCursor();
-            
+
             corpCursor.onsuccess = (event) => {
                 const cursor = event.target.result;
                 if (cursor) {
                     const record = cursor.value;
                     const nameExpired = isExpired(record.name_timestamp || record.timestamp, true);
                     const warExpired = isExpired(record.war_eligible_timestamp || record.timestamp, false);
-                    
+
                     if (nameExpired) {
                         // If name is expired, delete entire record
                         cursor.delete();
@@ -660,15 +660,15 @@ async function clearExpiredCache() {
                     cursor.continue();
                 }
             };
-            
+
             corpCursor.onerror = () => {
                 console.warn('Error clearing expired corporations:', corpCursor.error);
             };
         } catch (e) {
             console.warn('Error setting up corporation cleanup:', e);
         }
-        
-        
+
+
     } catch (e) {
         console.warn('Error during cache cleanup:', e);
     }
@@ -718,38 +718,38 @@ async function getCharacterIds(names) {
     if (uncachedNames.length > 0) {
         // Process uncached names in chunks
         updateProgress(0, uncachedNames.length, `Looking up ${uncachedNames.length} character names...`);
-        
+
         fetchedCharacters = await processInChunks(
             chunkArray(uncachedNames, MAX_ESI_CALL_SIZE),
             async (nameChunk, index, totalChunks) => {
                 esiLookups++;
-                updateProgress(index * MAX_ESI_CALL_SIZE, uncachedNames.length, 
+                updateProgress(index * MAX_ESI_CALL_SIZE, uncachedNames.length,
                     `Looking up character names (batch ${index + 1}/${totalChunks})...`);
-                
+
                 const res = await fetch(`${ESI_BASE}/universe/ids/`, {
                     method: 'POST',
                     headers: ESI_HEADERS,
                     body: JSON.stringify(nameChunk)
                 });
-                
+
                 if (!res.ok) {
                     throw new Error(`Failed to get character IDs for batch ${index + 1}: ${res.status}`);
                 }
-                
+
                 const data = await res.json();
                 const characters = data.characters || [];
-                
+
                 // Cache each character immediately
                 for (const char of characters) {
                     await setCachedNameToId(char.name, char);
                 }
-                
+
                 return characters;
             },
             MAX_ESI_CALL_SIZE,
             CHUNK_DELAY
         );
-        
+
         // Flatten the results (each chunk returns an array of characters)
         fetchedCharacters = fetchedCharacters.flat().filter(char => char !== null);
     }
@@ -792,37 +792,37 @@ async function getCharacterAffiliations(characterIds) {
     if (uncachedIds.length > 0) {
         // Process uncached IDs in chunks to respect ESI limits
         updateProgress(0, uncachedIds.length, `Getting character affiliations...`);
-        
+
         fetchedAffiliations = await processInChunks(
             chunkArray(uncachedIds, MAX_ESI_CALL_SIZE),
             async (idChunk, index, totalChunks) => {
                 esiLookups++;
-                updateProgress(index * MAX_ESI_CALL_SIZE, uncachedIds.length, 
+                updateProgress(index * MAX_ESI_CALL_SIZE, uncachedIds.length,
                     `Getting character affiliations (batch ${index + 1}/${totalChunks})...`);
-                
+
                 const res = await fetch(`${ESI_BASE}/characters/affiliation/`, {
                     method: 'POST',
                     headers: ESI_HEADERS,
                     body: JSON.stringify(idChunk)
                 });
-                
+
                 if (!res.ok) {
                     throw new Error(`Failed to get character affiliations for batch ${index + 1}: ${res.status}`);
                 }
-                
+
                 const affiliations = await res.json();
-                
+
                 // Cache each affiliation immediately
                 for (const affiliation of affiliations) {
                     await setCachedAffiliation(affiliation.character_id, affiliation);
                 }
-                
+
                 return affiliations;
             },
             MAX_ESI_CALL_SIZE,
             CHUNK_DELAY
         );
-        
+
         // Flatten the results (each chunk returns an array of affiliations)
         fetchedAffiliations = fetchedAffiliations.flat().filter(affiliation => affiliation !== null);
     }
@@ -847,10 +847,10 @@ async function getIndexedDBSize() {
 async function processInChunks(items, processFn, chunkSize = CHUNK_SIZE, delay = CHUNK_DELAY) {
     const results = [];
     const totalChunks = items.length;
-    
+
     for (let i = 0; i < items.length; i++) {
         const item = items[i];
-        
+
         try {
             // Pass chunk index and total chunks to the processor function
             const result = await processFn(item, i, totalChunks);
@@ -872,13 +872,13 @@ async function processInChunks(items, processFn, chunkSize = CHUNK_SIZE, delay =
                 results.push(null);
             }
         }
-        
+
         // Small delay between chunks
         if (i + 1 < items.length && delay > 0) {
             await new Promise(resolve => setTimeout(resolve, delay));
         }
     }
-    
+
     return results;
 }
 
@@ -888,7 +888,7 @@ async function handleMissingCharacters(characters, originalNames) {
         const foundNames = new Set(characters.map(c => c.name.toLowerCase()));
         const missingNames = originalNames.filter(name => !foundNames.has(name.toLowerCase()));
         console.warn(`Could not find ${missingNames.length} character(s):`, missingNames);
-        
+
         if (missingNames.length > 0) {
             updateProgress(0, 0, `Warning: ${missingNames.length} character names not found`);
             await new Promise(resolve => setTimeout(resolve, 1500));
@@ -899,11 +899,11 @@ async function handleMissingCharacters(characters, originalNames) {
 // Function to get corporation information with smart caching
 async function getCorporationInfoWithCaching(uniqueCorpIds) {
     updateProgress(0, uniqueCorpIds.length, "Getting corporation information...");
-    
+
     // Step 1: Check which corps need API calls vs cache
     const cachedCorps = [];
     const uncachedCorpIds = [];
-    
+
     uniqueCorpIds.forEach(corpId => {
         if (corporationInfoCache.has(corpId)) {
             cachedCorps.push(corpId);
@@ -923,7 +923,7 @@ async function getCorporationInfoWithCaching(uniqueCorpIds) {
                 const info = corporationInfoCache.get(corpId);
                 corpMap.set(corpId, info);
                 processedCorps++;
-                updateProgress(processedCorps, uniqueCorpIds.length, 
+                updateProgress(processedCorps, uniqueCorpIds.length,
                     `Getting corporation information (${processedCorps}/${uniqueCorpIds.length})...`);
             } catch (e) {
                 showError(`Error fetching cached corporation ${corpId}: ${e}`);
@@ -937,9 +937,9 @@ async function getCorporationInfoWithCaching(uniqueCorpIds) {
     // Step 3: Check IndexedDB cache for uncached corps (batched)
     const uncachedFromDB = await checkIndexedDBCache(uncachedCorpIds, corpMap, 'corporation');
     processedCorps += (uncachedCorpIds.length - uncachedFromDB.length);
-    
+
     if (processedCorps > cachedCorps.length) {
-        updateProgress(processedCorps, uniqueCorpIds.length, 
+        updateProgress(processedCorps, uniqueCorpIds.length,
             `Getting corporation information (${processedCorps}/${uniqueCorpIds.length})...`);
     }
 
@@ -958,11 +958,11 @@ async function getAllianceInfoWithCaching(uniqueAllianceIds) {
     }
 
     updateProgress(0, uniqueAllianceIds.length, "Getting alliance information...");
-    
+
     // Step 1: Check which alliances need API calls vs cache
     const cachedAlliances = [];
     const uncachedAllianceIds = [];
-    
+
     uniqueAllianceIds.forEach(allianceId => {
         if (allianceInfoCache.has(allianceId)) {
             cachedAlliances.push(allianceId);
@@ -982,7 +982,7 @@ async function getAllianceInfoWithCaching(uniqueAllianceIds) {
                 const info = allianceInfoCache.get(allianceId);
                 allianceMap.set(allianceId, info);
                 processedAlliances++;
-                updateProgress(processedAlliances, uniqueAllianceIds.length, 
+                updateProgress(processedAlliances, uniqueAllianceIds.length,
                     `Getting alliance information (${processedAlliances}/${uniqueAllianceIds.length})...`);
             } catch (e) {
                 showError(`Error fetching cached alliance ${allianceId}: ${e}`);
@@ -996,9 +996,9 @@ async function getAllianceInfoWithCaching(uniqueAllianceIds) {
     // Step 3: Check IndexedDB cache for uncached alliances (batched)
     const uncachedFromDB = await checkIndexedDBCache(uncachedAllianceIds, allianceMap, 'alliance');
     processedAlliances += (uncachedAllianceIds.length - uncachedFromDB.length);
-    
+
     if (processedAlliances > cachedAlliances.length) {
-        updateProgress(processedAlliances, uniqueAllianceIds.length, 
+        updateProgress(processedAlliances, uniqueAllianceIds.length,
             `Getting alliance information (${processedAlliances}/${uniqueAllianceIds.length})...`);
     }
 
@@ -1016,7 +1016,7 @@ async function checkIndexedDBCache(uncachedIds, resultMap, type) {
 
     const getCacheFunction = type === 'corporation' ? getCachedCorporationInfo : getCachedAllianceInfo;
     const inMemoryCache = type === 'corporation' ? corporationInfoCache : allianceInfoCache;
-    
+
     // Batch check IndexedDB
     const dbCachePromises = uncachedIds.map(async id => {
         const cached = await getCacheFunction(id);
@@ -1025,7 +1025,7 @@ async function checkIndexedDBCache(uncachedIds, resultMap, type) {
 
     const dbResults = await Promise.all(dbCachePromises);
     const stillUncached = [];
-    
+
     dbResults.forEach(result => {
         if (result.cached) {
             resultMap.set(result.id, result.cached);
@@ -1043,10 +1043,10 @@ async function checkIndexedDBCache(uncachedIds, resultMap, type) {
 async function processUncachedCorporations(uncachedIds, corpMap, startingCount, totalCount) {
     const corpChunks = chunkArray(uncachedIds, CHUNK_SIZE);
     let processedCorps = startingCount;
-    
+
     for (let i = 0; i < corpChunks.length; i++) {
         const chunk = corpChunks[i];
-        
+
         // Process all corps in this chunk concurrently
         const chunkPromises = chunk.map(async (corpId) => {
             try {
@@ -1069,7 +1069,7 @@ async function processUncachedCorporations(uncachedIds, corpMap, startingCount, 
                 // Cache in memory and IndexedDB
                 corporationInfoCache.set(corpId, corporationInfo);
                 await setCachedCorporationInfo(corpId, corporationInfo);
-                
+
                 return { id: corpId, info: corporationInfo };
             } catch (e) {
                 showError(`Error fetching corporation ${corpId}: ${e}`);
@@ -1081,7 +1081,7 @@ async function processUncachedCorporations(uncachedIds, corpMap, startingCount, 
         });
 
         const chunkResults = await Promise.all(chunkPromises);
-        
+
         // Store results in map
         chunkResults.forEach(result => {
             if (result && result.info) {
@@ -1090,7 +1090,7 @@ async function processUncachedCorporations(uncachedIds, corpMap, startingCount, 
         });
 
         processedCorps += chunk.length;
-        updateProgress(processedCorps, totalCount, 
+        updateProgress(processedCorps, totalCount,
             `Getting corporation information (${processedCorps}/${totalCount})...`);
 
         // Only delay between chunks if we have more API calls to make
@@ -1107,7 +1107,7 @@ async function processUncachedAlliances(uncachedIds, allianceMap, startingCount,
 
     for (let i = 0; i < allianceChunks.length; i++) {
         const chunk = allianceChunks[i];
-        
+
         // Process all alliances in this chunk concurrently
         const chunkPromises = chunk.map(async (allianceId) => {
             try {
@@ -1129,7 +1129,7 @@ async function processUncachedAlliances(uncachedIds, allianceMap, startingCount,
                 // Cache in memory and IndexedDB
                 allianceInfoCache.set(allianceId, allianceInfo);
                 await setCachedAllianceInfo(allianceId, allianceInfo);
-                
+
                 return { id: allianceId, info: allianceInfo };
             } catch (e) {
                 console.error(`Error fetching alliance ${allianceId}:`, e);
@@ -1140,7 +1140,7 @@ async function processUncachedAlliances(uncachedIds, allianceMap, startingCount,
         });
 
         const chunkResults = await Promise.all(chunkPromises);
-        
+
         // Store results in map
         chunkResults.forEach(result => {
             if (result && result.info) {
@@ -1149,7 +1149,7 @@ async function processUncachedAlliances(uncachedIds, allianceMap, startingCount,
         });
 
         processedAlliances += chunk.length;
-        updateProgress(processedAlliances, totalCount, 
+        updateProgress(processedAlliances, totalCount,
             `Getting alliance information (${processedAlliances}/${totalCount})...`);
 
         // Only delay between chunks if we have more API calls to make
@@ -1214,7 +1214,7 @@ function buildCharacterResults(characters, affiliationMap, corpMap, allianceMap)
         }
         updateProgress(i + 1, characters.length, "Building final results...");
     }
-    
+
     return results;
 }
 
@@ -1261,7 +1261,7 @@ function updateElementContent(element, character, viewType) {
     const characterLink = element.querySelector('.character-name a');
     const corpLogo = element.querySelector('.corp-alliance-info .org-logo');
     const corpLink = element.querySelector('.corp-alliance-info .character-link');
-    
+
     if (avatar) {
         avatar.alt = character.character_name;
         avatar.dataset.src = `https://images.evetech.net/characters/${character.character_id}/portrait?size=64`;
@@ -1269,12 +1269,12 @@ function updateElementContent(element, character, viewType) {
             getImageObserver().observe(avatar);
         }
     }
-    
+
     if (characterLink) {
         characterLink.textContent = character.character_name;
         characterLink.href = `https://zkillboard.com/character/${character.character_id}/`;
     }
-    
+
     if (corpLogo) {
         corpLogo.alt = character.corporation_name;
         corpLogo.dataset.src = `https://images.evetech.net/corporations/${character.corporation_id}/logo?size=32`;
@@ -1282,19 +1282,19 @@ function updateElementContent(element, character, viewType) {
             getImageObserver().observe(corpLogo);
         }
     }
-    
+
     if (corpLink) {
         corpLink.textContent = character.corporation_name;
         corpLink.href = `https://zkillboard.com/corporation/${character.corporation_id}/`;
     }
-    
+
     // FIXED: Handle alliance info properly
     const corpAllianceInfo = element.querySelector('.corp-alliance-info');
     let allianceSection = element.querySelector('.org-item:last-child');
-    
+
     // Check if the alliance section is actually for alliance (not corp)
     const isAllianceSection = allianceSection && allianceSection.querySelector('a[href*="/alliance/"]');
-    
+
     if (character.alliance_name && character.alliance_id) {
         if (!isAllianceSection) {
             // Need to create alliance section
@@ -1318,13 +1318,13 @@ function updateElementContent(element, character, viewType) {
             // Update existing alliance section
             const allianceLogo = allianceSection.querySelector('.org-logo');
             const allianceLink = allianceSection.querySelector('.character-link');
-            
+
             if (allianceLogo) {
                 allianceLogo.alt = character.alliance_name;
                 allianceLogo.dataset.src = `https://images.evetech.net/alliances/${character.alliance_id}/logo?size=32`;
                 getImageObserver().observe(allianceLogo);
             }
-            
+
             if (allianceLink) {
                 allianceLink.textContent = character.alliance_name;
                 allianceLink.href = `https://zkillboard.com/alliance/${character.alliance_id}/`;
@@ -1343,18 +1343,18 @@ async function getCacheRecordCount() {
         const db = await initDB();
         const stores = ['character_names', 'character_affiliations', 'corporations', 'alliances'];
         let totalCount = 0;
-        
+
         // Use Promise.all to count all stores concurrently for better performance
         const countPromises = stores.map(storeName => {
             return new Promise((resolve) => {
                 const transaction = db.transaction([storeName], 'readonly');
                 const store = transaction.objectStore(storeName);
                 const countRequest = store.count();
-                
+
                 countRequest.onsuccess = () => {
                     resolve(countRequest.result);
                 };
-                
+
                 countRequest.onerror = () => {
                     showWarning(`DB error whilst counting records in ${storeName}`);
                     console.warn(`Error counting records in ${storeName}:`, countRequest.error);
@@ -1362,10 +1362,10 @@ async function getCacheRecordCount() {
                 };
             });
         });
-        
+
         const counts = await Promise.all(countPromises);
         totalCount = counts.reduce((sum, count) => sum + count, 0);
-        
+
         return totalCount;
     } catch (e) {
         showWarning('DB error whilst getting cache record count');
@@ -1381,7 +1381,7 @@ async function updatePerformanceStats() {
     document.getElementById("query-time").textContent = queryTime;
     document.getElementById("esi-lookups").textContent = esiLookups;
     document.getElementById("cache-info").textContent = localLookups;
-    
+
     // Update the cache size element to show record count
     const cacheSizeElement = document.getElementById("cache-size");
     if (cacheSizeElement) {
@@ -1415,7 +1415,7 @@ function updateProgress(current, total, stage = null) {
     const p = total > 0 ? (current / total) * 100 : 0;
 
     if (elements.bar) elements.bar.style.width = p + '%';
-    
+
     if (elements.text) {
         if (stage) {
             elements.text.textContent = `${stage} (${current} / ${total})`;
@@ -1541,7 +1541,7 @@ function loadSingleImage(img) {
     if (!realSrc || img.src === realSrc) return;
 
     currentlyLoading++;
-    
+
     const onLoad = () => {
         currentlyLoading--;
         img.removeEventListener('load', onLoad);
@@ -1549,7 +1549,7 @@ function loadSingleImage(img) {
         delete img.dataset.loading;
         processImageQueue();
     };
-    
+
     const onError = () => {
         currentlyLoading--;
         img.removeEventListener('load', onLoad);
@@ -1559,7 +1559,7 @@ function loadSingleImage(img) {
         img.style.opacity = '0.3';
         processImageQueue();
     };
-    
+
     img.addEventListener('load', onLoad);
     img.addEventListener('error', onError);
     img.src = realSrc;
@@ -1569,9 +1569,9 @@ function loadSingleImage(img) {
 function createCharacterItem(character, viewType = 'grid') {
     const item = document.createElement("div");
     item.className = `result-item ${viewType}-view animate-ready`;
-    
+
     const placeholder = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3C/svg%3E";
-    
+
     const allianceSection = character.alliance_name && character.alliance_id ? `
         <div class="org-item">
             <img src="${placeholder}" 
@@ -1585,7 +1585,7 @@ function createCharacterItem(character, viewType = 'grid') {
                class="character-link">${character.alliance_name}</a>
         </div>
     ` : '';
-    
+
     item.innerHTML = `
         <img src="${placeholder}" 
              data-src="https://images.evetech.net/characters/${character.character_id}/portrait?size=64"
@@ -1625,12 +1625,12 @@ function createCharacterItem(character, viewType = 'grid') {
             observerManager.observeImage(img);
         });
     });
-    
+
     // Observe animation after DOM is ready
     requestAnimationFrame(() => {
         observerManager.observeAnimation(item);
     });
-    
+
     return item;
 }
 
@@ -1644,11 +1644,11 @@ function createSummaryItem({ id, name, count, type }) {
     logo.alt = name;
     logo.loading = "lazy";
     logo.decoding = "async";
-    
+
     const placeholder = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3C/svg%3E";
     logo.src = placeholder;
     logo.dataset.src = `https://images.evetech.net/${type}s/${id}/logo?size=32`;
-    
+
     item.appendChild(logo);
 
     const content = document.createElement("div");
@@ -1666,21 +1666,21 @@ function createSummaryItem({ id, name, count, type }) {
 
     item.appendChild(content);
     item.appendChild(createMouseoverCard({ id, name, count }, type));
-    
+
     // FIXED: Observe the logo image after it's in the DOM structure
     requestAnimationFrame(() => {
         observerManager.observeImage(logo);
     });
-    
+
     return item;
 }
 
 function renderGrid(containerId, items, type = 'character', limit = null) {
     const container = document.getElementById(containerId);
-    
+
     if (type === 'character') {
         const itemsToShow = limit ? items.slice(0, limit) : items;
-        
+
         if (itemsToShow.length === 0) {
             container.innerHTML = `
                 <div class="no-results">
@@ -1693,7 +1693,7 @@ function renderGrid(containerId, items, type = 'character', limit = null) {
 
         // Convert to virtual scrolling container
         setupVirtualScrolling(containerId, itemsToShow);
-        
+
     } else {
         if (items.length === 0) {
             container.innerHTML = `
@@ -1720,7 +1720,7 @@ function setupVirtualScrolling(containerId, items) {
         console.warn(`Cannot setup virtual scrolling: container "${containerId}" not found or no items`);
         return;
     }
-    
+
     // Find the parent grid with better error handling
     let parentGrid = container.closest('.result-grid');
     if (!parentGrid) {
@@ -1729,109 +1729,109 @@ function setupVirtualScrolling(containerId, items) {
             parentGrid = container;
         }
     }
-    
+
     if (!parentGrid) {
         console.warn(`Parent grid not found for container "${containerId}"`);
         return;
     }
-    
+
     // Clean up any existing virtual scroll setup first
     if (container._cleanup) {
         container._cleanup();
         delete container._cleanup;
     }
-    
+
     // Clear any existing scroll listener
     if (container._scrollListener) {
         container.removeEventListener('scroll', container._scrollListener);
         delete container._scrollListener;
     }
-    
+
     // Add CSS classes
     parentGrid.classList.add('virtual-enabled');
-    
+
     const isListView = currentView === 'list';
     const itemHeight = isListView ? 90 : 150;
     const containerWidth = Math.max(270, parentGrid.clientWidth - 60); // Minimum width fallback
     const itemsPerRow = isListView ? 1 : Math.max(1, Math.floor(containerWidth / 270));
     const totalRows = Math.ceil(items.length / itemsPerRow);
     const totalHeight = totalRows * itemHeight;
-    
+
     // Apply CSS classes
     container.className = 'virtual-scroll-container';
-    
+
     // Create structure
     const spacer = document.createElement('div');
     spacer.className = 'virtual-scroll-spacer';
     spacer.style.height = totalHeight + 'px';
-    
+
     const content = document.createElement('div');
     content.className = `virtual-scroll-content ${isListView ? 'list-view' : ''}`;
-    
+
     // Clear and setup DOM
     container.innerHTML = '';
     spacer.appendChild(content);
     container.appendChild(spacer);
-    
+
     let isUpdating = false;
     let lastStartIndex = -1;
     let lastEndIndex = -1;
     let animationFrame = null;
-    
+
     function updateVisibleItems() {
         if (isUpdating || !document.contains(container)) {
             return;
         }
-        
+
         isUpdating = true;
-        
+
         // Cancel previous animation frame
         if (animationFrame) {
             cancelAnimationFrame(animationFrame);
         }
-        
+
         const scrollTop = container.scrollTop;
         const containerHeight = container.clientHeight;
         const buffer = 20;
-        
+
         const startRow = Math.max(0, Math.floor(scrollTop / itemHeight) - buffer);
         const endRow = Math.min(totalRows, Math.ceil((scrollTop + containerHeight) / itemHeight) + buffer);
-        
+
         const startIndex = startRow * itemsPerRow;
         const endIndex = Math.min(items.length, endRow * itemsPerRow);
-        
+
         if (startIndex === lastStartIndex && endIndex === lastEndIndex) {
             isUpdating = false;
             return;
         }
-        
+
         lastStartIndex = startIndex;
         lastEndIndex = endIndex;
-        
+
         animationFrame = requestAnimationFrame(() => {
             if (!document.contains(container) || !document.contains(content)) {
                 isUpdating = false;
                 return;
             }
-            
+
             content.style.transform = `translateY(${startRow * itemHeight}px)`;
-            
+
             const fragment = document.createDocumentFragment();
-            
+
             for (let i = startIndex; i < endIndex; i++) {
                 if (items[i]) {
                     const element = createCharacterItem(items[i], isListView ? 'list' : 'grid');
                     fragment.appendChild(element);
                 }
             }
-            
+
             content.innerHTML = '';
             content.appendChild(fragment);
             isUpdating = false;
             animationFrame = null;
         });
     }
-    
+
     // Throttled scroll handler
     let scrollTimeout = null;
     function onScroll() {
@@ -1843,48 +1843,48 @@ function setupVirtualScrolling(containerId, items) {
             scrollTimeout = null;
         }, 16); // ~60fps throttling
     }
-    
+
     container._scrollListener = onScroll;
     container.addEventListener('scroll', onScroll, { passive: true });
-    
+
     // Initial render
     updateVisibleItems();
-    
+
     // Enhanced cleanup function
     container._cleanup = () => {
         if (animationFrame) {
             cancelAnimationFrame(animationFrame);
             animationFrame = null;
         }
-        
+
         if (scrollTimeout) {
             clearTimeout(scrollTimeout);
             scrollTimeout = null;
         }
-        
+
         if (container._scrollListener) {
             container.removeEventListener('scroll', container._scrollListener);
             delete container._scrollListener;
         }
-        
+
         // Clean up observers for elements in this container
         const images = container.querySelectorAll('img[data-src]');
         const animations = container.querySelectorAll('.animate-ready, .animate-in');
-        
+
         images.forEach(img => {
             if (observerManager.imageObserver && observerManager.observedImages.has(img)) {
                 observerManager.imageObserver.unobserve(img);
                 observerManager.observedImages.delete(img);
             }
         });
-        
+
         animations.forEach(element => {
             if (observerManager.animationObserver && observerManager.observedAnimations.has(element)) {
                 observerManager.animationObserver.unobserve(element);
                 observerManager.observedAnimations.delete(element);
             }
         });
-        
+
         // Remove CSS classes
         if (parentGrid?.classList) {
             parentGrid.classList.remove('virtual-enabled');
@@ -1892,7 +1892,7 @@ function setupVirtualScrolling(containerId, items) {
         if (container) {
             container.className = container.className.replace('virtual-scroll-container', '').trim() || 'result-grid';
         }
-        
+
         delete container._cleanup;
     };
 }
@@ -1962,7 +1962,7 @@ function stopLoading() {
         // Re-enable hover behavior after loading is complete
         const inputSection = document.getElementById('input-section');
         inputSection.classList.remove('loading');
-        
+
         setTimeout(() => {
             lc.style.display = 'none';
         }, 500);
@@ -1973,17 +1973,23 @@ function showInformation(message) {
     document.getElementById("error-container").innerHTML = `
         <div class="info-message glass-card">
         <div class="information-icon">
+        <div class="info-icon">✅</div>
+        <div class="info-content">
+            <div class="info-title">Info</div>
+            <div class="info-text">${message}</div>
+        </div>
+        </div>
     `;
 }
 
 
 function showWarning(message) {
     document.getElementById("error-container").innerHTML = `
-        <div class="info-message glass-card">
-        <div class="info-icon">✅</div>
-        <div class="info-content">
-            <div class="info-title">Info</div>
-            <div class="info-text">${message}</div>
+        <div class="warning-message glass-card">
+        <div class="warning-icon">⚠️</div>
+        <div class="warning-content">
+            <div class="warning-title">Warning</div>
+            <div class="warning-text">${message}</div>
         </div>
         </div>
     `;
@@ -1995,7 +2001,7 @@ function showError(message) {
     <div class="error-message glass-card">
       <div class="error-icon">⚠️</div>
       <div class="error-content">
-        <div class="error-title">Connection Error</div>
+        <div class="error-title">Error</div>
         <div class="error-text">${message}</div>
       </div>
     </div>
@@ -2025,7 +2031,7 @@ async function getCorporationInfoBatch(corporationIds) {
     // Step 1: Check in-memory cache first
     const cachedCorps = [];
     const uncachedFromMemory = [];
-    
+
     corporationIds.forEach(corpId => {
         if (corporationInfoCache.has(corpId)) {
             corpMap.set(corpId, corporationInfoCache.get(corpId));
@@ -2037,7 +2043,7 @@ async function getCorporationInfoBatch(corporationIds) {
 
     processedCorps = cachedCorps.length;
     if (processedCorps > 0) {
-        updateProgress(processedCorps, corporationIds.length, 
+        updateProgress(processedCorps, corporationIds.length,
             `Getting corporation information (${processedCorps}/${corporationIds.length})...`);
     }
 
@@ -2053,7 +2059,7 @@ async function getCorporationInfoBatch(corporationIds) {
         });
 
         const dbResults = await Promise.all(dbCachePromises);
-        
+
         dbResults.forEach(result => {
             if (result.cached) {
                 corpMap.set(result.corpId, result.cached);
@@ -2066,7 +2072,7 @@ async function getCorporationInfoBatch(corporationIds) {
         });
 
         if (cachedFromDB.length > 0) {
-            updateProgress(processedCorps, corporationIds.length, 
+            updateProgress(processedCorps, corporationIds.length,
                 `Getting corporation information (${processedCorps}/${corporationIds.length})...`);
         }
     }
@@ -2074,10 +2080,10 @@ async function getCorporationInfoBatch(corporationIds) {
     // Step 3: Fetch remaining corporations from API in chunks with delays
     if (uncachedFromDB.length > 0) {
         const corpChunks = chunkArray(uncachedFromDB, CHUNK_SIZE);
-        
+
         for (let i = 0; i < corpChunks.length; i++) {
             const chunk = corpChunks[i];
-            
+
             // Process all corps in this chunk concurrently
             const chunkPromises = chunk.map(async (corpId) => {
                 try {
@@ -2100,7 +2106,7 @@ async function getCorporationInfoBatch(corporationIds) {
                     // Cache in memory and IndexedDB
                     corporationInfoCache.set(corpId, corporationInfo);
                     await setCachedCorporationInfo(corpId, corporationInfo);
-                    
+
                     return { id: corpId, info: corporationInfo };
                 } catch (e) {
                     showError(`Error fetching corporation ${corpId}:`, e);
@@ -2112,7 +2118,7 @@ async function getCorporationInfoBatch(corporationIds) {
             });
 
             const chunkResults = await Promise.all(chunkPromises);
-            
+
             // Store results in map
             chunkResults.forEach(result => {
                 if (result && result.info) {
@@ -2121,7 +2127,7 @@ async function getCorporationInfoBatch(corporationIds) {
             });
 
             processedCorps += chunk.length;
-            updateProgress(processedCorps, corporationIds.length, 
+            updateProgress(processedCorps, corporationIds.length,
                 `Getting corporation information (${processedCorps}/${corporationIds.length})...`);
 
             // Only delay between chunks if we have more API calls to make
@@ -2142,7 +2148,7 @@ async function getAllianceInfoBatch(allianceIds) {
     // Step 1: Check in-memory cache first
     const cachedAlliances = [];
     const uncachedFromMemory = [];
-    
+
     allianceIds.forEach(allianceId => {
         if (allianceInfoCache.has(allianceId)) {
             allianceMap.set(allianceId, allianceInfoCache.get(allianceId));
@@ -2154,7 +2160,7 @@ async function getAllianceInfoBatch(allianceIds) {
 
     processedAlliances = cachedAlliances.length;
     if (processedAlliances > 0) {
-        updateProgress(processedAlliances, allianceIds.length, 
+        updateProgress(processedAlliances, allianceIds.length,
             `Getting alliance information (${processedAlliances}/${allianceIds.length})...`);
     }
 
@@ -2170,7 +2176,7 @@ async function getAllianceInfoBatch(allianceIds) {
         });
 
         const dbResults = await Promise.all(dbCachePromises);
-        
+
         dbResults.forEach(result => {
             if (result.cached) {
                 allianceMap.set(result.allianceId, result.cached);
@@ -2183,7 +2189,7 @@ async function getAllianceInfoBatch(allianceIds) {
         });
 
         if (cachedFromDB.length > 0) {
-            updateProgress(processedAlliances, allianceIds.length, 
+            updateProgress(processedAlliances, allianceIds.length,
                 `Getting alliance information (${processedAlliances}/${allianceIds.length})...`);
         }
     }
@@ -2194,7 +2200,7 @@ async function getAllianceInfoBatch(allianceIds) {
 
         for (let i = 0; i < allianceChunks.length; i++) {
             const chunk = allianceChunks[i];
-            
+
             // Process all alliances in this chunk concurrently
             const chunkPromises = chunk.map(async (allianceId) => {
                 try {
@@ -2216,7 +2222,7 @@ async function getAllianceInfoBatch(allianceIds) {
                     // Cache in memory and IndexedDB
                     allianceInfoCache.set(allianceId, allianceInfo);
                     await setCachedAllianceInfo(allianceId, allianceInfo);
-                    
+
                     return { id: allianceId, info: allianceInfo };
                 } catch (e) {
                     showError(`Error fetching alliance ${allianceId}:`, e);
@@ -2228,7 +2234,7 @@ async function getAllianceInfoBatch(allianceIds) {
             });
 
             const chunkResults = await Promise.all(chunkPromises);
-            
+
             // Store results in map
             chunkResults.forEach(result => {
                 if (result && result.info) {
@@ -2237,7 +2243,7 @@ async function getAllianceInfoBatch(allianceIds) {
             });
 
             processedAlliances += chunk.length;
-            updateProgress(processedAlliances, allianceIds.length, 
+            updateProgress(processedAlliances, allianceIds.length,
                 `Getting alliance information (${processedAlliances}/${allianceIds.length})...`);
 
             // Only delay between chunks if we have more API calls to make
@@ -2314,22 +2320,22 @@ function toggleView(viewType) {
     // Clean up existing virtual scrolling
     const eligibleContainer = document.getElementById('eligible-grid');
     const ineligibleContainer = document.getElementById('ineligible-grid');
-    
+
     if (eligibleContainer._cleanup) {
         eligibleContainer._cleanup();
     }
     if (ineligibleContainer._cleanup) {
         ineligibleContainer._cleanup();
     }
-    
+
     // Re-render with new view type
-    const eligibleToShow = expandedSections.eligible 
-        ? allResults.eligible 
+    const eligibleToShow = expandedSections.eligible
+        ? allResults.eligible
         : allResults.eligible.slice(0, displayedResults.eligible);
-    const ineligibleToShow = expandedSections.ineligible 
-        ? allResults.ineligible 
+    const ineligibleToShow = expandedSections.ineligible
+        ? allResults.ineligible
         : allResults.ineligible.slice(0, displayedResults.ineligible);
-    
+
     // Recreate virtual scrolling with new settings
     if (eligibleToShow.length > 0) {
         setupVirtualScrolling('eligible-grid', eligibleToShow);
@@ -2378,7 +2384,7 @@ function loadMoreSummary(type) {
 function updateResultsDisplay() {
     // Clean up previous results first
     observerManager.cleanupDeadElements();
-    
+
     const eligibleToShow = expandedSections.eligible
         ? allResults.eligible
         : allResults.eligible.slice(0, displayedResults.eligible);
@@ -2641,7 +2647,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (document.hidden) {
             observerManager.cleanupDeadElements();
         }
-     });
+    });
     // Initialize character count
     updateCharacterCount();
 
