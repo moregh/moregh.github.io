@@ -30,7 +30,53 @@ const CHUNK_DELAY = 25;                     // 25ms delay between chunks to be n
 const STATS_UPDATE_DELAY = 100;             // Delay stats update until results are available
 const DB_NAME = 'EVEWarTargetCache';        // IndexedDB name
 const DB_VERSION = 1;                       // Track DB version for upgrades
-const VERSION = "0.3.1";                    // Current version
+const VERSION = "0.3.2";                    // Current version
+
+
+// ========== TIME AND THROTTLING ==========
+const PROGRESS_UPDATE_THROTTLE_MS = 50;           // Line: lastProgressUpdate < 50
+const TIMER_UPDATE_INTERVAL_MS = 100;             // Line: setInterval(updateTimer, 100)
+const TIMER_UPDATE_THROTTLE_MS = 100;             // Line: now - lastTimerUpdate < 100
+const LOADING_DISPLAY_DELAY_MS = 300;             // Line: setTimeout(() => { rs.classList.add("show"); }, 300)
+const LOADING_HIDE_DELAY_MS = 500;                // Line: setTimeout(() => { lc.style.display = 'none'; }, 500)
+const CHARACTER_COUNT_DEBOUNCE_MS = 150;          // Line: setTimeout(() => { updateCharacterCount(); }, 150)
+const SCROLL_STATE_TIMEOUT_MS = 150;              // Line: setTimeout(() => { ... }, 150)
+const SCROLL_THROTTLE_MS = 8;                     // Line: setTimeout(() => { ... }, 8)
+const ANIMATION_FRAME_THROTTLE_FPS = 16;          // Line: now - lastScrollTime > 16
+
+// ========== CHARACTER VALIDATION ==========
+const MIN_CHARACTER_NAME_LENGTH = 3;             // Line: name.length < 3
+const MAX_CHARACTER_NAME_LENGTH = 37;            // Line: name.length > 37
+const MAX_SINGLE_NAME_LENGTH = 24;               // Line: name.length > 24
+const MAX_FAMILY_NAME_LENGTH = 12;               // Line: familyName.length > 12
+const MAX_FIRST_MIDDLE_NAME_LENGTH = 24;         // Line: firstAndMiddle.length > 24
+
+// ========== UI DIMENSIONS AND LAYOUT ==========
+const VIRTUAL_SCROLL_BUFFER_ITEMS = 5;           // Line: const buffer = 5
+const GRID_VIEW_ITEM_HEIGHT_PX = 150;            // Line: const itemHeight = isListView ? 90 : 150
+const LIST_VIEW_ITEM_HEIGHT_PX = 90;             // Line: const itemHeight = isListView ? 90 : 150
+const MIN_CONTAINER_WIDTH_PX = 270;              // Line: Math.max(270, parentGrid.clientWidth - 60)
+const CONTAINER_PADDING_PX = 60;                 // Line: parentGrid.clientWidth - 60
+const MIN_GRID_ITEM_WIDTH_PX = 270;              // Line: Math.floor(containerWidth / 270)
+const VIRTUAL_SCROLL_MIN_HEIGHT_PX = 300;        // Line: container.style.minHeight = '300px'
+const VIRTUAL_SCROLL_MAX_HEIGHT_PX = 600;        // Line: container.style.maxHeight = '600px'
+const USER_NOTIFICATION_DISPLAY_MS = 1500;
+
+// ========== IMAGE SIZES ==========
+const CHARACTER_PORTRAIT_SIZE_PX = 64;           // Line: portrait?size=64
+const CORP_LOGO_SIZE_PX = 32;                    // Line: logo?size=32
+const ALLIANCE_LOGO_SIZE_PX = 32;                // Line: logo?size=32
+const MOUSEOVER_CARD_AVATAR_SIZE_PX = 32;        // Line: portrait?size=32 (in mouseover)
+const MOUSEOVER_CARD_MAX_ITEMS = 10;             // Line: const maxItems = 10
+
+// ========== PERFORMANCE CONFIGURATION ==========
+const INTERSECTION_OBSERVER_THROTTLE_MS = 50;    // Line: if (now - lastProgressUpdate < 50)
+const BATCH_OPERATION_SIZE = 20;                 // Line: BATCH_SIZE: 20
+const MAX_ELEMENT_POOL_SIZE = 50;                // Line: MAX_ELEMENT_POOL_SIZE: 50
+const VIRTUAL_SCROLL_BUFFER_SIZE = 10;           // Line: VIRTUAL_SCROLL_BUFFER: 10
+const OBSERVER_THROTTLE_MS = 50;                 // Line: OBSERVER_THROTTLE: 50
+
+
 
 // Performance configuration
 const PERFORMANCE_CONFIG = {
@@ -378,19 +424,6 @@ function setupCollapsedIndicatorClick() {
             inputSection.style.maxHeight = '';
         }
     });
-}
-
-// Cache management functions
-function getCacheKey(type, id) {
-    return `eve_${type}_${id}`;
-}
-
-function getNameCacheKey(name) {
-    return `eve_name_${name.toLowerCase()}`;
-}
-
-function getAffiliationCacheKey(id) {
-    return `eve_affiliation_${id}`;
 }
 
 async function getCachedNameToId(name) {
@@ -745,16 +778,16 @@ clearExpiredCache();
 
 function clientValidate(name) {
     name = name.trim();
-    if (name.length < 3 || name.length > 37) return false;
+    if (name.length < MIN_CHARACTER_NAME_LENGTH || name.length > MAX_CHARACTER_NAME_LENGTH) return false;
     let pattern = /^[A-Za-z0-9.''-]+( [A-Za-z0-9.''-]+)*$/;
     if (!pattern.test(name)) return false;
     if (/^[ '-]|[ '-]$/.test(name)) return false;
     let parts = name.split(" ");
-    if (parts.length === 1 && name.length > 24) return false;
+    if (parts.length === 1 && name.length > MAX_SINGLE_NAME_LENGTH) return false;
     if (parts.length > 1) {
         let firstAndMiddle = parts.slice(0, -1).join(" ");
         let familyName = parts[parts.length - 1];
-        if (firstAndMiddle.length > 24 || familyName.length > 12) return false;
+        if (firstAndMiddle.length > MAX_FIRST_MIDDLE_NAME_LENGTH || familyName.length > MAX_FAMILY_NAME_LENGTH) return false;
     }
     return true;
 }
@@ -898,20 +931,6 @@ async function getCharacterAffiliations(characterIds) {
     return [...cachedAffiliations, ...fetchedAffiliations];
 }
 
-async function getIndexedDBSize() {
-    try {
-        if ('storage' in navigator && 'estimate' in navigator.storage) {
-            const estimate = await navigator.storage.estimate();
-            return ((estimate.usage || 0) / 1024 / 1024).toFixed(1);
-        }
-        return 'Unknown';
-    } catch (e) {
-        return 'Unknown';
-    }
-}
-
-
-
 async function processInChunks(items, processFn, chunkSize = CHUNK_SIZE, delay = CHUNK_DELAY) {
     const results = [];
     const totalChunks = items.length;
@@ -959,7 +978,7 @@ async function handleMissingCharacters(characters, originalNames) {
 
         if (missingNames.length > 0) {
             updateProgress(0, 0, `Warning: ${missingNames.length} character names not found`);
-            await new Promise(resolve => setTimeout(resolve, 1500));
+            await new Promise(resolve => setTimeout(resolve, USER_NOTIFICATION_DISPLAY_MS));
         }
     }
 }
@@ -1334,7 +1353,7 @@ function updateElementContent(element, character, viewType) {
     // Batch DOM updates
     if (avatar) {
         avatar.alt = character.character_name;
-        const newAvatarSrc = `https://images.evetech.net/characters/${character.character_id}/portrait?size=64`;
+        const newAvatarSrc = `https://images.evetech.net/characters/${character.character_id}/portrait?size=${CHARACTER_PORTRAIT_SIZE_PX}`;
         if (avatar.dataset.src !== newAvatarSrc) {
             avatar.dataset.src = newAvatarSrc;
             if (document.contains(avatar)) {
@@ -1350,7 +1369,7 @@ function updateElementContent(element, character, viewType) {
 
     if (corpLogo) {
         corpLogo.alt = character.corporation_name;
-        const newCorpSrc = `https://images.evetech.net/corporations/${character.corporation_id}/logo?size=32`;
+        const newCorpSrc = `https://images.evetech.net/corporations/${character.corporation_id}/logo?size=${CORP_LOGO_SIZE_PX}`;
         if (corpLogo.dataset.src !== newCorpSrc) {
             corpLogo.dataset.src = newCorpSrc;
             if (document.contains(corpLogo)) {
@@ -1377,7 +1396,7 @@ function updateElementContent(element, character, viewType) {
             newAllianceSection.className = 'org-item';
             newAllianceSection.innerHTML = `
                 <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3C/svg%3E" 
-                     data-src="https://images.evetech.net/alliances/${character.alliance_id}/logo?size=32"
+                     data-src="https://images.evetech.net/alliances/${character.alliance_id}/logo?size=${ALLIANCE_LOGO_SIZE_PX}"
                      alt="${character.alliance_name}" 
                      class="org-logo" 
                      loading="lazy" 
@@ -1400,7 +1419,7 @@ function updateElementContent(element, character, viewType) {
 
             if (allianceLogo) {
                 allianceLogo.alt = character.alliance_name;
-                const newAllianceSrc = `https://images.evetech.net/alliances/${character.alliance_id}/logo?size=32`;
+                const newAllianceSrc = `https://images.evetech.net/alliances/${character.alliance_id}/logo?size=${ALLIANCE_LOGO_SIZE_PX}`;
                 if (allianceLogo.dataset.src !== newAllianceSrc) {
                     allianceLogo.dataset.src = newAllianceSrc;
                     if (document.contains(allianceLogo)) {
@@ -1493,7 +1512,7 @@ function getProgressElements() {
 function updateProgress(current, total, stage = null) {
     // Throttle progress updates to every 50ms
     const now = Date.now();
-    if (now - lastProgressUpdate < 50 && current < total) return;
+    if (now - lastProgressUpdate < PROGRESS_UPDATE_THROTTLE_MS && current < total) return;
 
     const elements = getProgressElements();
     const p = total > 0 ? (current / total) * 100 : 0;
@@ -1559,7 +1578,7 @@ function createMouseoverCard(entity, type) {
 
     let content = '';
     let items = [];
-    const maxItems = 10;
+    const maxItems = MOUSEOVER_CARD_MAX_ITEMS;
 
     if (type === 'alliance') {
         const corps = allianceToCorpsMap.get(entity.id) || [];
@@ -1569,7 +1588,7 @@ function createMouseoverCard(entity, type) {
       <div class="mouseover-card-content">
         ${items.map(corp => `
           <div class="mouseover-card-item">
-            <img src="https://images.evetech.net/corporations/${corp.id}/logo?size=32" 
+            <img src="https://images.evetech.net/corporations/${corp.id}/logo?size=${CORP_LOGO_SIZE_PX}" 
                  alt="${corp.name}" class="mouseover-card-avatar" loading="lazy">
             <div class="mouseover-card-name">
               <a href="https://zkillboard.com/corporation/${corp.id}/" target="_blank">${corp.name}</a>
@@ -1588,7 +1607,7 @@ function createMouseoverCard(entity, type) {
       <div class="mouseover-card-content">
         ${items.map(char => `
           <div class="mouseover-card-item">
-            <img src="https://images.evetech.net/characters/${char.character_id}/portrait?size=32" 
+            <img src="https://images.evetech.net/characters/${char.character_id}/portrait?size=${MOUSEOVER_CARD_AVATAR_SIZE_PX}" 
                  alt="${char.character_name}" class="mouseover-card-avatar" loading="lazy">
             <div class="mouseover-card-name">
               <a href="https://zkillboard.com/character/${char.character_id}/" target="_blank">${char.character_name}</a>
@@ -1666,17 +1685,10 @@ function addScrollStateDetection() {
                 e.target.classList.remove('scrolling');
                 imageObserverEnabled = true; // Resume image loading
                 processImageQueue(); // Process any queued images
-            }, 150);
+            }, SCROLL_STATE_TIMEOUT_MS);
         }
     }, { passive: true, capture: true });
 }
-
-// Call this on DOMContentLoaded
-document.addEventListener('DOMContentLoaded', function () {
-    // ... existing code ...
-    addScrollStateDetection();
-});
-
 
 function createCharacterItem(character, viewType = 'grid') {
     // Create element using createDocumentFragment for better performance
@@ -1686,7 +1698,7 @@ function createCharacterItem(character, viewType = 'grid') {
     const allianceSection = character.alliance_name && character.alliance_id ? `
         <div class="org-item">
             <img src="${placeholder}" 
-                 data-src="https://images.evetech.net/alliances/${character.alliance_id}/logo?size=32"
+                 data-src="https://images.evetech.net/alliances/${character.alliance_id}/logo?size=${ALLIANCE_LOGO_SIZE_PX}"
                  alt="${character.alliance_name}" 
                  class="org-logo" 
                  loading="lazy" 
@@ -1700,7 +1712,7 @@ function createCharacterItem(character, viewType = 'grid') {
     template.innerHTML = `
         <div class="result-item ${viewType}-view animate-ready" data-character-id="${character.character_id}">
             <img src="${placeholder}" 
-                 data-src="https://images.evetech.net/characters/${character.character_id}/portrait?size=64"
+                 data-src="https://images.evetech.net/characters/${character.character_id}/portrait?size=${CHARACTER_PORTRAIT_SIZE_PX}"
                  alt="${character.character_name}" 
                  class="character-avatar" 
                  loading="lazy" 
@@ -1715,7 +1727,7 @@ function createCharacterItem(character, viewType = 'grid') {
                     <div class="corp-alliance-info">
                         <div class="org-item">
                             <img src="${placeholder}" 
-                                 data-src="https://images.evetech.net/corporations/${character.corporation_id}/logo?size=32"
+                                 data-src="https://images.evetech.net/corporations/${character.corporation_id}/logo?size=${CORP_LOGO_SIZE_PX}"
                                  alt="${character.corporation_name}" 
                                  class="org-logo" 
                                  loading="lazy" 
@@ -1973,7 +1985,7 @@ function setupVirtualScrolling(containerId, items) {
         const now = performance.now();
         
         // Immediate update for smooth scrolling
-        if (now - lastScrollTime > 16) { // ~60fps
+        if (now - lastScrollTime > ANIMATION_FRAME_THROTTLE_FPS) {
             updateVisibleItems();
             lastScrollTime = now;
         } else {
@@ -1982,7 +1994,7 @@ function setupVirtualScrolling(containerId, items) {
             scrollTimeout = setTimeout(() => {
                 updateVisibleItems();
                 scrollTimeout = null;
-            }, 8);
+            }, SCROLL_THROTTLE_MS);
         }
     }
 
@@ -2040,8 +2052,7 @@ function setupVirtualScrolling(containerId, items) {
 let lastTimerUpdate = 0;
 function updateTimer() {
     const now = Date.now();
-    // 100ms update
-    if (now - lastTimerUpdate < 100) return;
+    if (now - lastTimerUpdate < TIMER_UPDATE_THROTTLE_MS) return;
 
     const elapsed = ((now - startTime) / 1000).toFixed(1);
     document.getElementById("timer").textContent = `Elapsed: ${elapsed}s`;
@@ -2081,7 +2092,7 @@ function startLoading() {
     observerManager.cleanup(); // Clear all observers before new search
 
     startTime = Date.now();
-    timerInterval = setInterval(updateTimer, 100);
+    timerInterval = setInterval(updateTimer, TIMER_UPDATE_INTERVAL_MS);
 }
 
 function stopLoading() {
@@ -2105,8 +2116,8 @@ function stopLoading() {
 
         setTimeout(() => {
             lc.style.display = 'none';
-        }, 500);
-    }, 300);
+        }, LOADING_HIDE_DELAY_MS);
+    }, LOADING_DISPLAY_DELAY_MS);
 }
 
 function showInformation(message) {
@@ -2280,7 +2291,6 @@ async function getCorporationInfoBatch(corporationIds) {
     return corpMap;
 }
 
-// Fixed batched alliance lookup function for IndexedDB
 async function getAllianceInfoBatch(allianceIds) {
     const allianceMap = new Map();
     let processedAlliances = 0;
@@ -2607,7 +2617,7 @@ function debouncedUpdateCharacterCount() {
 
     characterCountTimeout = setTimeout(() => {
         updateCharacterCount();
-    }, 150); // 150ms debounce
+    }, CHARACTER_COUNT_DEBOUNCE_MS);
 }
 
 function updateCharacterCount() {
@@ -2742,7 +2752,7 @@ async function validateNames() {
         }
         else if (err.message.includes("400")) {
             showError("Invalid request, probably too many characters simultaneously. Limit is 500.");
-            console.error("Too many items error:", err);
+            console.error("Invalid request error:", err);
         }
         else {
             showError("Unexpected error contacting EVE ESI servers. Check console log for more details.");
@@ -2796,4 +2806,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // update version
     updateVersionDisplay();
+
+    // Scroll state detection
+    addScrollStateDetection();
 });
