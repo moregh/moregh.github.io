@@ -107,7 +107,7 @@ This project is licensed under the AGPL License - see the [LICENSE](LICENSE) fil
 
 ## 🔮 Roadmap
 
-- [ ] **zKill Integration**: Pull character/corporation/alliance data from zKill for display within results
+- [x] **zKill Integration**: Pull character/corporation/alliance data from zKill for display within results
 - [ ] **Expand Entries**: Allow users to paste in corporation and alliance names in addition to characters
 - [ ] **Search & Filtering**: Search results by names or filter by alliance or corporation
 - [ ] **Historical Data**: Track changes in war eligibility over time
