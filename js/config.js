@@ -18,7 +18,7 @@ export const CHUNK_DELAY = 25;
 export const STATS_UPDATE_DELAY = 100;
 export const DB_NAME = 'EVEWarTargetCache';
 export const DB_VERSION = 1;
-export const VERSION = "0.3.5";
+export const VERSION = "0.3.6";
 
 // Time and throttling
 export const PROGRESS_UPDATE_THROTTLE_MS = 50;
