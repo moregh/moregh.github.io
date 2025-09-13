@@ -18,7 +18,7 @@ export const CHUNK_DELAY = 25;
 export const STATS_UPDATE_DELAY = 100;
 export const DB_NAME = 'EVEWarTargetCache';
 export const DB_VERSION = 1;
-export const VERSION = "0.3.6";
+export const VERSION = "0.4.0";
 
 // Time and throttling
 export const PROGRESS_UPDATE_THROTTLE_MS = 50;
@@ -82,3 +82,8 @@ export const ESI_HEADERS = {
     'User-Agent': USER_AGENT,
     'X-User-Agent': `WarTargetFinder/${VERSION}`
 };
+
+// ZKill constants
+export const ZKILL_CARD_ANIMATION_DURATION_MS = 300;
+export const ZKILL_CARD_BACKDROP_BLUR = '12px';
+export const ZKILL_DATA_CACHE_DURATION_MS = 30 * 60 * 1000; // 30 minutes

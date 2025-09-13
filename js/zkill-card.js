@@ -1,0 +1,458 @@
+/*
+    War Target Finder - zKillboard Stats Card Component
+    
+    Copyright (C) 2025 moregh (https://github.com/moregh/)
+    Licensed under AGPL License.
+*/
+
+import { 
+    get_zkill_character_stats, 
+    get_zkill_corporation_stats, 
+    get_zkill_alliance_stats 
+} from './zkillboard-api.js';
+import { 
+    CHARACTER_PORTRAIT_SIZE_PX,
+    CORP_LOGO_SIZE_PX,
+    ALLIANCE_LOGO_SIZE_PX,
+    ZKILL_CARD_ANIMATION_DURATION_MS
+} from './config.js';
+
+/**
+ * zKillboard Stats Card Manager
+ */
+class ZKillStatsCard {
+    constructor() {
+        this.currentModal = null;
+        this.isVisible = false;
+        this.setupEventListeners();
+    }
+
+    setupEventListeners() {
+        // Close modal on Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && this.isVisible) {
+                this.close();
+            }
+        });
+
+        // Close modal on backdrop click
+        document.addEventListener('click', (e) => {
+            if (e.target && e.target.classList.contains('zkill-modal-backdrop')) {
+                this.close();
+            }
+        });
+    }
+
+    /**
+     * Show stats card for a character
+     */
+    async showCharacterStats(characterId, characterName) {
+        await this.showStats('character', characterId, characterName, 'characterID');
+    }
+
+    /**
+     * Show stats card for a corporation
+     */
+    async showCorporationStats(corporationId, corporationName) {
+        await this.showStats('corporation', corporationId, corporationName, 'corporationID');
+    }
+
+    /**
+     * Show stats card for an alliance
+     */
+    async showAllianceStats(allianceId, allianceName) {
+        await this.showStats('alliance', allianceId, allianceName, 'allianceID');
+    }
+
+    /**
+     * Generic method to show stats card
+     */
+    async showStats(entityType, entityId, entityName, apiType) {
+        // Close existing modal if any
+        if (this.isVisible) {
+            this.close();
+        }
+
+        // Create modal structure
+        this.currentModal = this.createModalStructure(entityType, entityId, entityName);
+        document.body.appendChild(this.currentModal);
+
+        // Show modal with animation
+        requestAnimationFrame(() => {
+            this.currentModal.classList.add('show');
+            this.isVisible = true;
+        });
+
+        // Load stats data
+        try {
+            const stats = await this.loadStats(apiType, entityId);
+            this.populateStatsData(stats, entityType, entityId, entityName);
+        } catch (error) {
+            console.error('Failed to load zKillboard stats:', error);
+            this.showError('Failed to load killboard statistics. Please try again later.');
+        }
+    }
+
+    /**
+     * Load stats from appropriate API
+     */
+    async loadStats(apiType, entityId) {
+        switch (apiType) {
+            case 'characterID':
+                return await get_zkill_character_stats(entityId);
+            case 'corporationID':
+                return await get_zkill_corporation_stats(entityId);
+            case 'allianceID':
+                return await get_zkill_alliance_stats(entityId);
+            default:
+                throw new Error(`Unknown API type: ${apiType}`);
+        }
+    }
+
+    /**
+     * Create modal DOM structure
+     */
+    createModalStructure(entityType, entityId, entityName) {
+        const modal = document.createElement('div');
+        modal.className = 'zkill-modal-backdrop';
+
+        const avatarSize = entityType === 'character' ? CHARACTER_PORTRAIT_SIZE_PX : 
+                          entityType === 'corporation' ? CORP_LOGO_SIZE_PX : ALLIANCE_LOGO_SIZE_PX;
+
+        modal.innerHTML = `
+            <div class="zkill-stats-card">
+                <div class="zkill-card-header">
+                    <div class="zkill-entity-info">
+                        <img src="https://images.evetech.net/${entityType === 'character' ? 'characters' : entityType + 's'}/${entityId}/${entityType === 'character' ? 'portrait' : 'logo'}?size=${avatarSize}"
+                             alt="${entityName}" 
+                             class="zkill-entity-avatar"
+                             loading="eager">
+                        <div class="zkill-entity-details">
+                            <h2>${this.escapeHtml(entityName)} <span class="zkill-stats-icon">⚔️</span></h2>
+                            <div class="zkill-entity-type">${entityType}</div>
+                        </div>
+                    </div>
+                    <button class="zkill-close-btn" title="Close">✕</button>
+                </div>
+                <div class="zkill-card-content">
+                    <div class="zkill-loading">
+                        <div class="zkill-loading-spinner"></div>
+                        <div class="zkill-loading-text">Loading killboard statistics...</div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Add close button functionality
+        const closeBtn = modal.querySelector('.zkill-close-btn');
+        closeBtn.addEventListener('click', () => this.close());
+
+        return modal;
+    }
+
+    /**
+     * Populate modal with stats data
+     */
+    populateStatsData(stats, entityType, entityId, entityName) {
+        if (!this.currentModal) return;
+
+        const content = this.currentModal.querySelector('.zkill-card-content');
+        
+        if (!stats || (stats.totalKills === 0 && stats.totalLosses === 0)) {
+            content.innerHTML = this.createEmptyStateHTML(entityName);
+            return;
+        }
+
+        content.innerHTML = this.createStatsHTML(stats, entityType, entityId);
+    }
+
+    /**
+     * Create main stats HTML
+     */
+    createStatsHTML(stats, entityType, entityId) {
+        return `
+            <!-- Main Stats Grid -->
+            <div class="zkill-stats-grid">
+                <div class="zkill-stat-item kills">
+                    <span class="zkill-stat-value">${this.formatNumber(stats.totalKills)}</span>
+                    <div class="zkill-stat-label">Total Kills</div>
+                </div>
+                <div class="zkill-stat-item losses">
+                    <span class="zkill-stat-value">${this.formatNumber(stats.totalLosses)}</span>
+                    <div class="zkill-stat-label">Total Losses</div>
+                </div>
+                <div class="zkill-stat-item efficiency">
+                    <span class="zkill-stat-value">${stats.efficiency}%</span>
+                    <div class="zkill-stat-label">ISK Efficiency</div>
+                </div>
+                <div class="zkill-stat-item">
+                    <span class="zkill-stat-value">${this.formatNumber(stats.soloKills)}</span>
+                    <div class="zkill-stat-label">Solo Kills</div>
+                </div>
+                <div class="zkill-stat-item">
+                    <span class="zkill-stat-value">${stats.dangerRatio}</span>
+                    <div class="zkill-stat-label">Danger Ratio</div>
+                </div>
+                <div class="zkill-stat-item">
+                    <span class="zkill-stat-value">${stats.gangRatio}%</span>
+                    <div class="zkill-stat-label">Gang Activity</div>
+                </div>
+            </div>
+
+            <!-- ISK Values -->
+            <div class="zkill-section">
+                <h3 class="zkill-section-title">
+                    <span class="zkill-section-icon">💰</span>
+                    ISK Statistics
+                </h3>
+                <div class="zkill-stats-grid">
+                    <div class="zkill-stat-item kills">
+                        <span class="zkill-stat-value">${this.formatISK(stats.iskDestroyed)}</span>
+                        <div class="zkill-stat-label">ISK Destroyed</div>
+                    </div>
+                    <div class="zkill-stat-item losses">
+                        <span class="zkill-stat-value">${this.formatISK(stats.iskLost)}</span>
+                        <div class="zkill-stat-label">ISK Lost</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Activity -->
+            <div class="zkill-section">
+                <h3 class="zkill-section-title">
+                    <span class="zkill-section-icon">📊</span>
+                    Recent Activity
+                </h3>
+                <div class="zkill-activity-timeline">
+                    <div class="zkill-activity-period">
+                        <div class="zkill-activity-period-label">Last 7 Days</div>
+                        <div class="zkill-activity-values">
+                            <span class="zkill-activity-kills">${stats.recentActivity.last7Days.kills} K</span>
+                            <span class="zkill-activity-losses">${stats.recentActivity.last7Days.losses} L</span>
+                        </div>
+                    </div>
+                    <div class="zkill-activity-period">
+                        <div class="zkill-activity-period-label">Last 30 Days</div>
+                        <div class="zkill-activity-values">
+                            <span class="zkill-activity-kills">${stats.recentActivity.last30Days.kills} K</span>
+                            <span class="zkill-activity-losses">${stats.recentActivity.last30Days.losses} L</span>
+                        </div>
+                    </div>
+                    <div class="zkill-activity-period">
+                        <div class="zkill-activity-period-label">Last 90 Days</div>
+                        <div class="zkill-activity-values">
+                            <span class="zkill-activity-kills">${stats.recentActivity.last90Days.kills} K</span>
+                            <span class="zkill-activity-losses">${stats.recentActivity.last90Days.losses} L</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Top Locations -->
+            ${this.createTopLocationsHTML(stats.topLocations)}
+
+            <!-- Footer -->
+            <div style="text-align: center; padding: 1rem; border-top: 1px solid rgba(255, 255, 255, 0.1); margin-top: 1rem;">
+                <a href="https://zkillboard.com/${entityType}/${entityId}/" 
+                   target="_blank" 
+                   style="color: var(--primary-color); text-decoration: none; font-weight: 600;">
+                    View full stats on zKillboard →
+                </a>
+            </div>
+        `;
+    }
+
+    /**
+     * Create top locations HTML
+     */
+    /**
+ * Create top locations HTML
+ */
+createTopLocationsHTML(locations) {
+    if (!locations || locations.length === 0) {
+        return `
+            <div class="zkill-section">
+                <h3 class="zkill-section-title">
+                    <span class="zkill-section-icon">🌍</span>
+                    Top PVP Locations
+                </h3>
+                <div style="text-align: center; color: var(--text-muted); padding: 2rem;">
+                    No location data available
+                </div>
+            </div>
+        `;
+    }
+
+    const locationsHTML = locations.map(location => `
+        <div class="zkill-location-item">
+            <div class="zkill-location-info">
+                <div class="zkill-location-name">${this.escapeHtml(location.systemName)}</div>
+                <div class="zkill-location-security ${this.getSecurityClass(location.securityStatus)}">
+                    ${this.formatSecurity(location.securityStatus)}
+                </div>
+            </div>
+            <div class="zkill-location-stats">
+                <span class="zkill-location-kills">${location.kills} kills</span>
+                <span class="zkill-location-losses">${location.losses} losses</span>
+            </div>
+        </div>
+    `).join('');
+
+    return `
+        <div class="zkill-section">
+            <h3 class="zkill-section-title">
+                <span class="zkill-section-icon">🌍</span>
+                Top PVP Locations
+            </h3>
+            <div class="zkill-locations-list">
+                ${locationsHTML}
+            </div>
+        </div>
+    `;
+}
+
+    /**
+     * Create empty state HTML
+     */
+    createEmptyStateHTML(entityName) {
+        return `
+            <div class="zkill-empty">
+                <div class="zkill-empty-icon">📊</div>
+                <div class="zkill-empty-text">No killboard data found</div>
+                <div style="color: var(--text-secondary); font-size: 0.9rem; margin-top: 0.5rem;">
+                    ${this.escapeHtml(entityName)} has no recorded kills or losses on zKillboard.
+                </div>
+            </div>
+        `;
+    }
+
+    /**
+     * Show error state
+     */
+    showError(message) {
+        if (!this.currentModal) return;
+
+        const content = this.currentModal.querySelector('.zkill-card-content');
+        content.innerHTML = `
+            <div class="zkill-error">
+                <div class="zkill-error-icon">⚠️</div>
+                <div class="zkill-error-text">Error Loading Data</div>
+                <div class="zkill-error-details">${this.escapeHtml(message)}</div>
+            </div>
+        `;
+    }
+
+    /**
+     * Close modal
+     */
+    close() {
+        if (!this.currentModal || !this.isVisible) return;
+
+        this.currentModal.classList.remove('show');
+        this.isVisible = false;
+
+        setTimeout(() => {
+            if (this.currentModal && this.currentModal.parentNode) {
+                this.currentModal.parentNode.removeChild(this.currentModal);
+            }
+            this.currentModal = null;
+        }, ZKILL_CARD_ANIMATION_DURATION_MS);
+    }
+
+    /**
+     * Utility functions
+     */
+    formatNumber(num) {
+        if (num >= 1000000) {
+            return (num / 1000000).toFixed(1) + 'M';
+        } else if (num >= 1000) {
+            return (num / 1000).toFixed(1) + 'k';
+        }
+        return num.toString();
+    }
+
+    formatISK(isk) {
+        if (isk >= 1000000000000) {
+            return (isk / 1000000000000).toFixed(1) + 'T ISK';
+        } else if (isk >= 1000000000) {
+            return (isk / 1000000000).toFixed(1) + 'B ISK';
+        } else if (isk >= 1000000) {
+            return (isk / 1000000).toFixed(1) + 'M ISK';
+        } else if (isk >= 1000) {
+            return (isk / 1000).toFixed(1) + 'k ISK';
+        }
+        return isk.toFixed(0) + ' ISK';
+    }
+
+    formatSecurity(security) {
+    if (security === null || security === undefined) {
+        return 'Unknown';
+    }
+    
+    // Handle string security values
+    if (typeof security === 'string') {
+        const numSec = parseFloat(security);
+        if (isNaN(numSec)) {
+            return 'Unknown';
+        }
+        security = numSec;
+    }
+    
+    if (security >= 0.5) {
+        return security.toFixed(1);
+    } else if (security > 0.0) {
+        return security.toFixed(1);
+    } else {
+        return '0.0';
+    }
+}
+
+getSecurityClass(security) {
+    if (security === null || security === undefined) {
+        return 'unknown';
+    }
+    
+    // Handle string security values
+    if (typeof security === 'string') {
+        const numSec = parseFloat(security);
+        if (isNaN(numSec)) {
+            return 'unknown';
+        }
+        security = numSec;
+    }
+    
+    if (security >= 0.5) {
+        return 'highsec';
+    } else if (security > 0.0) {
+        return 'lowsec';
+    } else {
+        return 'nullsec';
+    }
+}
+
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+}
+
+// Create singleton instance
+const zkillStatsCard = new ZKillStatsCard();
+
+// Export functions for use in other modules
+export function showCharacterStats(characterId, characterName) {
+    return zkillStatsCard.showCharacterStats(characterId, characterName);
+}
+
+export function showCorporationStats(corporationId, corporationName) {
+    return zkillStatsCard.showCorporationStats(corporationId, corporationName);
+}
+
+export function showAllianceStats(allianceId, allianceName) {
+    return zkillStatsCard.showAllianceStats(allianceId, allianceName);
+}
+
+export function closeStatsCard() {
+    zkillStatsCard.close();
+}

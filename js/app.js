@@ -14,6 +14,7 @@ import {
     USER_NOTIFICATION_DISPLAY_MS
 } from './config.js';
 import { initDB, clearExpiredCache } from './database.js';
+import { showCharacterStats, showCorporationStats, showAllianceStats } from './zkill-card.js';
 import { clientValidate } from './validation.js';
 import { validator, resetCounters } from './esi-api.js';
 import { 
@@ -79,6 +80,14 @@ function setupCollapsedIndicatorClick() {
 
 // Event delegation handler
 document.addEventListener('click', function (event) {
+    // Check for zkill stats clicks FIRST (before checking for data-action)
+    const clickableElement = event.target.closest('[data-clickable]');
+    if (clickableElement) {
+        handleZkillStatsClick(clickableElement);
+        return;
+    }
+
+    // Existing logic for data-action elements
     const target = event.target.closest('[data-action]');
     if (!target) return;
 
@@ -111,7 +120,7 @@ document.addEventListener('click', function (event) {
             expandInputSection();
             setTimeout(() => {
                 document.getElementById('names').focus();
-            }, 300);
+            }, STATS_UPDATE_DELAY);
             break;
     }
 });
@@ -456,6 +465,24 @@ export async function validateNames() {
         }
     } finally {
         stopLoading();
+    }
+}
+
+function handleZkillStatsClick(element) {
+    const clickableType = element.dataset.clickable;
+    
+    if (clickableType === 'character') {
+        const characterId = element.dataset.characterId;
+        const characterName = element.querySelector('.character-name a')?.textContent || 'Unknown Character';
+        showCharacterStats(characterId, characterName);
+    } else if (clickableType === 'corporation') {
+        const entityId = element.dataset.entityId;
+        const entityName = element.dataset.entityName;
+        showCorporationStats(entityId, entityName);
+    } else if (clickableType === 'alliance') {
+        const entityId = element.dataset.entityId;
+        const entityName = element.dataset.entityName;
+        showAllianceStats(entityId, entityName);
     }
 }
 

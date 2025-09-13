@@ -236,7 +236,10 @@ export function createCharacterItem(character, viewType = 'grid') {
     ` : '';
 
     template.innerHTML = `
-        <div class="result-item ${viewType}-view animate-ready" data-character-id="${character.character_id}">
+    <div class="result-item ${viewType}-view animate-ready" 
+         data-character-id="${character.character_id}" 
+         data-clickable="character" 
+         style="cursor: pointer;">
             <img src="${placeholder}" 
                  data-src="https://images.evetech.net/characters/${character.character_id}/portrait?size=${CHARACTER_PORTRAIT_SIZE_PX}"
                  alt="${character.character_name}" 
@@ -275,6 +278,12 @@ export function createCharacterItem(character, viewType = 'grid') {
 export function createSummaryItem({ id, name, count, type }) {
     const item = document.createElement("div");
     item.className = "summary-item";
+
+    // zkill implementation
+    item.dataset.clickable = type;
+    item.dataset.entityId = id;
+    item.dataset.entityName = name;
+    item.style.cursor = 'pointer';
 
     const logo = document.createElement("img");
     logo.className = "summary-logo";

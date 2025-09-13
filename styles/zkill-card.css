@@ -1,0 +1,468 @@
+/*
+    War Target Finder - zKillboard Stats Card Styles
+    
+    Copyright (C) 2025 moregh (https://github.com/moregh/)
+    Licensed under AGPL License.
+*/
+
+/* Modal Backdrop */
+.zkill-modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(12px);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow-y: auto;
+}
+
+.zkill-modal-backdrop.show {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Main Card */
+.zkill-stats-card {
+    background: linear-gradient(135deg, 
+        rgba(10, 10, 10, 0.95) 0%, 
+        rgba(15, 15, 20, 0.95) 50%, 
+        rgba(10, 10, 10, 0.95) 100%);
+    backdrop-filter: blur(24px);
+    border: 2px solid rgba(0, 212, 255, 0.3);
+    border-radius: 20px;
+    box-shadow: 
+        0 25px 80px rgba(0, 0, 0, 0.5),
+        0 0 0 1px rgba(255, 255, 255, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    max-width: 900px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    position: relative;
+    transform: scale(0.8) translateY(50px);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.zkill-modal-backdrop.show .zkill-stats-card {
+    transform: scale(1) translateY(0);
+}
+
+/* Card Header */
+.zkill-card-header {
+    padding: 1.5rem 2rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: linear-gradient(90deg, 
+        rgba(0, 212, 255, 0.1) 0%, 
+        rgba(74, 222, 128, 0.05) 50%, 
+        rgba(0, 212, 255, 0.1) 100%);
+    position: relative;
+}
+
+.zkill-card-header::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, 
+        transparent, 
+        rgba(0, 212, 255, 0.5), 
+        rgba(74, 222, 128, 0.5), 
+        transparent);
+}
+
+.zkill-entity-info {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.zkill-entity-avatar {
+    width: 60px;
+    height: 60px;
+    border-radius: 12px;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    object-fit: cover;
+    background: linear-gradient(45deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+}
+
+.zkill-entity-details h2 {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--primary-color);
+    margin-bottom: 0.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.zkill-entity-type {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    text-transform: capitalize;
+}
+
+.zkill-close-btn {
+    background: rgba(248, 113, 113, 0.2);
+    border: 1px solid rgba(248, 113, 113, 0.3);
+    color: var(--danger-color);
+    padding: 0.5rem;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 1.2rem;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.zkill-close-btn:hover {
+    background: rgba(248, 113, 113, 0.3);
+    border-color: var(--danger-color);
+    transform: scale(1.1);
+}
+
+/* Card Content */
+.zkill-card-content {
+    padding: 2rem;
+}
+
+/* Stats Grid */
+.zkill-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.zkill-stat-item {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 1.2rem;
+    text-align: center;
+    position: relative;
+    transition: all 0.3s ease;
+    overflow: hidden;
+}
+
+.zkill-stat-item::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+    opacity: 0.6;
+}
+
+.zkill-stat-item:hover {
+    transform: translateY(-2px);
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(0, 212, 255, 0.3);
+}
+
+.zkill-stat-value {
+    font-size: 1.8rem;
+    font-weight: 800;
+    color: var(--primary-color);
+    margin-bottom: 0.5rem;
+    display: block;
+}
+
+.zkill-stat-label {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 500;
+}
+
+/* Special stat colors */
+.zkill-stat-item.kills .zkill-stat-value {
+    color: var(--secondary-color);
+}
+
+.zkill-stat-item.losses .zkill-stat-value {
+    color: var(--danger-color);
+}
+
+.zkill-stat-item.efficiency .zkill-stat-value {
+    color: var(--warning-color);
+}
+
+/* Sections */
+.zkill-section {
+    margin-bottom: 2rem;
+}
+
+.zkill-section-title {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.zkill-section-icon {
+    font-size: 1.1rem;
+    color: var(--primary-color);
+}
+
+/* Activity Timeline */
+.zkill-activity-timeline {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.zkill-activity-period {
+    flex: 1;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 8px;
+    padding: 1rem;
+    text-align: center;
+    border-left: 3px solid var(--primary-color);
+    transition: all 0.2s ease;
+}
+
+.zkill-activity-period:hover {
+    background: rgba(255, 255, 255, 0.06);
+    transform: translateY(-1px);
+}
+
+.zkill-activity-period-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    margin-bottom: 0.5rem;
+}
+
+.zkill-activity-values {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.zkill-activity-kills {
+    color: var(--secondary-color);
+    font-weight: 600;
+}
+
+.zkill-activity-losses {
+    color: var(--danger-color);
+    font-weight: 600;
+}
+
+/* Top Locations */
+.zkill-locations-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+}
+
+.zkill-location-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 8px;
+    padding: 1rem;
+    border-left: 3px solid var(--secondary-color);
+    transition: all 0.2s ease;
+}
+
+.zkill-location-item:hover {
+    background: rgba(255, 255, 255, 0.06);
+    transform: translateX(4px);
+}
+
+.zkill-location-info {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+}
+
+.zkill-location-name {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.zkill-location-security {
+    padding: 0.2rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.zkill-location-security.highsec {
+    background: rgba(74, 222, 128, 0.2);
+    color: var(--secondary-color);
+}
+
+.zkill-location-security.lowsec {
+    background: rgba(251, 191, 36, 0.2);
+    color: var(--warning-color);
+}
+
+.zkill-location-security.nullsec {
+    background: rgba(248, 113, 113, 0.2);
+    color: var(--danger-color);
+}
+
+.zkill-location-stats {
+    display: flex;
+    gap: 1rem;
+    font-size: 0.9rem;
+}
+
+.zkill-location-kills {
+    color: var(--secondary-color);
+}
+
+.zkill-location-losses {
+    color: var(--danger-color);
+}
+
+/* Loading State */
+.zkill-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem;
+    gap: 1rem;
+}
+
+.zkill-loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(0, 212, 255, 0.2);
+    border-radius: 50%;
+    border-top-color: var(--primary-color);
+    animation: spin 1s linear infinite;
+}
+
+.zkill-loading-text {
+    color: var(--text-secondary);
+    font-size: 1rem;
+}
+
+/* Error State */
+.zkill-error {
+    text-align: center;
+    padding: 2rem;
+    color: var(--danger-color);
+}
+
+.zkill-error-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.7;
+}
+
+.zkill-error-text {
+    font-size: 1.1rem;
+    margin-bottom: 0.5rem;
+}
+
+.zkill-error-details {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+/* Empty State */
+.zkill-empty {
+    text-align: center;
+    padding: 2rem;
+    color: var(--text-muted);
+}
+
+.zkill-empty-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .zkill-modal-backdrop {
+        padding: 0.5rem;
+    }
+
+    .zkill-stats-card {
+        max-height: 95vh;
+        border-radius: 16px;
+    }
+
+    .zkill-card-header {
+        padding: 1rem 1.5rem;
+        flex-direction: column;
+        gap: 1rem;
+        text-align: center;
+    }
+
+    .zkill-card-content {
+        padding: 1.5rem;
+    }
+
+    .zkill-stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.8rem;
+    }
+
+    .zkill-entity-info {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .zkill-activity-timeline {
+        flex-direction: column;
+        gap: 0.8rem;
+    }
+
+    .zkill-location-item {
+        flex-direction: column;
+        gap: 0.8rem;
+        text-align: center;
+    }
+
+    .zkill-location-stats {
+        justify-content: center;
+    }
+}
+
+@media (max-width: 480px) {
+    .zkill-stats-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .zkill-entity-avatar {
+        width: 48px;
+        height: 48px;
+    }
+
+    .zkill-entity-details h2 {
+        font-size: 1.2rem;
+    }
+}
