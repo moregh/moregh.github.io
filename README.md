@@ -2,7 +2,7 @@
 
 A tool to identify war-eligible targets for EVE Online highsec warfare.
 
-![War Target Finder Screenshot](image.png)
+![War Target Finder Screenshot](media/image.png)
 
 ## 🎯 Features
 
