@@ -10,8 +10,7 @@ import {
     INITIAL_CORP_ALLIANCE_COUNT,
     LOAD_MORE_COUNT,
     STATS_UPDATE_DELAY,
-    CHARACTER_COUNT_DEBOUNCE_MS,
-    USER_NOTIFICATION_DISPLAY_MS
+    CHARACTER_COUNT_DEBOUNCE_MS
 } from './config.js';
 import { initDB, clearExpiredCache } from './database.js';
 import { clientValidate } from './validation.js';
@@ -23,7 +22,6 @@ import {
     updateStats, 
     updatePerformanceStats,
     updateVersionDisplay,
-    collapseInputSection,
     expandInputSection
 } from './ui.js';
 import { 

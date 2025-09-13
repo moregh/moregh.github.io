@@ -358,192 +358,375 @@ export function renderGrid(containerId, items, type = 'character', limit = null)
     }
 }
 
-// Enhanced virtual scrolling with document fragments and better performance
+// Virtual scrolling configuration constants
+const VIRTUAL_SCROLL_CONFIG = {
+    CONTAINER_HEIGHT: '60vh',
+    MIN_HEIGHT: '300px',
+    MAX_HEIGHT: '600px',
+    BUFFER_SIZE: 5,
+    GRID_GAP: '1.35rem',
+    CONTENT_PADDING: '1.8rem',
+    MIN_ITEM_WIDTH: 252,
+    CONTAINER_MIN_WIDTH: 270,
+    CONTAINER_PADDING: 60
+};
+
+const VIEW_DIMENSIONS = {
+    list: { height: 90, itemsPerRow: 1 },
+    grid: { height: 150, itemsPerRow: null } // calculated dynamically
+};
+
+/**
+ * Virtual scrolling implementation for performance with large lists
+ */
 export function setupVirtualScrolling(containerId, items) {
     const container = document.getElementById(containerId);
-    if (!container || !items || items.length === 0) {
-        console.warn(`Cannot setup virtual scrolling: container "${containerId}" not found or no items`);
+    if (!validateScrollingPreconditions(container, items, containerId)) {
         return;
     }
 
-    let parentGrid = container.closest('.result-grid');
-    if (!parentGrid) {
-        parentGrid = container.parentElement?.classList?.contains('result-grid') ? container.parentElement : container;
+    const scrollInstance = new VirtualScrollManager(container, items);
+    scrollInstance.initialize();
+}
+
+/**
+ * Validates preconditions for virtual scrolling setup
+ */
+function validateScrollingPreconditions(container, items, containerId) {
+    if (!container) {
+        console.warn(`Cannot setup virtual scrolling: container "${containerId}" not found`);
+        return false;
+    }
+    
+    if (!items || items.length === 0) {
+        console.warn(`Cannot setup virtual scrolling: no items provided for "${containerId}"`);
+        return false;
+    }
+    
+    return true;
+}
+
+/**
+ * Manages virtual scrolling for a single container
+ */
+class VirtualScrollManager {
+    constructor(container, items) {
+        this.container = container;
+        this.items = items;
+        this.parentGrid = this.findParentGrid();
+        
+        // Calculated properties
+        this.viewConfig = this.calculateViewConfig();
+        this.dimensions = this.calculateDimensions();
+        
+        // State management
+        this.renderedElements = new Map();
+        this.visibleRange = { start: -1, end: -1 };
+        this.isUpdating = false;
+        this.animationFrame = null;
+        this.scrollTimeout = null;
+        this.lastScrollTime = 0;
+        
+        // DOM elements (will be created during initialization)
+        this.spacer = null;
+        this.content = null;
+        this.scrollListener = null;
     }
 
-    // Clean up any existing setup
-    if (container._cleanup) {
-        container._cleanup();
+    findParentGrid() {
+        return this.container.closest('.result-grid') || 
+               (this.container.parentElement?.classList?.contains('result-grid') 
+                   ? this.container.parentElement 
+                   : this.container);
     }
 
-    parentGrid.classList.add('virtual-enabled');
+    calculateViewConfig() {
+        const isListView = getCurrentView() === 'list';
+        const baseConfig = VIEW_DIMENSIONS[isListView ? 'list' : 'grid'];
+        
+        if (isListView) {
+            return baseConfig;
+        }
+        
+        // Calculate items per row for grid view
+        const containerWidth = Math.max(
+            VIRTUAL_SCROLL_CONFIG.CONTAINER_MIN_WIDTH, 
+            this.parentGrid.clientWidth - VIRTUAL_SCROLL_CONFIG.CONTAINER_PADDING
+        );
+        
+        return {
+            ...baseConfig,
+            itemsPerRow: Math.max(1, Math.floor(containerWidth / VIRTUAL_SCROLL_CONFIG.MIN_ITEM_WIDTH))
+        };
+    }
 
-    const isListView = getCurrentView() === 'list';
-    const itemHeight = isListView ? 90 : 150;
-    const containerWidth = Math.max(270, parentGrid.clientWidth - 60);
-    const itemsPerRow = isListView ? 1 : Math.max(1, Math.floor(containerWidth / 270));
-    const totalRows = Math.ceil(items.length / itemsPerRow);
-    const totalHeight = totalRows * itemHeight;
+    calculateDimensions() {
+        const totalRows = Math.ceil(this.items.length / this.viewConfig.itemsPerRow);
+        return {
+            itemHeight: this.viewConfig.height,
+            itemsPerRow: this.viewConfig.itemsPerRow,
+            totalRows,
+            totalHeight: totalRows * this.viewConfig.height
+        };
+    }
 
-    // Set up container structure
-    container.className = 'virtual-scroll-container';
-    container.style.height = '60vh';
-    container.style.minHeight = '300px';
-    container.style.maxHeight = '600px';
-    container.style.overflowY = 'auto';
-    container.style.position = 'relative';
+    initialize() {
+        this.cleanup();
+        this.setupContainer();
+        this.createDOMStructure();
+        this.attachEventListeners();
+        this.performInitialRender();
+    }
 
-    // Create stable structure
-    const spacer = document.createElement('div');
-    spacer.className = 'virtual-scroll-spacer';
-    spacer.style.height = totalHeight + 'px';
-    spacer.style.position = 'relative';
+    cleanup() {
+        if (this.container._cleanup) {
+            this.container._cleanup();
+        }
+    }
 
-    const content = document.createElement('div');
-    content.className = `virtual-scroll-content ${isListView ? 'list-view' : ''}`;
-    content.style.position = 'absolute';
-    content.style.top = '0';
-    content.style.left = '0';
-    content.style.right = '0';
-    content.style.display = 'grid';
-    content.style.gap = '1.35rem';
-    content.style.padding = '1.8rem';
-    content.style.gridTemplateColumns = isListView ? '1fr' : 'repeat(auto-fill, minmax(252px, 1fr))';
+    setupContainer() {
+        this.parentGrid.classList.add('virtual-enabled');
+        
+        Object.assign(this.container.style, {
+            height: VIRTUAL_SCROLL_CONFIG.CONTAINER_HEIGHT,
+            minHeight: VIRTUAL_SCROLL_CONFIG.MIN_HEIGHT,
+            maxHeight: VIRTUAL_SCROLL_CONFIG.MAX_HEIGHT,
+            overflowY: 'auto',
+            position: 'relative'
+        });
+        
+        this.container.className = 'virtual-scroll-container';
+    }
 
-    spacer.appendChild(content);
-    container.innerHTML = '';
-    container.appendChild(spacer);
+    createDOMStructure() {
+        this.spacer = this.createSpacer();
+        this.content = this.createContentContainer();
+        
+        this.spacer.appendChild(this.content);
+        this.container.innerHTML = '';
+        this.container.appendChild(this.spacer);
+    }
 
-    // Stable element management
-    const renderedElements = new Map(); // Map of index -> DOM element
-    const visibleRange = { start: -1, end: -1 };
-    let isUpdating = false;
-    let animationFrame = null;
+    createSpacer() {
+        const spacer = document.createElement('div');
+        spacer.className = 'virtual-scroll-spacer';
+        Object.assign(spacer.style, {
+            height: this.dimensions.totalHeight + 'px',
+            position: 'relative'
+        });
+        return spacer;
+    }
 
-    function updateVisibleItems() {
-        if (isUpdating || !document.contains(container)) return;
+    createContentContainer() {
+        const content = document.createElement('div');
+        const isListView = getCurrentView() === 'list';
+        
+        content.className = `virtual-scroll-content ${isListView ? 'list-view' : ''}`;
+        
+        Object.assign(content.style, {
+            position: 'absolute',
+            top: '0',
+            left: '0',
+            right: '0',
+            display: 'grid',
+            gap: VIRTUAL_SCROLL_CONFIG.GRID_GAP,
+            padding: VIRTUAL_SCROLL_CONFIG.CONTENT_PADDING,
+            gridTemplateColumns: isListView 
+                ? '1fr' 
+                : `repeat(auto-fill, minmax(${VIRTUAL_SCROLL_CONFIG.MIN_ITEM_WIDTH}px, 1fr))`
+        });
+        
+        return content;
+    }
 
-        isUpdating = true;
+    attachEventListeners() {
+        this.scrollListener = this.createScrollHandler();
+        this.container.addEventListener('scroll', this.scrollListener, { passive: true });
+        this.container._scrollListener = this.scrollListener;
+    }
 
-        if (animationFrame) {
-            cancelAnimationFrame(animationFrame);
+    createScrollHandler() {
+        return () => {
+            const now = performance.now();
+            
+            if (now - this.lastScrollTime > ANIMATION_FRAME_THROTTLE_FPS) {
+                this.updateVisibleItems();
+                this.lastScrollTime = now;
+            } else {
+                this.scheduleUpdate();
+            }
+        };
+    }
+
+    scheduleUpdate() {
+        if (this.scrollTimeout) clearTimeout(this.scrollTimeout);
+        
+        this.scrollTimeout = setTimeout(() => {
+            this.updateVisibleItems();
+            this.scrollTimeout = null;
+        }, SCROLL_THROTTLE_MS);
+    }
+
+    performInitialRender() {
+        this.updateVisibleItems();
+        this.attachCleanupFunction();
+    }
+
+    updateVisibleItems() {
+        if (this.isUpdating || !document.contains(this.container)) return;
+
+        this.isUpdating = true;
+
+        if (this.animationFrame) {
+            cancelAnimationFrame(this.animationFrame);
         }
 
-        const scrollTop = container.scrollTop;
-        const containerHeight = container.clientHeight;
-        const buffer = 5; // Smaller buffer for stability
-
-        const startRow = Math.max(0, Math.floor(scrollTop / itemHeight) - buffer);
-        const endRow = Math.min(totalRows, Math.ceil((scrollTop + containerHeight) / itemHeight) + buffer);
-        const startIndex = startRow * itemsPerRow;
-        const endIndex = Math.min(items.length, endRow * itemsPerRow);
-
+        const visibleIndices = this.calculateVisibleIndices();
+        
         // Only update if range actually changed
-        if (startIndex === visibleRange.start && endIndex === visibleRange.end) {
-            isUpdating = false;
+        if (this.hasRangeChanged(visibleIndices)) {
+            this.animationFrame = requestAnimationFrame(() => this.renderVisibleItems(visibleIndices));
+        } else {
+            this.isUpdating = false;
+        }
+    }
+
+    calculateVisibleIndices() {
+        const scrollTop = this.container.scrollTop;
+        const containerHeight = this.container.clientHeight;
+        
+        const startRow = Math.max(0, 
+            Math.floor(scrollTop / this.dimensions.itemHeight) - VIRTUAL_SCROLL_CONFIG.BUFFER_SIZE);
+        const endRow = Math.min(this.dimensions.totalRows, 
+            Math.ceil((scrollTop + containerHeight) / this.dimensions.itemHeight) + VIRTUAL_SCROLL_CONFIG.BUFFER_SIZE);
+        
+        return {
+            startIndex: startRow * this.dimensions.itemsPerRow,
+            endIndex: Math.min(this.items.length, endRow * this.dimensions.itemsPerRow),
+            startRow
+        };
+    }
+
+    hasRangeChanged({ startIndex, endIndex }) {
+        return startIndex !== this.visibleRange.start || endIndex !== this.visibleRange.end;
+    }
+
+    renderVisibleItems({ startIndex, endIndex, startRow }) {
+        if (!document.contains(this.container)) {
+            this.isUpdating = false;
             return;
         }
 
-        animationFrame = requestAnimationFrame(() => {
-            if (!document.contains(container)) {
-                isUpdating = false;
-                return;
-            }
+        this.hideInvisibleElements(startIndex, endIndex);
+        this.showVisibleElements(startIndex, endIndex);
+        this.updateContentPosition(startRow);
+        this.updateVisibleRange(startIndex, endIndex);
+        
+        this.isUpdating = false;
+        this.animationFrame = null;
+    }
 
-            // Remove elements that are no longer visible
-            for (const [index, element] of renderedElements) {
-                if (index < startIndex || index >= endIndex) {
-                    if (element.parentNode) {
-                        element.style.display = 'none';
-                        // Don't remove from DOM, just hide for stability
-                    }
+    hideInvisibleElements(startIndex, endIndex) {
+        for (const [index, element] of this.renderedElements) {
+            if (index < startIndex || index >= endIndex) {
+                if (element.parentNode) {
+                    element.style.display = 'none';
                 }
             }
+        }
+    }
 
-            // Add or show elements that should be visible
-            for (let i = startIndex; i < endIndex; i++) {
-                if (!items[i]) continue;
+    showVisibleElements(startIndex, endIndex) {
+        for (let i = startIndex; i < endIndex; i++) {
+            if (!this.items[i]) continue;
+            
+            this.renderSingleItem(i);
+        }
+    }
 
-                let element = renderedElements.get(i);
-                
-                if (!element) {
-                    // Create new element only if it doesn't exist
-                    element = createCharacterItem(items[i], isListView ? 'list' : 'grid');
-                    element.style.position = 'relative';
-                    element.dataset.index = i;
-                    renderedElements.set(i, element);
-                    content.appendChild(element);
-                    
-                    // Observe images in next frame
-                    requestAnimationFrame(() => {
-                        if (document.contains(element)) {
-                            const images = element.querySelectorAll('img[data-src]');
-                            images.forEach(img => observerManager.observeImage(img));
-                            observerManager.observeAnimation(element);
-                        }
-                    });
-                } else {
-                    // Just show existing element
-                    element.style.display = '';
-                    if (!element.parentNode) {
-                        content.appendChild(element);
-                    }
-                }
+    renderSingleItem(index) {
+        let element = this.renderedElements.get(index);
+        
+        if (!element) {
+            element = this.createElement(index);
+            this.renderedElements.set(index, element);
+            this.content.appendChild(element);
+            this.observeElement(element);
+        } else {
+            this.showExistingElement(element);
+        }
+    }
+
+    createElement(index) {
+        const isListView = getCurrentView() === 'list';
+        const element = createCharacterItem(this.items[index], isListView ? 'list' : 'grid');
+        
+        element.style.position = 'relative';
+        element.dataset.index = index;
+        
+        return element;
+    }
+
+    observeElement(element) {
+        requestAnimationFrame(() => {
+            if (document.contains(element)) {
+                const images = element.querySelectorAll('img[data-src]');
+                images.forEach(img => observerManager.observeImage(img));
+                observerManager.observeAnimation(element);
             }
-
-            // Update transform for positioning
-            const translateY = startRow * itemHeight;
-            content.style.transform = `translateY(${translateY}px)`;
-
-            visibleRange.start = startIndex;
-            visibleRange.end = endIndex;
-            isUpdating = false;
-            animationFrame = null;
         });
     }
 
-    // Optimized scroll handler with better throttling
-    let scrollTimeout = null;
-    let lastScrollTime = 0;
-
-    function onScroll() {
-        const now = performance.now();
-        
-        // Immediate update for smooth scrolling
-        if (now - lastScrollTime > ANIMATION_FRAME_THROTTLE_FPS) {
-            updateVisibleItems();
-            lastScrollTime = now;
-        } else {
-            // Fallback throttled update
-            if (scrollTimeout) clearTimeout(scrollTimeout);
-            scrollTimeout = setTimeout(() => {
-                updateVisibleItems();
-                scrollTimeout = null;
-            }, SCROLL_THROTTLE_MS);
+    showExistingElement(element) {
+        element.style.display = '';
+        if (!element.parentNode) {
+            this.content.appendChild(element);
         }
     }
 
-    container.addEventListener('scroll', onScroll, { passive: true });
-    container._scrollListener = onScroll;
+    updateContentPosition(startRow) {
+        const translateY = startRow * this.dimensions.itemHeight;
+        this.content.style.transform = `translateY(${translateY}px)`;
+    }
 
-    // Initial render
-    updateVisibleItems();
+    updateVisibleRange(startIndex, endIndex) {
+        this.visibleRange.start = startIndex;
+        this.visibleRange.end = endIndex;
+    }
 
-    // Cleanup function
-    container._cleanup = () => {
-        if (animationFrame) {
-            cancelAnimationFrame(animationFrame);
-        }
-        if (scrollTimeout) {
-            clearTimeout(scrollTimeout);
-        }
-        if (container._scrollListener) {
-            container.removeEventListener('scroll', container._scrollListener);
-            delete container._scrollListener;
-        }
+    attachCleanupFunction() {
+        this.container._cleanup = () => this.destroy();
+    }
 
-        // Clean up observers
-        renderedElements.forEach(element => {
+    destroy() {
+        this.cancelPendingOperations();
+        this.removeEventListeners();
+        this.cleanupObservers();
+        this.resetContainerState();
+        this.clearReferences();
+    }
+
+    cancelPendingOperations() {
+        if (this.animationFrame) {
+            cancelAnimationFrame(this.animationFrame);
+            this.animationFrame = null;
+        }
+        
+        if (this.scrollTimeout) {
+            clearTimeout(this.scrollTimeout);
+            this.scrollTimeout = null;
+        }
+    }
+
+    removeEventListeners() {
+        if (this.container._scrollListener) {
+            this.container.removeEventListener('scroll', this.container._scrollListener);
+            delete this.container._scrollListener;
+        }
+    }
+
+    cleanupObservers() {
+        this.renderedElements.forEach(element => {
             const images = element.querySelectorAll('img[data-src]');
             images.forEach(img => {
                 if (observerManager.observedImages.has(img)) {
@@ -557,21 +740,37 @@ export function setupVirtualScrolling(containerId, items) {
                 observerManager.observedAnimations.delete(element);
             }
         });
+    }
 
-        renderedElements.clear();
-        parentGrid?.classList?.remove('virtual-enabled');
+    resetContainerState() {
+        this.parentGrid?.classList?.remove('virtual-enabled');
         
-        if (container) {
-            container.className = container.className.replace('virtual-scroll-container', '').trim() || 'result-grid';
-            container.style.height = '';
-            container.style.minHeight = '';
-            container.style.maxHeight = '';
-            container.style.overflowY = '';
-            container.style.position = '';
+        if (this.container) {
+            this.container.className = this.container.className
+                .replace('virtual-scroll-container', '').trim() || 'result-grid';
+            
+            // Reset styles
+            Object.assign(this.container.style, {
+                height: '',
+                minHeight: '',
+                maxHeight: '',
+                overflowY: '',
+                position: ''
+            });
         }
+    }
 
-        delete container._cleanup;
-    };
+    clearReferences() {
+        this.renderedElements.clear();
+        delete this.container._cleanup;
+        
+        // Clear object references
+        this.container = null;
+        this.items = null;
+        this.parentGrid = null;
+        this.spacer = null;
+        this.content = null;
+    }
 }
 
 // Add scroll state detection to reduce operations during active scrolling
