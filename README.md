@@ -105,14 +105,10 @@ This project is licensed under the AGPL License - see the [LICENSE](LICENSE) fil
 
 - **CCP Games**: For providing the EVE Swagger Interface (ESI)
 
-## 🐛 Known Issues
-
-- **Large Datasets**: Flickering when scrolling
-
 ## 🔮 Roadmap
 
 - [ ] **zKill Integration**: Pull character/corporation/alliance data from zKill for display within results
-- [ ] **Expand Enries**: Allow users to paste in corporation and alliance names in addition to characters
+- [ ] **Expand Entries**: Allow users to paste in corporation and alliance names in addition to characters
 - [ ] **Search & Filtering**: Search results by names or filter by alliance or corporation
 - [ ] **Historical Data**: Track changes in war eligibility over time
 
