@@ -1,0 +1,111 @@
+/*
+    War Target Finder - Loading States and Progress
+    
+    Copyright (C) 2025 moregh (https://github.com/moregh/)
+    Licensed under AGPL License.
+*/
+
+/* Loading Section */
+.loading-container {
+    display: none;
+    padding: 1.5rem 2rem;
+    margin: 1.2rem 0;
+    text-align: center;
+    opacity: 0;
+    transform: translateY(18px);
+    transition: all 0.45s ease
+}
+
+.loading-container.show {
+    opacity: 1;
+    transform: translateY(0)
+}
+
+.loading-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem
+}
+
+.loading-spinner-container {
+    position: relative;
+    width: 72px;
+    height: 72px
+}
+
+.loading-spinner {
+    width: 54px;
+    height: 54px;
+    border: 2.7px solid rgba(0, 212, 255, 0.2);
+    border-radius: 50%;
+    border-top-color: var(--primary-color);
+    animation: spin 0.9s linear infinite;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%)
+}
+
+.pulse-ring {
+    width: 72px;
+    height: 72px;
+    border: 1.8px solid rgba(0, 212, 255, 0.1);
+    border-radius: 50%;
+    animation: pulse-ring 1.8s ease-out infinite
+}
+
+.loading-text {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--primary-color);
+    margin: 0
+}
+
+.loading-subtitle {
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    margin: 0
+}
+
+.progress-container {
+    width: 100%;
+    max-width: 360px;
+    height: 5.4px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 9px;
+    overflow: hidden;
+    position: relative
+}
+
+.progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+    width: 0;
+    transition: width 0.27s ease;
+    border-radius: 9px;
+    position: relative;
+    contain: style;
+}
+
+.progress-glow {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: inherit;
+    filter: blur(3.6px);
+    opacity: 0.5
+}
+
+.loading-stats {
+    display: flex;
+    gap: 1.8rem;
+    color: var(--text-secondary);
+    font-size: 0.855rem
+}
+
+.timer {
+    font-weight: 500
+}

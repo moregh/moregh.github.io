@@ -1,0 +1,67 @@
+/*
+    War Target Finder - Base Styles and Variables
+    
+    Copyright (C) 2025 moregh (https://github.com/moregh/)
+    Licensed under AGPL License.
+*/
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box
+}
+
+:root {
+    --primary-color: #00d4ff;
+    --primary-dark: #0099cc;
+    --secondary-color: #4ade80;
+    --danger-color: #f87171;
+    --warning-color: #fbbf24;
+    --info-color: #22c55e;
+    --background-dark: #0a0a0a;
+    --background-card: rgba(255, 255, 255, 0.05);
+    --text-primary: #e0e0e0;
+    --text-secondary: rgba(224, 224, 224, 0.7);
+    --text-muted: rgba(224, 224, 224, 0.5);
+    --border-color: rgba(255, 255, 255, 0.1);
+    --border-glow: rgba(0, 212, 255, 0.3)
+}
+
+body {
+    font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+    background: var(--background-dark);
+    color: var(--text-primary);
+    min-height: 100vh;
+    line-height: 1.2;
+    overflow-x: hidden;
+    position: relative
+}
+
+/* Layout Components */
+.container {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 1rem;
+    position: relative
+}
+
+.glass-card {
+    background: var(--background-card);
+    backdrop-filter: blur(18px);
+    border: 0.9px solid var(--border-color);
+    border-radius: 18px;
+    box-shadow: 0 7.2px 28.8px rgba(0, 0, 0, 0.3), inset 0 0.9px 0 rgba(255, 255, 255, 0.1);
+    position: relative;
+    overflow: hidden;
+    transform: translateZ(0)
+}
+
+.glass-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 0.9px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent)
+}

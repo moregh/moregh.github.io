@@ -1,0 +1,154 @@
+/*
+    War Target Finder - Footer and Legal Sections
+    
+    Copyright (C) 2025 moregh (https://github.com/moregh/)
+    Licensed under AGPL License.
+*/
+
+/* Footer */
+.disclaimer,
+.copyright {
+    margin-top: 1rem;
+    padding: 1.5rem 2rem;
+    text-align: center;
+    font-size: 0.8rem;
+    line-height: 1.5;
+    position: relative;
+    overflow: visible
+}
+
+.disclaimer {
+    margin-top: 2.5rem
+}
+
+.disclaimer {
+    background: linear-gradient(135deg, rgba(251, 191, 36, 0.08) 0%, rgba(251, 191, 36, 0.04) 50%, rgba(251, 191, 36, 0.08) 100%);
+    border: 0.9px solid rgba(251, 191, 36, 0.2);
+    border-radius: 13.5px;
+    color: var(--text-secondary);
+    backdrop-filter: blur(12px);
+    box-shadow: 0 4px 16px rgba(251, 191, 36, 0.1)
+}
+
+.disclaimer::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(251, 191, 36, 0.3), transparent);
+    opacity: 0.6
+}
+
+.disclaimer::after {
+    content: 'ℹ️';
+    position: absolute;
+    top: -18px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--background-dark);
+    padding: 0.2rem 0.6rem;
+    border-radius: 50%;
+    font-size: 1rem;
+    filter: drop-shadow(0 0 8px rgba(251, 191, 36, 0.5));
+    border: 2px solid rgba(251, 191, 36, 0.3);
+    box-shadow: 0 0 0 3px var(--background-dark);
+    animation: warningGlow 3s ease-in-out infinite;
+}
+
+.copyright {
+    background: linear-gradient(135deg, rgba(0, 212, 255, 0.06) 0%, rgba(74, 222, 128, 0.06) 100%);
+    border: 0.9px solid rgba(0, 212, 255, 0.15);
+    border-radius: 13.5px;
+    color: var(--text-muted);
+    backdrop-filter: blur(12px);
+    box-shadow: 0 4px 16px rgba(0, 212, 255, 0.08);
+    font-weight: 500;
+    letter-spacing: 0.025em;
+    margin-bottom: 1rem;
+    padding: 0.8rem 2rem
+}
+
+.copyright::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(0, 212, 255, 0.3), rgba(74, 222, 128, 0.3), transparent);
+    opacity: 0.4
+}
+
+.disclaimer:hover {
+    border-color: rgba(251, 191, 36, 0.3);
+    box-shadow: 0 6px 20px rgba(251, 191, 36, 0.15);
+    transform: translateY(-1px);
+    transition: all 0.3s ease
+}
+
+.copyright:hover {
+    border-color: rgba(0, 212, 255, 0.25);
+    box-shadow: 0 6px 20px rgba(0, 212, 255, 0.12);
+    transform: translateY(-1px);
+    transition: all 0.3s ease
+}
+
+.copyright a {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-weight: 600;
+    letter-spacing: 0.025em;
+    position: relative;
+    transition: all 0.3s ease;
+    padding: 0.2rem 0.4rem;
+    border-radius: 6px;
+    background: rgba(0, 212, 255, 0.08);
+    border: 1px solid rgba(0, 212, 255, 0.15)
+}
+
+.copyright a::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 50%;
+    width: 0;
+    height: 1.5px;
+    background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    transform: translateX(-50%);
+    border-radius: 1px
+}
+
+.copyright a:hover {
+    color: #66e0ff;
+    background: rgba(0, 212, 255, 0.15);
+    border-color: rgba(0, 212, 255, 0.3);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 212, 255, 0.2)
+}
+
+.copyright a:hover::after {
+    width: calc(100% - 0.8rem)
+}
+
+.copyright a:focus {
+    outline: none;
+    background: rgba(0, 212, 255, 0.2);
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.3)
+}
+
+.copyright a:active {
+    transform: translateY(0);
+    transition-duration: 0.1s
+}
+
+.container > .disclaimer {
+    margin-top: 2.5rem
+}
+
+.container > .copyright {
+    margin-top: 1rem
+}

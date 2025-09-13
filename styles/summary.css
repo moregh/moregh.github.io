@@ -1,0 +1,264 @@
+/*
+    War Target Finder - Summary Section and Mouseover Cards
+    
+    Copyright (C) 2025 moregh (https://github.com/moregh/)
+    Licensed under AGPL License.
+*/
+
+/* Summary Section */
+.summary-section {
+    padding: 1.2rem 2rem;
+    margin-bottom: 1.5rem;
+    overflow: visible;
+    position: relative;
+    z-index: 100
+}
+
+.summary-section h3 {
+    text-align: center;
+    font-size: 1.62rem;
+    font-weight: 700;
+    margin-bottom: 1.5rem;
+    color: var(--secondary-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem
+}
+
+.summary-container {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2rem
+}
+
+.summary-column {
+    overflow: visible
+}
+
+.summary-column h4 {
+    font-size: 1.17rem;
+    font-weight: 600;
+    margin-bottom: 0.9rem;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 0.45rem
+}
+
+.entity-icon {
+    font-size: 0.99rem
+}
+
+.summary-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.9rem;
+    flex-wrap: wrap;
+    gap: 0.5rem
+}
+
+.summary-controls {
+    display: flex;
+    gap: 0.5rem
+}
+
+.summary-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0.72rem;
+    overflow: visible
+}
+
+.summary-item {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 10.8px;
+    padding: 0.9rem;
+    border-left: 2.7px solid var(--secondary-color);
+    transition: all 0.27s ease;
+    animation: slideIn 0.45s ease forwards;
+    min-height: 3rem;
+    position: relative;
+    z-index: 1
+}
+
+.summary-item:hover {
+    transform: translateX(4.5px) translateZ(0);
+    background: rgba(255, 255, 255, 0.08);
+    z-index: 1000;
+    position: relative;
+    will-change: transform;
+}
+
+.summary-logo {
+    width: 36px;
+    height: 36px;
+    border-radius: 7.2px;
+    object-fit: cover;
+    border: 1.8px solid rgba(255, 255, 255, 0.1);
+    background: linear-gradient(45deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+    transition: opacity 0.3s ease;
+}
+
+.summary-content {
+    flex: 1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center
+}
+
+.summary-name {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text-primary)
+}
+
+.summary-name a {
+    color: var(--primary-color);
+    text-decoration: none;
+    transition: color 0.18s ease
+}
+
+.summary-name a:hover {
+    color: #66e0ff;
+    text-decoration: underline
+}
+
+.summary-count {
+    font-size: 0.99rem;
+    font-weight: 700;
+    color: var(--secondary-color);
+    background: rgba(74, 222, 128, 0.1);
+    padding: 0.27rem 0.72rem;
+    border-radius: 13.5rem;
+    min-width: 2.25rem;
+    text-align: center
+}
+
+.summary-load-more-container {
+    padding: 0.9rem 0 0;
+    text-align: center
+}
+
+.no-summary {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 2.7rem 1.8rem;
+    color: var(--text-muted);
+    min-height: 180px
+}
+
+/* Mouseover Cards */
+.summary-item .mouseover-card {
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.25s ease;
+    pointer-events: none
+}
+
+.summary-item:hover .mouseover-card {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto
+}
+
+.mouseover-card {
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 320px;
+    max-height: 400px;
+    background: #0a0a0a;
+    backdrop-filter: blur(18px);
+    border: 1px solid rgba(0, 212, 255, 0.5);
+    border-radius: 13.5px;
+    box-shadow: 0 9px 36px rgba(0, 0, 0, 0.4), inset 0 0.9px 0 rgba(255, 255, 255, 0.1);
+    padding: 1.2rem;
+    z-index: 9999;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.25s ease;
+    margin-top: 0.5rem;
+    overflow-y: auto
+}
+
+.mouseover-card-header {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--primary-color);
+    margin-bottom: 0.8rem;
+    text-align: center;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0.5rem
+}
+
+.mouseover-card-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem
+}
+
+.mouseover-card-item {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.4rem 0.6rem;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 6px;
+    border-left: 2px solid var(--secondary-color);
+    transition: all 0.2s ease
+}
+
+.mouseover-card-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+    transform: translateX(2px)
+}
+
+.mouseover-card-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    object-fit: cover;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: linear-gradient(45deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+    transition: opacity 0.3s ease;
+}
+
+.mouseover-card-name {
+    font-size: 0.8rem;
+    color: var(--text-primary);
+    flex: 1
+}
+
+.mouseover-card-name a {
+    color: var(--primary-color);
+    text-decoration: none;
+    transition: color 0.18s ease
+}
+
+.mouseover-card-name a:hover {
+    color: #66e0ff;
+    text-decoration: underline
+}
+
+.mouseover-card-more {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-align: center;
+    padding: 0.5rem;
+    border-top: 1px solid var(--border-color);
+    margin-top: 0.5rem
+}
+
+.summary-logo:not([src]),
+.mouseover-card-avatar:not([src]) {
+    opacity: 0.5
+}

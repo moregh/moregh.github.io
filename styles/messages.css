@@ -1,0 +1,88 @@
+/*
+    War Target Finder - Error, Warning and Info Messages
+    
+    Copyright (C) 2025 moregh (https://github.com/moregh/)
+    Licensed under AGPL License.
+*/
+
+/* Message Styles */
+.error-message,
+.warning-message,
+.info-message {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    border-radius: 13.5px;
+    padding: 1.35rem;
+    margin: 0.9rem 0;
+    animation: slideIn 0.45s ease
+}
+
+.error-message {
+    background: rgba(248, 113, 113, 0.1);
+    border: 0.9px solid rgba(248, 113, 113, 0.3);
+    border-left: 3.6px solid var(--danger-color)
+}
+
+.warning-message {
+    background: rgba(251, 191, 36, 0.1);
+    border: 0.9px solid rgba(251, 191, 36, 0.3);
+    border-left: 3.6px solid var(--warning-color)
+}
+
+.info-message {
+    background: rgba(34, 197, 94, 0.1);
+    border: 0.9px solid rgba(34, 197, 94, 0.3);
+    border-left: 3.6px solid var(--info-color)
+}
+
+.error-icon,
+.warning-icon,
+.info-icon {
+    font-size: 1.35rem;
+    flex-shrink: 0
+}
+
+.error-icon {
+    color: var(--danger-color)
+}
+
+.warning-icon {
+    color: var(--warning-color)
+}
+
+.info-icon {
+    color: var(--info-color)
+}
+
+.error-content,
+.warning-content,
+.info-content {
+    flex: 1
+}
+
+.error-title,
+.warning-title,
+.info-title {
+    font-weight: 600;
+    margin-bottom: 0.27rem
+}
+
+.error-title {
+    color: var(--danger-color)
+}
+
+.warning-title {
+    color: var(--warning-color)
+}
+
+.info-title {
+    color: var(--info-color)
+}
+
+.error-text,
+.warning-text,
+.info-text {
+    color: var(--text-secondary);
+    font-size: 0.855rem
+}

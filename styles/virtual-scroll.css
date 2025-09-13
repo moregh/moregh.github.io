@@ -1,0 +1,121 @@
+/*
+    War Target Finder - Virtual Scrolling Styles
+    
+    Copyright (C) 2025 moregh (https://github.com/moregh/)
+    Licensed under AGPL License.
+*/
+
+/* Virtual Scrolling */
+.result-grid {
+    display: block !important;
+    padding: 0 !important
+}
+
+.virtual-content {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fill, minmax(252px, 1fr));
+    gap: 1.35rem;
+    padding: 1.8rem
+}
+
+.result-grid.list-view .virtual-content {
+    grid-template-columns: 1fr !important
+}
+
+.virtual-scroll-container {
+    height: 60vh;
+    min-height: 300px;
+    max-height: 600px;
+    overflow-y: auto;
+    position: relative;
+    contain: strict;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    overflow-anchor: none;
+    scroll-behavior: auto;
+}
+
+.virtual-scroll-spacer {
+    position: relative
+}
+
+.virtual-scroll-content {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    display: grid;
+    gap: 1.35rem;
+    padding: 1.8rem;
+    grid-template-columns: repeat(auto-fill, minmax(252px, 1fr));
+    contain: layout;
+    will-change: transform;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.virtual-scroll-content.list-view {
+    grid-template-columns: 1fr
+}
+
+.result-grid.virtual-enabled {
+    display: block !important;
+    padding: 0 !important;
+    min-height: auto !important;
+    height: auto !important;
+}
+
+/* Fix virtual scrolling layout issues */
+.virtual-scroll-content:not(.list-view) {
+    align-content: start !important;
+    justify-items: stretch !important;
+}
+
+/* Disable problematic animations during scroll */
+.virtual-scroll-container .result-item {
+    animation: none !important;
+}
+
+/* Re-enable animations when not scrolling */
+.virtual-scroll-container:not(.scrolling) .result-item {
+    animation: slideIn 0.45s ease forwards;
+}
+
+/* Ensure cards maintain proper dimensions in virtual scroll */
+.virtual-scroll-content .result-item {
+    min-height: 160px;
+    height: auto;
+    width: 100%;
+    box-sizing: border-box;
+    contain: layout style;
+    display: flex;
+    flex-direction: column;
+}
+
+.virtual-scroll-content.list-view .result-item {
+    min-height: 90px;
+    flex-direction: row;
+    align-items: center;
+}
+
+/* Performance optimizations for virtual scrolling */
+.virtual-scroll-container .result-item {
+    contain: layout style paint;
+    will-change: auto;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    opacity: 0.999;
+}
+
+.virtual-scroll-container .character-avatar,
+.virtual-scroll-container .org-logo {
+    contain: layout;
+    transform: translateZ(0);
+}
+
+.virtual-scroll-container .result-item:hover {
+    contain: layout;
+    will-change: transform;
+}
