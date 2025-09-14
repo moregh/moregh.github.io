@@ -184,45 +184,41 @@ class ZKillStatsCard {
                 <div class="zkill-stat-label">Total Kills</div>
             </div>
             <div class="zkill-stat-item kills">
+                <span class="zkill-stat-value">${this.formatISK(stats.iskDestroyed)}</span>
+                <div class="zkill-stat-label">ISK Destroyed</div>
+            </div>
+            <div class="zkill-stat-item kills">
                 <span class="zkill-stat-value">${this.formatNumber(stats.soloKills)}</span>
                 <div class="zkill-stat-label">Solo Kills</div>
             </div>
-            <div class="zkill-stat-item">
-                <span class="zkill-stat-value">${this.formatDangerRatio(stats.dangerRatio)}</span>
-                <div class="zkill-stat-label">Kill/Death Ratio</div>
-            </div>
+            
+            
             <div class="zkill-stat-item losses">
                 <span class="zkill-stat-value">${this.formatNumber(stats.totalLosses)}</span>
                 <div class="zkill-stat-label">Total Losses</div>
             </div>
             <div class="zkill-stat-item losses">
+                    <span class="zkill-stat-value">${this.formatISK(stats.iskLost)}</span>
+                    <div class="zkill-stat-label">ISK Lost</div>
+                </div>
+            <div class="zkill-stat-item losses">
                 <span class="zkill-stat-value">${this.formatNumber(stats.soloLosses)}</span>
                 <div class="zkill-stat-label">Solo Losses</div>
+            </div>
+            
+
+                    <div class="zkill-stat-item">
+                    <span class="zkill-stat-value">${this.formatDangerRatio(stats.dangerRatio)}</span>
+                    <div class="zkill-stat-label">Kill/Death Ratio</div>
+                </div>    
+                
+                <div class="zkill-stat-item efficiency">
+                    <span class="zkill-stat-value">${stats.efficiency.toFixed(2)}%</span>
+                <div class="zkill-stat-label">ISK Efficiency</div>
             </div>
             <div class="zkill-stat-item">
                 <span class="zkill-stat-value">${stats.gangRatio}%</span>
                 <div class="zkill-stat-label">Gang Activity</div>
-            </div>
-        </div>
-
-        <!-- ISK Values -->
-        <div class="zkill-section">
-            <h3 class="zkill-section-title">
-                <span class="zkill-section-icon">💰</span>
-                ISK Statistics
-            </h3>
-            <div class="zkill-stats-grid">
-                <div class="zkill-stat-item kills">
-                    <span class="zkill-stat-value">${this.formatISK(stats.iskDestroyed)}</span>
-                    <div class="zkill-stat-label">ISK Destroyed</div>
-                </div>
-                <div class="zkill-stat-item losses">
-                    <span class="zkill-stat-value">${this.formatISK(stats.iskLost)}</span>
-                    <div class="zkill-stat-label">ISK Lost</div>
-                </div>
-                <div class="zkill-stat-item efficiency">
-                    <span class="zkill-stat-value">${stats.efficiency.toFixed(2)}%</span>
-                <div class="zkill-stat-label">ISK Efficiency</div>
             </div>
             </div>
         </div>
@@ -300,7 +296,13 @@ class ZKillStatsCard {
 
         const locationsHTML = locations.map(location => `
         <div class="zkill-location-card">
-            <div class="zkill-location-name">${this.escapeHtml(location.systemName)}</div>
+            <div class="zkill-location-name">
+                <a href="https://zkillboard.com/system/${this.escapeHtml(location.systemId)}/" 
+                target="_blank"
+                style="color: var(--primary-color); text-decoration: none; font-weight: 600;">
+                    ${this.escapeHtml(location.systemName)}
+                </a>
+            </div>
             <div class="zkill-location-bottom">
                 <div class="zkill-location-security ${this.getSecurityClass(location.securityStatus)}">
                     ${this.formatSecurity(location.securityStatus)}
@@ -414,6 +416,8 @@ class ZKillStatsCard {
             return security.toFixed(1);
         } else if (security > 0.0) {
             return security.toFixed(1);
+        } else if (security === -1.0) {
+            return 'WH'
         } else {
             return '0.0';
         }
