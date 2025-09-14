@@ -136,7 +136,29 @@
     border-color: var(--danger-color);
     transform: scale(1.1);
 }
+.zkill-header-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
 
+.zkill-back-btn {
+    background: rgba(0, 212, 255, 0.2);
+    border: 1px solid rgba(0, 212, 255, 0.3);
+    color: var(--primary-color);
+    padding: 0.4rem 0.8rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.zkill-back-btn:hover {
+    background: rgba(0, 212, 255, 0.3);
+    border-color: var(--primary-color);
+    transform: translateX(-2px);
+}
 /* Card Content */
 .zkill-card-content {
     padding: 2rem;
