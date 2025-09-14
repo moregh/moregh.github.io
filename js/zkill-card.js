@@ -108,7 +108,159 @@ class ZKillStatsCard {
                 throw new Error(`Unknown API type: ${apiType}`);
         }
     }
+    /**
+ * Create a bar chart SVG
+ */
+    createBarChart(data, title, maxValue) {
+        if (!data || data.length === 0) {
+            return `<div class="zkill-chart-empty">No activity data available</div>`;
+        }
 
+        const width = 320;
+        const height = 180;
+        const margin = { top: 20, right: 20, bottom: 40, left: 40 };
+        const chartWidth = width - margin.left - margin.right;
+        const chartHeight = height - margin.top - margin.bottom;
+
+        // Calculate bar width and spacing
+        const barSpacing = 2;
+        const barWidth = Math.max(1, (chartWidth - (data.length - 1) * barSpacing) / data.length);
+
+        // Create bars
+        const bars = data.map((item, index) => {
+            const barHeight = maxValue > 0 ? (item.value / maxValue) * chartHeight : 0;
+            const x = margin.left + index * (barWidth + barSpacing);
+            const y = margin.top + chartHeight - barHeight;
+
+            // Color based on activity level
+            let fillColor = 'rgba(0, 212, 255, 0.3)';
+            if (item.value > maxValue * 0.7) {
+                fillColor = 'rgba(248, 113, 113, 0.8)'; // High activity - red
+            } else if (item.value > maxValue * 0.4) {
+                fillColor = 'rgba(251, 191, 36, 0.8)'; // Medium activity - yellow
+            } else if (item.value > 0) {
+                fillColor = 'rgba(74, 222, 128, 0.8)'; // Low activity - green
+            }
+
+            return `
+            <rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" 
+                  fill="${fillColor}" stroke="rgba(255, 255, 255, 0.2)" stroke-width="1"
+                  class="zkill-chart-bar">
+                <title>${item.label}: ${item.value} kills</title>
+            </rect>
+        `;
+        }).join('');
+
+        // Create x-axis labels (show every nth label to avoid crowding)
+        const labelInterval = Math.ceil(data.length / 8);
+        const labels = data.map((item, index) => {
+            if (index % labelInterval === 0 || index === data.length - 1) {
+                const x = margin.left + index * (barWidth + barSpacing) + barWidth / 2;
+                const y = height - 10;
+                return `
+                <text x="${x}" y="${y}" text-anchor="middle" 
+                      fill="var(--text-secondary)" font-size="10" class="zkill-chart-label">
+                    ${item.label}
+                </text>
+            `;
+            }
+            return '';
+        }).join('');
+
+        // Create y-axis labels
+        const yAxisLabels = [];
+        const steps = 4;
+        for (let i = 0; i <= steps; i++) {
+            const value = Math.round((maxValue * i) / steps);
+            const y = margin.top + chartHeight - (i / steps) * chartHeight;
+            yAxisLabels.push(`
+            <text x="${margin.left - 10}" y="${y + 4}" text-anchor="end" 
+                  fill="var(--text-secondary)" font-size="10" class="zkill-chart-label">
+                ${value}
+            </text>
+            <line x1="${margin.left - 5}" y1="${y}" x2="${margin.left}" y2="${y}" 
+                  stroke="rgba(255, 255, 255, 0.3)" stroke-width="1"/>
+        `);
+        }
+
+        return `
+        <div class="zkill-chart-container">
+            <div class="zkill-chart-title">${title}</div>
+            <svg width="${width}" height="${height}" class="zkill-chart">
+                <!-- Grid lines -->
+                ${Array.from({ length: steps + 1 }, (_, i) => {
+            const y = margin.top + chartHeight - (i / steps) * chartHeight;
+            return `<line x1="${margin.left}" y1="${y}" x2="${margin.left + chartWidth}" y2="${y}" 
+                                  stroke="rgba(255, 255, 255, 0.1)" stroke-width="1"/>`;
+        }).join('')}
+                
+                <!-- Bars -->
+                ${bars}
+                
+                <!-- Axes -->
+                <line x1="${margin.left}" y1="${margin.top}" x2="${margin.left}" y2="${margin.top + chartHeight}" 
+                      stroke="rgba(255, 255, 255, 0.3)" stroke-width="2"/>
+                <line x1="${margin.left}" y1="${margin.top + chartHeight}" x2="${margin.left + chartWidth}" y2="${margin.top + chartHeight}" 
+                      stroke="rgba(255, 255, 255, 0.3)" stroke-width="2"/>
+                
+                <!-- Labels -->
+                ${labels}
+                ${yAxisLabels.join('')}
+            </svg>
+        </div>
+    `;
+    }
+
+    /**
+     * Create activity charts section HTML
+     */
+    /**
+ * Create activity charts section HTML
+ */
+/**
+ * Create activity charts section HTML
+ */
+createActivityChartsHTML(activityData) {
+    if (!activityData || !activityData.hasData) {
+        return `
+            <div class="zkill-section">
+                <h3 class="zkill-section-title">
+                    <span class="zkill-section-icon">📊</span>
+                    Activity Patterns
+                </h3>
+                <div class="zkill-charts-empty">
+                    <div class="zkill-empty-icon">📈</div>
+                    <div class="zkill-empty-text">No activity data available</div>
+                </div>
+            </div>
+        `;
+    }
+
+    const hourlyChart = this.createBarChart(
+        activityData.hourlyData, 
+        'Kills by Hour (EVE Time)', 
+        activityData.maxHourly
+    );
+
+    const dailyChart = this.createBarChart(
+        activityData.dailyData, 
+        'Kills by Day of Week', 
+        activityData.maxDaily
+    );
+
+    return `
+        <div class="zkill-section">
+            <h3 class="zkill-section-title">
+                <span class="zkill-section-icon">📊</span>
+                Activity Patterns
+            </h3>
+            <div class="zkill-charts-grid">
+                ${hourlyChart}
+                ${dailyChart}
+            </div>
+        </div>
+    `;
+}
     /**
      * Create modal DOM structure
      */
@@ -205,13 +357,10 @@ class ZKillStatsCard {
                 <span class="zkill-stat-value">${this.formatNumber(stats.soloLosses)}</span>
                 <div class="zkill-stat-label">Solo Losses</div>
             </div>
-            
-
-                    <div class="zkill-stat-item">
-                    <span class="zkill-stat-value">${this.formatDangerRatio(stats.dangerRatio)}</span>
-                    <div class="zkill-stat-label">Kill/Death Ratio</div>
-                </div>    
-                
+            <div class="zkill-stat-item">
+                <span class="zkill-stat-value">${this.formatDangerRatio(stats.dangerRatio)}</span>
+                <div class="zkill-stat-label">Kill/Death Ratio</div>
+            </div>                    
                 <div class="zkill-stat-item efficiency">
                     <span class="zkill-stat-value">${stats.efficiency.toFixed(2)}%</span>
                 <div class="zkill-stat-label">ISK Efficiency</div>
@@ -222,7 +371,7 @@ class ZKillStatsCard {
             </div>
             </div>
         </div>
-
+        ${this.createActivityChartsHTML(stats.activityData)}
         <!-- Recent Activity - Using activepvp data -->
         <div class="zkill-section">
             <h3 class="zkill-section-title">

@@ -407,6 +407,7 @@ class ZKillboardClient {
             recentActivity: this.extractRecentActivity(rawData),
             topLocations: this.extractTopLocations(rawData),
             activePeriods: this.extractActivePeriods(rawData),
+            activityData: this.extractActivityData(rawData),
             lastUpdated: Date.now()
         };
 
@@ -581,7 +582,78 @@ class ZKillboardClient {
                 };
             });
     }
+    /**
+ * Extract and process activity data for histograms
+ */
+/**
+ * Extract and process activity data for histograms
+ */
+/**
+ * Extract and process activity data for histograms
+ */
+extractActivityData(data) {
+    const activity = data.activity;
+    
+    if (!activity || typeof activity !== 'object') {
+        return {
+            hourlyData: [],
+            dailyData: [],
+            hasData: false
+        };
+    }
 
+    // Extract hourly data - handle sparse objects (only hours with activity are present)
+    const hourlyTotals = new Array(24).fill(0);
+    const dailyTotals = new Array(7).fill(0);
+    const dayLabels = activity.days || ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+    let hasValidData = false;
+
+    // Process hourly data for each day (0-6)
+    for (let day = 0; day < 7; day++) {
+        const dayData = activity[day.toString()];
+        
+        if (dayData && typeof dayData === 'object') {
+            // Handle sparse object format: { "0": 1, "1": 2, "13": 9, "14": 7, ... }
+            // Convert sparse object to full 24-hour array
+            for (let hour = 0; hour < 24; hour++) {
+                const kills = dayData[hour.toString()] || 0;
+                hourlyTotals[hour] += kills;
+                dailyTotals[day] += kills;
+                if (kills > 0) hasValidData = true;
+            }
+        } else if (Array.isArray(dayData) && dayData.length === 24) {
+            // Handle array format (fallback for different data structures)
+            dayData.forEach((kills, hour) => {
+                const killCount = kills || 0;
+                hourlyTotals[hour] += killCount;
+                dailyTotals[day] += killCount;
+                if (killCount > 0) hasValidData = true;
+            });
+        }
+    }
+
+    // Create formatted data for charts
+    const hourlyData = hourlyTotals.map((kills, hour) => ({
+        label: `${hour.toString().padStart(2, '0')}`,
+        value: kills,
+        hour: hour
+    }));
+
+    const dailyData = dailyTotals.map((kills, day) => ({
+        label: dayLabels[day] || `Day ${day}`,
+        value: kills,
+        day: day
+    }));
+
+    return {
+        hourlyData,
+        dailyData,
+        hasData: hasValidData,
+        maxHourly: Math.max(...hourlyTotals),
+        maxDaily: Math.max(...dailyTotals)
+    };
+}
     /**
      * Get performance statistics
      */

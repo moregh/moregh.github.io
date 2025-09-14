@@ -646,3 +646,108 @@
         min-height: 50px;
     }
 }
+/* Activity Charts */
+.zkill-charts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.zkill-chart-container {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 1rem;
+    position: relative;
+    overflow: hidden;
+}
+
+.zkill-chart-container::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+    opacity: 0.6;
+}
+
+.zkill-chart-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 1rem;
+    text-align: center;
+}
+
+.zkill-chart {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+.zkill-chart-bar {
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.zkill-chart-bar:hover {
+    opacity: 0.8;
+    stroke-width: 2;
+}
+
+.zkill-chart-label {
+    font-family: 'Inter', sans-serif;
+    font-weight: 500;
+}
+
+.zkill-charts-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    color: var(--text-muted);
+    text-align: center;
+}
+
+.zkill-charts-empty .zkill-empty-icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+    opacity: 0.5;
+}
+
+.zkill-charts-empty .zkill-empty-text {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .zkill-charts-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    
+    .zkill-chart-container {
+        padding: 0.8rem;
+    }
+    
+    .zkill-chart-title {
+        font-size: 0.8rem;
+        margin-bottom: 0.8rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .zkill-chart {
+        width: 100%;
+        height: 150px;
+    }
+    
+    .zkill-chart-container {
+        padding: 0.6rem;
+    }
+}
