@@ -409,18 +409,19 @@ class ZKillStatsCard {
     }
     createActivityChartsHTML(activityData) {
         if (!activityData || !activityData.hasData) {
-            return `
-            <div class="zkill-section">
-                <h3 class="zkill-section-title">
-                    <span class="zkill-section-icon">📊</span>
-                    Activity Patterns
-                </h3>
-                <div class="zkill-charts-empty">
-                    <div class="zkill-empty-icon">📈</div>
-                    <div class="zkill-empty-text">No activity data available</div>
-                </div>
-            </div>
-        `;
+        //     return `
+        //     <div class="zkill-section">
+        //         <h3 class="zkill-section-title">
+        //             <span class="zkill-section-icon">📊</span>
+        //             Activity Patterns
+        //         </h3>
+        //         <div class="zkill-charts-empty">
+        //             <div class="zkill-empty-icon">📈</div>
+        //             <div class="zkill-empty-text">No activity data available</div>
+        //         </div>
+        //     </div>
+        // `;
+        return '';
         }
 
         const hourlyChart = this.createBarChart(
@@ -796,39 +797,7 @@ createMembersDropdownHTML(entityType, entityId) {
         </div>
         ${this.createActivityChartsHTML(stats.activityData)}
         <!-- Recent Activity - Using activepvp data -->
-        <div class="zkill-section">
-            <h3 class="zkill-section-title">
-                <span class="zkill-section-icon">📊</span>
-                Recent PvP Activity
-            </h3>
-            <div class="zkill-activity-grid">
-                <div class="zkill-activity-card">
-                    <div class="zkill-activity-icon">👤</div>
-                    <div class="zkill-activity-number">${stats.recentActivity.activePvPData.characters}</div>
-                    <div class="zkill-activity-label">Characters</div>
-                </div>
-                <div class="zkill-activity-card">
-                    <div class="zkill-activity-icon">🚀</div>
-                    <div class="zkill-activity-number">${stats.recentActivity.activePvPData.ships}</div>
-                    <div class="zkill-activity-label">Ship Types</div>
-                </div>
-                <div class="zkill-activity-card">
-                    <div class="zkill-activity-icon">⚔️</div>
-                    <div class="zkill-activity-number">${stats.recentActivity.activePvPData.totalKills}</div>
-                    <div class="zkill-activity-label">Recent Kills</div>
-                </div>
-                <div class="zkill-activity-card">
-                    <div class="zkill-activity-icon">🌍</div>
-                    <div class="zkill-activity-number">${stats.recentActivity.activePvPData.systems}</div>
-                    <div class="zkill-activity-label">Systems</div>
-                </div>
-                <div class="zkill-activity-card">
-                    <div class="zkill-activity-icon">🗺️</div>
-                    <div class="zkill-activity-number">${stats.recentActivity.activePvPData.regions}</div>
-                    <div class="zkill-activity-label">Regions</div>
-                </div>
-            </div>
-        </div>
+        ${this.createRecentActivityHtml(stats.recentActivity.activePvPData)}
         <!-- Top Locations -->
         ${this.createTopLocationsHTML(stats.topLocations)}
 
@@ -843,7 +812,50 @@ createMembersDropdownHTML(entityType, entityId) {
     `;
     }
 
-
+    createRecentActivityHtml(activePvPData) {
+        if (activePvPData.characters === 1 && 
+            activePvPData.ships === 0 &&
+            activePvPData.totalKills === 0 &&
+            activePvPData.systems === 0 &&
+            activePvPData.regions === 0) {
+                return '';
+            }
+        return `
+        <div class="zkill-section">
+            <h3 class="zkill-section-title">
+                <span class="zkill-section-icon">📊</span>
+                Recent PvP Activity
+            </h3>
+            <div class="zkill-activity-grid">
+                <div class="zkill-activity-card">
+                    <div class="zkill-activity-icon">👤</div>
+                    <div class="zkill-activity-number">${activePvPData.characters}</div>
+                    <div class="zkill-activity-label">Characters</div>
+                </div>
+                <div class="zkill-activity-card">
+                    <div class="zkill-activity-icon">🚀</div>
+                    <div class="zkill-activity-number">${activePvPData.ships}</div>
+                    <div class="zkill-activity-label">Ship Types</div>
+                </div>
+                <div class="zkill-activity-card">
+                    <div class="zkill-activity-icon">⚔️</div>
+                    <div class="zkill-activity-number">${activePvPData.totalKills}</div>
+                    <div class="zkill-activity-label">Recent Kills</div>
+                </div>
+                <div class="zkill-activity-card">
+                    <div class="zkill-activity-icon">🌍</div>
+                    <div class="zkill-activity-number">${activePvPData.systems}</div>
+                    <div class="zkill-activity-label">Systems</div>
+                </div>
+                <div class="zkill-activity-card">
+                    <div class="zkill-activity-icon">🗺️</div>
+                    <div class="zkill-activity-number">${activePvPData.regions}</div>
+                    <div class="zkill-activity-label">Regions</div>
+                </div>
+            </div>
+        </div>
+        `;
+    }
     /**
      * Create top locations HTML
      */
@@ -852,17 +864,18 @@ createMembersDropdownHTML(entityType, entityId) {
  */
     createTopLocationsHTML(locations) {
         if (!locations || locations.length === 0) {
-            return `
-            <div class="zkill-section">
-                <h3 class="zkill-section-title">
-                    <span class="zkill-section-icon">🌍</span>
-                    Top PVP Locations
-                </h3>
-                <div style="text-align: center; color: var(--text-muted); padding: 2rem;">
-                    No location data available
-                </div>
-            </div>
-        `;
+        //     return `
+        //     <div class="zkill-section">
+        //         <h3 class="zkill-section-title">
+        //             <span class="zkill-section-icon">🌍</span>
+        //             Top PVP Locations
+        //         </h3>
+        //         <div style="text-align: center; color: var(--text-muted); padding: 2rem;">
+        //             No location data available
+        //         </div>
+        //     </div>
+        // `;
+            return '';
         }
 
         const locationsHTML = locations.map(location => `
