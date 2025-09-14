@@ -5,7 +5,7 @@
     Licensed under AGPL License.
 */
 
-import { 
+import {
     INITIAL_USER_RESULTS_COUNT,
     INITIAL_CORP_ALLIANCE_COUNT,
     LOAD_MORE_COUNT,
@@ -17,19 +17,19 @@ import { initDB, clearExpiredCache } from './database.js';
 import { showCharacterStats, showCorporationStats, showAllianceStats } from './zkill-card.js';
 import { clientValidate } from './validation.js';
 import { validator, resetCounters } from './esi-api.js';
-import { 
-    startLoading, 
-    stopLoading, 
-    showError, 
-    updateStats, 
+import {
+    startLoading,
+    stopLoading,
+    showError,
+    updateStats,
     updatePerformanceStats,
     updateVersionDisplay,
     collapseInputSection,
     expandInputSection
 } from './ui.js';
-import { 
-    renderGrid, 
-    buildEntityMaps, 
+import {
+    renderGrid,
+    buildEntityMaps,
     getObserverManager,
     addScrollStateDetection,
     setupVirtualScrolling
@@ -379,7 +379,7 @@ export async function validateNames() {
 
     try {
         const results = await validator(names);
-        
+
         // Store complete results and build entity maps
         completeResults = results;
         buildEntityMaps(results);
@@ -470,7 +470,7 @@ export async function validateNames() {
 
 function handleZkillStatsClick(element) {
     const clickableType = element.dataset.clickable;
-    
+
     if (clickableType === 'character') {
         const characterId = element.dataset.characterId;
         const characterName = element.querySelector('.character-name a')?.textContent || 'Unknown Character';

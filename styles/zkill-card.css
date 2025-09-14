@@ -32,14 +32,14 @@
 
 /* Main Card */
 .zkill-stats-card {
-    background: linear-gradient(135deg, 
-        rgba(10, 10, 10, 0.95) 0%, 
-        rgba(15, 15, 20, 0.95) 50%, 
-        rgba(10, 10, 10, 0.95) 100%);
+    background: linear-gradient(135deg,
+            rgba(10, 10, 10, 0.95) 0%,
+            rgba(15, 15, 20, 0.95) 50%,
+            rgba(10, 10, 10, 0.95) 100%);
     backdrop-filter: blur(24px);
     border: 2px solid rgba(0, 212, 255, 0.3);
     border-radius: 20px;
-    box-shadow: 
+    box-shadow:
         0 25px 80px rgba(0, 0, 0, 0.5),
         0 0 0 1px rgba(255, 255, 255, 0.1),
         inset 0 1px 0 rgba(255, 255, 255, 0.2);
@@ -63,10 +63,10 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    background: linear-gradient(90deg, 
-        rgba(0, 212, 255, 0.1) 0%, 
-        rgba(74, 222, 128, 0.05) 50%, 
-        rgba(0, 212, 255, 0.1) 100%);
+    background: linear-gradient(90deg,
+            rgba(0, 212, 255, 0.1) 0%,
+            rgba(74, 222, 128, 0.05) 50%,
+            rgba(0, 212, 255, 0.1) 100%);
     position: relative;
 }
 
@@ -77,11 +77,11 @@
     left: 0;
     right: 0;
     height: 1px;
-    background: linear-gradient(90deg, 
-        transparent, 
-        rgba(0, 212, 255, 0.5), 
-        rgba(74, 222, 128, 0.5), 
-        transparent);
+    background: linear-gradient(90deg,
+            transparent,
+            rgba(0, 212, 255, 0.5),
+            rgba(74, 222, 128, 0.5),
+            transparent);
 }
 
 .zkill-entity-info {
@@ -466,6 +466,7 @@
         font-size: 1.2rem;
     }
 }
+
 /* Recent Activity Grid */
 .zkill-activity-grid {
     display: grid;
@@ -601,11 +602,13 @@
 
 /* Remove old location styles that are no longer used */
 .zkill-locations-list {
-    display: none; /* Hide old list style */
+    display: none;
+    /* Hide old list style */
 }
 
 .zkill-location-item {
-    display: none; /* Hide old item style */
+    display: none;
+    /* Hide old item style */
 }
 
 /* Responsive adjustments */
@@ -614,16 +617,16 @@
         grid-template-columns: repeat(2, 1fr);
         gap: 0.8rem;
     }
-    
+
     .zkill-locations-grid {
         grid-template-columns: 1fr;
         gap: 0.6rem;
     }
-    
+
     .zkill-activity-number {
         font-size: 1.2rem;
     }
-    
+
     .zkill-activity-icon {
         font-size: 1.3rem;
     }
@@ -633,11 +636,11 @@
     .zkill-activity-grid {
         grid-template-columns: 1fr;
     }
-    
+
     .zkill-activity-card {
         padding: 0.8rem;
     }
-    
+
     .zkill-location-card {
         padding: 0.6rem;
         min-height: 50px;

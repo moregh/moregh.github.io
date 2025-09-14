@@ -105,7 +105,7 @@ export class ESIClient {
         if (!cacheInfo) return false;
 
         const now = new Date();
-        
+
         // Check max-age first (most reliable)
         if (cacheInfo.maxAge !== null) {
             const expiresAt = new Date(cacheInfo.cachedAt.getTime() + (cacheInfo.maxAge * 1000));
@@ -142,7 +142,7 @@ export class ESIClient {
      */
     shouldWaitForRateLimit() {
         const { remaining, reset, lastUpdate } = this.rateLimitState;
-        
+
         if (remaining === null || reset === null || lastUpdate === null) {
             return { shouldWait: false };
         }
@@ -151,7 +151,7 @@ export class ESIClient {
         if (remaining < 10) {
             const now = Date.now();
             const resetTime = lastUpdate + (reset * 1000);
-            
+
             if (now < resetTime) {
                 const waitTime = resetTime - now;
                 return { shouldWait: true, waitTime };
@@ -196,12 +196,12 @@ export class ESIClient {
         switch (response.status) {
             case 400:
                 throw new ESIError(`Bad Request: ${errorMessage}`, 400, response);
-            
+
             case 404:
                 // For 404s, we often want to continue (character not found, etc.)
                 console.warn(`ESI 404 for ${endpoint}:`, errorMessage);
                 return null;
-            
+
             case 420:
                 // Error limited
                 const retryAfter = parseInt(response.headers.get('retry-after') || '60');
@@ -210,7 +210,7 @@ export class ESIClient {
                     retryAfter,
                     response
                 );
-            
+
             case 429:
                 // Too many requests
                 const retryAfterTooMany = parseInt(response.headers.get('retry-after') || '60');
@@ -219,7 +219,7 @@ export class ESIClient {
                     retryAfterTooMany,
                     response
                 );
-            
+
             case 500:
             case 502:
             case 503:
@@ -229,7 +229,7 @@ export class ESIClient {
                     response.status,
                     response
                 );
-            
+
             default:
                 throw new ESIError(fullMessage, response.status, response);
         }
@@ -251,7 +251,7 @@ export class ESIClient {
 
         try {
             this.requestCount++;
-            
+
             const response = await fetch(url, {
                 ...options,
                 headers: {
@@ -266,10 +266,10 @@ export class ESIClient {
             // Handle retryable errors
             if (error instanceof ESIRateLimitError || error instanceof ESIServerError) {
                 if (retryCount < maxRetries) {
-                    const baseDelay = error instanceof ESIRateLimitError ? 
-                        (error.retryAfter * 1000) : 
+                    const baseDelay = error instanceof ESIRateLimitError ?
+                        (error.retryAfter * 1000) :
                         (1000 * Math.pow(2, retryCount)); // Exponential backoff for server errors
-                    
+
                     const jitter = Math.random() * 1000; // Add jitter
                     const delay = baseDelay + jitter;
 
@@ -277,7 +277,7 @@ export class ESIClient {
                     showWarning(`ESI request failed, retrying in ${Math.round(delay)}ms (attempt ${retryCount + 1}/${maxRetries})`);
                     console.warn(`ESI request failed, retrying in ${Math.round(delay)}ms (attempt ${retryCount + 1}/${maxRetries})`);
                     await new Promise(resolve => setTimeout(resolve, delay));
-                    
+
                     return this.executeRequest(url, options, retryCount + 1, maxRetries);
                 }
             }
@@ -292,7 +292,7 @@ export class ESIClient {
      */
     async get(endpoint, options = {}) {
         const url = `${ESI_BASE}${endpoint}`;
-        
+
         try {
             return await this.executeRequest(url, {
                 method: 'GET',
@@ -310,7 +310,7 @@ export class ESIClient {
      */
     async post(endpoint, data, options = {}) {
         const url = `${ESI_BASE}${endpoint}`;
-        
+
         try {
             return await this.executeRequest(url, {
                 method: 'POST',
@@ -339,23 +339,23 @@ export class ESIClient {
         } else {
             showError(`Network Error: ${context}. ${error.message}`);
         }
-        
+
         console.error(`ESI Client Error [${context}]:`, error);
     }
 
     /**
      * Batch multiple requests with intelligent chunking and concurrency control
      */
-    async batchRequests(requests, { 
-        maxConcurrency = 10, 
+    async batchRequests(requests, {
+        maxConcurrency = 10,
         chunkDelay = 50,
-        onProgress = null 
+        onProgress = null
     } = {}) {
         const results = [];
-        
+
         for (let i = 0; i < requests.length; i += maxConcurrency) {
             const chunk = requests.slice(i, i + maxConcurrency);
-            
+
             try {
                 const chunkPromises = chunk.map(async (request, index) => {
                     try {
