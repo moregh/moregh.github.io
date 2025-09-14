@@ -42,9 +42,9 @@ function resetLocalCacheHits() {
 
 export function getCounters() {
     const stats = esiClient.getStats();
-    return { 
-        esiLookups: stats.requests, 
-        localLookups: getLocalCacheHits() 
+    return {
+        esiLookups: stats.requests,
+        localLookups: getLocalCacheHits()
     };
 }
 
@@ -80,7 +80,7 @@ export async function processInChunks(items, processFn, chunkSize = CHUNK_SIZE, 
         } catch (e) {
             showWarning(`Error processing chunk ${i + 1}/${totalChunks}: ${e.message}`);
             console.error(`Error processing chunk ${i + 1}/${totalChunks}:`, e);
-            
+
             // Handle different error types appropriately
             if (e.message.includes('character IDs') || e.message.includes('character names')) {
                 results.push([]); // Empty array for failed character lookups
@@ -197,7 +197,7 @@ export async function getCharacterAffiliations(characterIds) {
 
                 try {
                     const affiliations = await esiClient.post('/characters/affiliation/', idChunk);
-                    
+
                     if (!Array.isArray(affiliations)) {
                         throw new Error('Invalid response format from affiliations endpoint');
                     }
@@ -403,7 +403,7 @@ async function processUncachedCorporations(uncachedIds, corpMap, startingCount, 
                 const corpId = request.corpId;
 
                 let corporationInfo;
-                
+
                 if (result && result.name !== undefined) {
                     // Successful response
                     corporationInfo = {
@@ -413,9 +413,9 @@ async function processUncachedCorporations(uncachedIds, corpMap, startingCount, 
                 } else {
                     // Failed response or null
                     console.warn(`Failed to get corporation info for ${corpId}`);
-                    corporationInfo = { 
-                        name: 'Unknown Corporation', 
-                        war_eligible: false 
+                    corporationInfo = {
+                        name: 'Unknown Corporation',
+                        war_eligible: false
                     };
                 }
 
@@ -427,7 +427,7 @@ async function processUncachedCorporations(uncachedIds, corpMap, startingCount, 
 
         } catch (error) {
             console.error(`Failed to process corporation chunk ${i + 1}:`, error);
-            
+
             // Fallback: create entries for all corps in this chunk
             chunk.forEach(corpId => {
                 const fallbackInfo = { name: 'Unknown Corporation', war_eligible: false };
@@ -481,7 +481,7 @@ async function processUncachedAlliances(uncachedIds, allianceMap, startingCount,
                 const allianceId = request.allianceId;
 
                 let allianceInfo;
-                
+
                 if (result && result.name !== undefined) {
                     // Successful response
                     allianceInfo = {
@@ -490,8 +490,8 @@ async function processUncachedAlliances(uncachedIds, allianceMap, startingCount,
                 } else {
                     // Failed response or null
                     console.warn(`Failed to get alliance info for ${allianceId}`);
-                    allianceInfo = { 
-                        name: 'Unknown Alliance' 
+                    allianceInfo = {
+                        name: 'Unknown Alliance'
                     };
                 }
 
@@ -503,7 +503,7 @@ async function processUncachedAlliances(uncachedIds, allianceMap, startingCount,
 
         } catch (error) {
             console.error(`Failed to process alliance chunk ${i + 1}:`, error);
-            
+
             // Fallback: create entries for all alliances in this chunk
             chunk.forEach(allianceId => {
                 const fallbackInfo = { name: 'Unknown Alliance' };

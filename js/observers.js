@@ -62,21 +62,21 @@ export class ManagedObservers {
     // Batch observe operations for better performance
     observeImage(img) {
         if (!img || this.observedImages.has(img) || !document.contains(img)) return;
-        
+
         this.pendingImageObservations.push(img);
         this.scheduleBatchProcess();
     }
 
     observeAnimation(element) {
         if (!element || this.observedAnimations.has(element) || !document.contains(element)) return;
-        
+
         this.pendingAnimationObservations.push(element);
         this.scheduleBatchProcess();
     }
 
     scheduleBatchProcess() {
         if (this.batchTimeout) return;
-        
+
         this.batchTimeout = requestAnimationFrame(() => {
             this.processBatches();
             this.batchTimeout = null;
@@ -197,7 +197,7 @@ function loadSingleImage(img) {
         img.removeEventListener('load', onLoad);
         img.removeEventListener('error', onError);
         delete img.dataset.loading;
-        
+
         // Process next in queue
         requestAnimationFrame(() => processImageQueue());
     };
@@ -208,7 +208,7 @@ function loadSingleImage(img) {
         img.removeEventListener('load', onLoad);
         img.removeEventListener('error', onError);
         delete img.dataset.loading;
-        
+
         // Process next in queue
         requestAnimationFrame(() => processImageQueue());
     };

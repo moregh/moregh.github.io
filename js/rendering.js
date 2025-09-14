@@ -182,7 +182,7 @@ export function updateElementContent(element, character, viewType) {
             `;
             fragment.appendChild(newAllianceSection);
             corpAllianceInfo.appendChild(fragment);
-            
+
             const allianceLogo = newAllianceSection.querySelector('.org-logo');
             if (document.contains(allianceLogo)) {
                 observerManager.observeImage(allianceLogo);
@@ -354,10 +354,10 @@ export function renderGrid(containerId, items, type = 'character', limit = null)
 
         // Use document fragment for batch DOM operations
         const fragment = document.createDocumentFragment();
-        
+
         // Create all items in memory first
         const elements = items.map(item => createSummaryItem(item));
-        
+
         // Add all elements to fragment
         elements.forEach(element => fragment.appendChild(element));
 
@@ -406,12 +406,12 @@ function validateScrollingPreconditions(container, items, containerId) {
         console.warn(`Cannot setup virtual scrolling: container "${containerId}" not found`);
         return false;
     }
-    
+
     if (!items || items.length === 0) {
         console.warn(`Cannot setup virtual scrolling: no items provided for "${containerId}"`);
         return false;
     }
-    
+
     return true;
 }
 
@@ -423,11 +423,11 @@ class VirtualScrollManager {
         this.container = container;
         this.items = items;
         this.parentGrid = this.findParentGrid();
-        
+
         // Calculated properties
         this.viewConfig = this.calculateViewConfig();
         this.dimensions = this.calculateDimensions();
-        
+
         // State management
         this.renderedElements = new Map();
         this.visibleRange = { start: -1, end: -1 };
@@ -435,7 +435,7 @@ class VirtualScrollManager {
         this.animationFrame = null;
         this.scrollTimeout = null;
         this.lastScrollTime = 0;
-        
+
         // DOM elements (will be created during initialization)
         this.spacer = null;
         this.content = null;
@@ -443,26 +443,26 @@ class VirtualScrollManager {
     }
 
     findParentGrid() {
-        return this.container.closest('.result-grid') || 
-               (this.container.parentElement?.classList?.contains('result-grid') 
-                   ? this.container.parentElement 
-                   : this.container);
+        return this.container.closest('.result-grid') ||
+            (this.container.parentElement?.classList?.contains('result-grid')
+                ? this.container.parentElement
+                : this.container);
     }
 
     calculateViewConfig() {
         const isListView = getCurrentView() === 'list';
         const baseConfig = VIEW_DIMENSIONS[isListView ? 'list' : 'grid'];
-        
+
         if (isListView) {
             return baseConfig;
         }
-        
+
         // Calculate items per row for grid view
         const containerWidth = Math.max(
-            VIRTUAL_SCROLL_CONFIG.CONTAINER_MIN_WIDTH, 
+            VIRTUAL_SCROLL_CONFIG.CONTAINER_MIN_WIDTH,
             this.parentGrid.clientWidth - VIRTUAL_SCROLL_CONFIG.CONTAINER_PADDING
         );
-        
+
         return {
             ...baseConfig,
             itemsPerRow: Math.max(1, Math.floor(containerWidth / VIRTUAL_SCROLL_CONFIG.MIN_ITEM_WIDTH))
@@ -495,7 +495,7 @@ class VirtualScrollManager {
 
     setupContainer() {
         this.parentGrid.classList.add('virtual-enabled');
-        
+
         Object.assign(this.container.style, {
             height: VIRTUAL_SCROLL_CONFIG.CONTAINER_HEIGHT,
             minHeight: VIRTUAL_SCROLL_CONFIG.MIN_HEIGHT,
@@ -503,14 +503,14 @@ class VirtualScrollManager {
             overflowY: 'auto',
             position: 'relative'
         });
-        
+
         this.container.className = 'virtual-scroll-container';
     }
 
     createDOMStructure() {
         this.spacer = this.createSpacer();
         this.content = this.createContentContainer();
-        
+
         this.spacer.appendChild(this.content);
         this.container.innerHTML = '';
         this.container.appendChild(this.spacer);
@@ -529,9 +529,9 @@ class VirtualScrollManager {
     createContentContainer() {
         const content = document.createElement('div');
         const isListView = getCurrentView() === 'list';
-        
+
         content.className = `virtual-scroll-content ${isListView ? 'list-view' : ''}`;
-        
+
         Object.assign(content.style, {
             position: 'absolute',
             top: '0',
@@ -540,11 +540,11 @@ class VirtualScrollManager {
             display: 'grid',
             gap: VIRTUAL_SCROLL_CONFIG.GRID_GAP,
             padding: VIRTUAL_SCROLL_CONFIG.CONTENT_PADDING,
-            gridTemplateColumns: isListView 
-                ? '1fr' 
+            gridTemplateColumns: isListView
+                ? '1fr'
                 : `repeat(auto-fill, minmax(${VIRTUAL_SCROLL_CONFIG.MIN_ITEM_WIDTH}px, 1fr))`
         });
-        
+
         return content;
     }
 
@@ -557,7 +557,7 @@ class VirtualScrollManager {
     createScrollHandler() {
         return () => {
             const now = performance.now();
-            
+
             if (now - this.lastScrollTime > ANIMATION_FRAME_THROTTLE_FPS) {
                 this.updateVisibleItems();
                 this.lastScrollTime = now;
@@ -569,7 +569,7 @@ class VirtualScrollManager {
 
     scheduleUpdate() {
         if (this.scrollTimeout) clearTimeout(this.scrollTimeout);
-        
+
         this.scrollTimeout = setTimeout(() => {
             this.updateVisibleItems();
             this.scrollTimeout = null;
@@ -591,7 +591,7 @@ class VirtualScrollManager {
         }
 
         const visibleIndices = this.calculateVisibleIndices();
-        
+
         // Only update if range actually changed
         if (this.hasRangeChanged(visibleIndices)) {
             this.animationFrame = requestAnimationFrame(() => this.renderVisibleItems(visibleIndices));
@@ -603,12 +603,12 @@ class VirtualScrollManager {
     calculateVisibleIndices() {
         const scrollTop = this.container.scrollTop;
         const containerHeight = this.container.clientHeight;
-        
-        const startRow = Math.max(0, 
+
+        const startRow = Math.max(0,
             Math.floor(scrollTop / this.dimensions.itemHeight) - VIRTUAL_SCROLL_CONFIG.BUFFER_SIZE);
-        const endRow = Math.min(this.dimensions.totalRows, 
+        const endRow = Math.min(this.dimensions.totalRows,
             Math.ceil((scrollTop + containerHeight) / this.dimensions.itemHeight) + VIRTUAL_SCROLL_CONFIG.BUFFER_SIZE);
-        
+
         return {
             startIndex: startRow * this.dimensions.itemsPerRow,
             endIndex: Math.min(this.items.length, endRow * this.dimensions.itemsPerRow),
@@ -630,7 +630,7 @@ class VirtualScrollManager {
         this.showVisibleElements(startIndex, endIndex);
         this.updateContentPosition(startRow);
         this.updateVisibleRange(startIndex, endIndex);
-        
+
         this.isUpdating = false;
         this.animationFrame = null;
     }
@@ -648,14 +648,14 @@ class VirtualScrollManager {
     showVisibleElements(startIndex, endIndex) {
         for (let i = startIndex; i < endIndex; i++) {
             if (!this.items[i]) continue;
-            
+
             this.renderSingleItem(i);
         }
     }
 
     renderSingleItem(index) {
         let element = this.renderedElements.get(index);
-        
+
         if (!element) {
             element = this.createElement(index);
             this.renderedElements.set(index, element);
@@ -669,10 +669,10 @@ class VirtualScrollManager {
     createElement(index) {
         const isListView = getCurrentView() === 'list';
         const element = createCharacterItem(this.items[index], isListView ? 'list' : 'grid');
-        
+
         element.style.position = 'relative';
         element.dataset.index = index;
-        
+
         return element;
     }
 
@@ -720,7 +720,7 @@ class VirtualScrollManager {
             cancelAnimationFrame(this.animationFrame);
             this.animationFrame = null;
         }
-        
+
         if (this.scrollTimeout) {
             clearTimeout(this.scrollTimeout);
             this.scrollTimeout = null;
@@ -743,7 +743,7 @@ class VirtualScrollManager {
                     observerManager.observedImages.delete(img);
                 }
             });
-            
+
             if (observerManager.observedAnimations.has(element)) {
                 observerManager.animationObserver?.unobserve(element);
                 observerManager.observedAnimations.delete(element);
@@ -753,11 +753,11 @@ class VirtualScrollManager {
 
     resetContainerState() {
         this.parentGrid?.classList?.remove('virtual-enabled');
-        
+
         if (this.container) {
             this.container.className = this.container.className
                 .replace('virtual-scroll-container', '').trim() || 'result-grid';
-            
+
             // Reset styles
             Object.assign(this.container.style, {
                 height: '',
@@ -772,7 +772,7 @@ class VirtualScrollManager {
     clearReferences() {
         this.renderedElements.clear();
         delete this.container._cleanup;
-        
+
         // Clear object references
         this.container = null;
         this.items = null;
@@ -785,12 +785,12 @@ class VirtualScrollManager {
 // Add scroll state detection to reduce operations during active scrolling
 export function addScrollStateDetection() {
     let scrollTimeout;
-    
+
     document.addEventListener('scroll', (e) => {
         if (e.target && e.target.classList && e.target.classList.contains('virtual-scroll-container')) {
             e.target.classList.add('scrolling');
             setImageObserverEnabled(false); // Pause image loading during scroll
-            
+
             clearTimeout(scrollTimeout);
             scrollTimeout = setTimeout(() => {
                 e.target.classList.remove('scrolling');

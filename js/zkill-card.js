@@ -69,59 +69,59 @@ class ZKillStatsCard {
      * Generic method to show stats card
      */
     async showStats(entityType, entityId, entityName, apiType) {
-    // Close existing modal if any
-    if (this.isVisible) {
-        this.close();
-    }
-
-    // Create modal structure
-    this.currentModal = this.createModalStructure(entityType, entityId, entityName);
-    document.body.appendChild(this.currentModal);
-
-    // Update back button visibility
-    this.updateBackButtonVisibility();
-
-    // Show modal with animation
-    requestAnimationFrame(() => {
-        this.currentModal.classList.add('show');
-        this.isVisible = true;
-    });
-
-    // Load stats data and affiliations in parallel
-    try {
-        const [stats, affiliationData] = await Promise.all([
-            this.loadStats(apiType, entityId),
-            this.fetchEntityAffiliations(entityType, entityId)
-        ]);
-        
-        // Fetch entity names if we have affiliation data
-        let corporationName = null;
-        let allianceName = null;
-        
-        if (affiliationData) {
-            const names = await this.fetchEntityNames(
-                affiliationData?.corporation_id, 
-                affiliationData?.alliance_id
-            );
-            corporationName = names.corporationName;
-            allianceName = names.allianceName;
+        // Close existing modal if any
+        if (this.isVisible) {
+            this.close();
         }
-        
-        // Render affiliations
-        this.renderAffiliations(
-            affiliationData?.corporation_id,
-            corporationName,
-            affiliationData?.alliance_id,
-            allianceName
-        );
-        
-        // Populate stats as before
-        this.populateStatsData(stats, entityType, entityId, entityName);
-    } catch (error) {
-        console.error('Failed to load zKillboard stats:', error);
-        this.showError('Failed to load killboard statistics. Please try again later.');
+
+        // Create modal structure
+        this.currentModal = this.createModalStructure(entityType, entityId, entityName);
+        document.body.appendChild(this.currentModal);
+
+        // Update back button visibility
+        this.updateBackButtonVisibility();
+
+        // Show modal with animation
+        requestAnimationFrame(() => {
+            this.currentModal.classList.add('show');
+            this.isVisible = true;
+        });
+
+        // Load stats data and affiliations in parallel
+        try {
+            const [stats, affiliationData] = await Promise.all([
+                this.loadStats(apiType, entityId),
+                this.fetchEntityAffiliations(entityType, entityId)
+            ]);
+
+            // Fetch entity names if we have affiliation data
+            let corporationName = null;
+            let allianceName = null;
+
+            if (affiliationData) {
+                const names = await this.fetchEntityNames(
+                    affiliationData?.corporation_id,
+                    affiliationData?.alliance_id
+                );
+                corporationName = names.corporationName;
+                allianceName = names.allianceName;
+            }
+
+            // Render affiliations
+            this.renderAffiliations(
+                affiliationData?.corporation_id,
+                corporationName,
+                affiliationData?.alliance_id,
+                allianceName
+            );
+
+            // Populate stats as before
+            this.populateStatsData(stats, entityType, entityId, entityName);
+        } catch (error) {
+            console.error('Failed to load zKillboard stats:', error);
+            this.showError('Failed to load killboard statistics. Please try again later.');
+        }
     }
-}
 
     /**
      * Load stats from appropriate API
@@ -342,44 +342,44 @@ class ZKillStatsCard {
 
         affiliationsContainer.innerHTML = affiliationsHTML;
         // Add individual click handlers to prevent conflicts
-const affiliationLinks = affiliationsContainer.querySelectorAll('.zkill-affiliation-link');
-affiliationLinks.forEach(link => {
-    link.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        const entityType = link.dataset.entityType;
-        const entityId = link.dataset.entityId;
-        const entityName = link.dataset.entityName;
-        
-        // Add current card to history before navigating
-        const currentEntityType = this.currentModal.querySelector('.zkill-entity-type').textContent;
-        const currentEntityName = this.currentModal.querySelector('.zkill-entity-details h2').textContent.replace(' ⚔️', '');
-        const currentEntityId = this.getCurrentEntityId(); // We'll need to store this
-        
-        this.navigationHistory.push({
-            entityType: currentEntityType,
-            entityId: currentEntityId,
-            entityName: currentEntityName,
-            apiType: currentEntityType + 'ID'
+        const affiliationLinks = affiliationsContainer.querySelectorAll('.zkill-affiliation-link');
+        affiliationLinks.forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+
+                const entityType = link.dataset.entityType;
+                const entityId = link.dataset.entityId;
+                const entityName = link.dataset.entityName;
+
+                // Add current card to history before navigating
+                const currentEntityType = this.currentModal.querySelector('.zkill-entity-type').textContent;
+                const currentEntityName = this.currentModal.querySelector('.zkill-entity-details h2').textContent.replace(' ⚔️', '');
+                const currentEntityId = this.getCurrentEntityId(); // We'll need to store this
+
+                this.navigationHistory.push({
+                    entityType: currentEntityType,
+                    entityId: currentEntityId,
+                    entityName: currentEntityName,
+                    apiType: currentEntityType + 'ID'
+                });
+
+                // Limit history to 2 items (character -> corp -> alliance)
+                if (this.navigationHistory.length > 2) {
+                    this.navigationHistory.shift();
+                }
+
+                this.close();
+
+                setTimeout(() => {
+                    if (entityType === 'corporation') {
+                        this.showCorporationStats(entityId, entityName);
+                    } else if (entityType === 'alliance') {
+                        this.showAllianceStats(entityId, entityName);
+                    }
+                }, 350);
+            });
         });
-        
-        // Limit history to 2 items (character -> corp -> alliance)
-        if (this.navigationHistory.length > 2) {
-            this.navigationHistory.shift();
-        }
-        
-        this.close();
-        
-        setTimeout(() => {
-            if (entityType === 'corporation') {
-                this.showCorporationStats(entityId, entityName);
-            } else if (entityType === 'alliance') {
-                this.showAllianceStats(entityId, entityName);
-            }
-        }, 350);
-    });
-});
     }
 
     /**
@@ -392,15 +392,15 @@ affiliationLinks.forEach(link => {
      * Create activity charts section HTML
      */
     getCurrentEntityId() {
-    if (!this.currentModal) return null;
-    const avatar = this.currentModal.querySelector('.zkill-entity-avatar');
-    if (!avatar) return null;
-    
-    // Extract ID from the image src URL
-    const src = avatar.src;
-    const matches = src.match(/\/(\d+)\//);
-    return matches ? matches[1] : null;
-}
+        if (!this.currentModal) return null;
+        const avatar = this.currentModal.querySelector('.zkill-entity-avatar');
+        if (!avatar) return null;
+
+        // Extract ID from the image src URL
+        const src = avatar.src;
+        const matches = src.match(/\/(\d+)\//);
+        return matches ? matches[1] : null;
+    }
     createActivityChartsHTML(activityData) {
         if (!activityData || !activityData.hasData) {
             return `
@@ -494,75 +494,75 @@ affiliationLinks.forEach(link => {
         return modal;
     }
     // Navigate back to previous card
-goBack() {
-    if (this.navigationHistory.length > 0) {
-        const previous = this.navigationHistory.pop();
-        this.close();
-        
-        setTimeout(() => {
-            // Don't add to history when going back
-            this.showStatsWithoutHistory(previous.entityType, previous.entityId, previous.entityName, previous.apiType);
-        }, 350);
-    }
-}
+    goBack() {
+        if (this.navigationHistory.length > 0) {
+            const previous = this.navigationHistory.pop();
+            this.close();
 
-// Show stats without adding to navigation history (for back navigation)
-async showStatsWithoutHistory(entityType, entityId, entityName, apiType) {
-    // Same as showStats but without history tracking
-    if (this.isVisible) {
-        this.close();
+            setTimeout(() => {
+                // Don't add to history when going back
+                this.showStatsWithoutHistory(previous.entityType, previous.entityId, previous.entityName, previous.apiType);
+            }, 350);
+        }
     }
 
-    this.currentModal = this.createModalStructure(entityType, entityId, entityName);
-    document.body.appendChild(this.currentModal);
+    // Show stats without adding to navigation history (for back navigation)
+    async showStatsWithoutHistory(entityType, entityId, entityName, apiType) {
+        // Same as showStats but without history tracking
+        if (this.isVisible) {
+            this.close();
+        }
+
+        this.currentModal = this.createModalStructure(entityType, entityId, entityName);
+        document.body.appendChild(this.currentModal);
+
+        // Update back button visibility
+        this.updateBackButtonVisibility();
+
+        requestAnimationFrame(() => {
+            this.currentModal.classList.add('show');
+            this.isVisible = true;
+        });
+
+        try {
+            const [stats, affiliationData] = await Promise.all([
+                this.loadStats(apiType, entityId),
+                this.fetchEntityAffiliations(entityType, entityId)
+            ]);
+
+            let corporationName = null;
+            let allianceName = null;
+
+            if (affiliationData) {
+                const names = await this.fetchEntityNames(
+                    affiliationData?.corporation_id,
+                    affiliationData?.alliance_id
+                );
+                corporationName = names.corporationName;
+                allianceName = names.allianceName;
+            }
+
+            this.renderAffiliations(
+                affiliationData?.corporation_id,
+                corporationName,
+                affiliationData?.alliance_id,
+                allianceName
+            );
+
+            this.populateStatsData(stats, entityType, entityId, entityName);
+        } catch (error) {
+            console.error('Failed to load zKillboard stats:', error);
+            this.showError('Failed to load killboard statistics. Please try again later.');
+        }
+    }
 
     // Update back button visibility
-    this.updateBackButtonVisibility();
-
-    requestAnimationFrame(() => {
-        this.currentModal.classList.add('show');
-        this.isVisible = true;
-    });
-
-    try {
-        const [stats, affiliationData] = await Promise.all([
-            this.loadStats(apiType, entityId),
-            this.fetchEntityAffiliations(entityType, entityId)
-        ]);
-        
-        let corporationName = null;
-        let allianceName = null;
-        
-        if (affiliationData) {
-            const names = await this.fetchEntityNames(
-                affiliationData?.corporation_id, 
-                affiliationData?.alliance_id
-            );
-            corporationName = names.corporationName;
-            allianceName = names.allianceName;
+    updateBackButtonVisibility() {
+        const backBtn = document.getElementById('zkill-back-btn');
+        if (backBtn) {
+            backBtn.style.display = this.navigationHistory.length > 0 ? 'block' : 'none';
         }
-        
-        this.renderAffiliations(
-            affiliationData?.corporation_id,
-            corporationName,
-            affiliationData?.alliance_id,
-            allianceName
-        );
-        
-        this.populateStatsData(stats, entityType, entityId, entityName);
-    } catch (error) {
-        console.error('Failed to load zKillboard stats:', error);
-        this.showError('Failed to load killboard statistics. Please try again later.');
     }
-}
-
-// Update back button visibility
-updateBackButtonVisibility() {
-    const backBtn = document.getElementById('zkill-back-btn');
-    if (backBtn) {
-        backBtn.style.display = this.navigationHistory.length > 0 ? 'block' : 'none';
-    }
-}
     formatDangerRatio(ratio) {
         if (ratio === 0) return '0.00';
         if (ratio >= 100) return Math.round(ratio).toString();

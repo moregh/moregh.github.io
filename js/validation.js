@@ -5,7 +5,7 @@
     Licensed under AGPL License.
 */
 
-import { 
+import {
     MIN_CHARACTER_NAME_LENGTH,
     MAX_CHARACTER_NAME_LENGTH,
     MAX_SINGLE_NAME_LENGTH,

@@ -5,8 +5,8 @@
     Licensed under AGPL License.
 */
 
-import { 
-    TIMER_UPDATE_INTERVAL_MS, 
+import {
+    TIMER_UPDATE_INTERVAL_MS,
     TIMER_UPDATE_THROTTLE_MS,
     LOADING_DISPLAY_DELAY_MS,
     LOADING_HIDE_DELAY_MS,
