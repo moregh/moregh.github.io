@@ -18,7 +18,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 1rem;
+    padding: 2rem; /* INCREASED: More padding to accommodate floating buttons */
     opacity: 0;
     visibility: hidden;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -46,12 +46,11 @@
     max-width: 900px;
     width: 100%;
     max-height: 90vh;
-    overflow: visible; /* Changed from overflow-y: auto */
+    overflow: visible; /* CHANGED: Back to visible */
     position: relative;
     transform: scale(0.8) translateY(50px);
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
-
 .zkill-modal-backdrop.show .zkill-stats-card {
     transform: scale(1) translateY(0);
 }
@@ -114,6 +113,10 @@
     color: var(--text-secondary);
     text-transform: capitalize;
 }
+.zkill-close-btn,
+.zkill-back-btn {
+    pointer-events: auto; /* ADDED: Re-enable clicks on buttons themselves */
+}
 
 .zkill-close-btn {
     background: linear-gradient(135deg, rgba(248, 113, 113, 0.9), rgba(220, 38, 38, 0.9));
@@ -144,11 +147,12 @@
 
 .zkill-header-controls {
     position: absolute;
-    top: -10px;
-    right: -10px;
+    top: -15px; /* ADJUSTED: Slightly more offset */
+    right: -15px; /* ADJUSTED: Slightly more offset */
     display: flex;
     gap: 8px;
     z-index: 10901;
+    pointer-events: none; /* ADDED: Let clicks pass through container */
 }
 
 .zkill-back-btn {
@@ -182,8 +186,9 @@
 /* Card Content */
 .zkill-card-content {
     padding: 2rem;
+    max-height: calc(90vh - 120px); /* ADDED: Account for header height */
+    overflow-y: auto; /* MOVED: Scrolling happens here instead */
 }
-
 /* Stats Grid */
 .zkill-stats-grid {
     display: grid;
@@ -1155,5 +1160,112 @@
         width: 24px;
         height: 24px;
         font-size: 10px;
+    }
+}
+@media (max-width: 768px) {
+    .zkill-modal-backdrop {
+        padding: 1rem; /* REDUCED: Less padding on mobile */
+    }
+
+    .zkill-stats-card {
+        max-height: calc(95vh - 2rem); /* UPDATED: Account for mobile padding */
+        border-radius: 16px;
+        margin: 1rem; /* REDUCED: Less margin on mobile */
+    }
+
+    .zkill-header-controls {
+        top: -12px; /* ADJUSTED: Closer on mobile */
+        right: -12px;
+        gap: 6px;
+    }
+    
+    .zkill-close-btn {
+        width: 32px;
+        height: 32px;
+        font-size: 14px;
+    }
+    
+    .zkill-back-btn {
+        width: 28px;
+        height: 28px;
+        font-size: 12px;
+    }
+
+    .zkill-card-header {
+        padding: 1rem 1.5rem;
+        flex-direction: column;
+        gap: 1rem;
+        text-align: center;
+    }
+
+    .zkill-card-content {
+        padding: 1.5rem;
+    }
+
+    .zkill-stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.8rem;
+    }
+
+    .zkill-entity-info {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .zkill-activity-timeline {
+        flex-direction: column;
+        gap: 0.8rem;
+    }
+
+    .zkill-location-item {
+        flex-direction: column;
+        gap: 0.8rem;
+        text-align: center;
+    }
+
+    .zkill-location-stats {
+        justify-content: center;
+    }
+}
+
+@media (max-width: 480px) {
+    .zkill-modal-backdrop {
+        padding: 0.5rem;
+    }
+
+    .zkill-stats-card {
+        margin: 0.5rem;
+        max-height: calc(95vh - 1rem);
+    }
+
+    .zkill-header-controls {
+        top: -8px;
+        right: -8px;
+        gap: 4px;
+    }
+    
+    .zkill-close-btn {
+        width: 28px;
+        height: 28px;
+        font-size: 12px;
+    }
+    
+    .zkill-back-btn {
+        width: 24px;
+        height: 24px;
+        font-size: 10px;
+    }
+
+    .zkill-stats-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .zkill-entity-avatar {
+        width: 48px;
+        height: 48px;
+    }
+
+    .zkill-entity-details h2 {
+        font-size: 1.2rem;
     }
 }
