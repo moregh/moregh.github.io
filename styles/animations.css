@@ -77,6 +77,7 @@
 }
 
 @keyframes float {
+
     0%,
     100% {
         transform: translate3d(0, 0, 0) scale(1)
@@ -96,6 +97,7 @@
 }
 
 @keyframes titleGlow {
+
     0%,
     100% {
         filter: drop-shadow(0 0 8px rgba(0, 212, 255, 0.3))
@@ -137,6 +139,7 @@
 }
 
 @keyframes warningGlow {
+
     0%,
     100% {
         filter: drop-shadow(0 0 8px rgba(251, 191, 36, 0.3))

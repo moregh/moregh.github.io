@@ -34,6 +34,7 @@ import {
     addScrollStateDetection,
     setupVirtualScrolling
 } from './rendering.js';
+import { getZkillCardInstance } from './zkill-card.js'
 
 // Application state
 let currentView = 'grid';
@@ -470,6 +471,10 @@ export async function validateNames() {
 
 function handleZkillStatsClick(element) {
     const clickableType = element.dataset.clickable;
+    
+    // Update entity maps before showing zkill cards
+    const zkillCard = getZkillCardInstance(); // You'll need to export this from zkill-card.js
+    zkillCard.updateEntityMaps();
 
     if (clickableType === 'character') {
         const characterId = element.dataset.characterId;

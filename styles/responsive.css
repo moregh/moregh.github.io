@@ -7,6 +7,7 @@
 
 /* Large Screen Optimizations */
 @media (min-width: 1400px) {
+
     .results-container,
     .summary-container {
         grid-template-columns: repeat(2, 1fr);
@@ -152,7 +153,8 @@
     }
 
     .version-badge:hover {
-        transform: translateY(-1px); /* Reduced hover lift on mobile */
+        transform: translateY(-1px);
+        /* Reduced hover lift on mobile */
     }
 }
 
@@ -174,11 +176,11 @@
         padding: 0.7rem 1.5rem;
         font-size: 0.9rem
     }
-    
+
     .header-main .title-link {
         margin-left: 15px;
     }
-    
+
     .loading-stats {
         flex-direction: column;
         gap: 0.45rem
@@ -251,6 +253,7 @@
 
 /* Reduced Motion Support */
 @media (prefers-reduced-motion: reduce) {
+
     *,
     *::before,
     *::after {
@@ -287,11 +290,11 @@
     .version-badge::before {
         transition: none;
     }
-    
+
     .version-badge:hover {
         transform: none;
     }
-    
+
     .version-badge::before {
         display: none;
     }

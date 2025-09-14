@@ -955,3 +955,147 @@
         font-size: 0.65rem;
     }
 }
+/* Member Lists Dropdown */
+.zkill-members-section {
+    margin-top: -2rem;
+    margin-bottom: 1rem;
+}
+
+.zkill-members-dropdown {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-top: 1rem;
+}
+
+.zkill-members-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.2rem;
+    background: rgba(255, 255, 255, 0.05);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.zkill-members-header:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.zkill-members-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.zkill-members-count {
+    background: rgba(0, 212, 255, 0.2);
+    color: var(--primary-color);
+    padding: 0.2rem 0.6rem;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.zkill-members-toggle {
+    font-size: 1.2rem;
+    color: var(--text-secondary);
+    transition: transform 0.2s ease;
+}
+
+.zkill-members-dropdown.expanded .zkill-members-toggle {
+    transform: rotate(180deg);
+}
+
+.zkill-members-list {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.zkill-members-dropdown.expanded .zkill-members-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.zkill-members-content {
+    padding: 0;
+}
+
+.zkill-member-item {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    padding: 0.8rem 1.2rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.zkill-member-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+    padding-left: 1.5rem;
+}
+
+.zkill-member-item:last-child {
+    border-bottom: none;
+}
+
+.zkill-member-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    object-fit: cover;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: linear-gradient(45deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+    transition: opacity 0.3s ease;
+    flex-shrink: 0;
+}
+
+.zkill-member-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.zkill-member-name {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 0.2rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.zkill-member-details {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .zkill-members-list {
+        max-height: 0;
+    }
+    
+    .zkill-members-dropdown.expanded .zkill-members-list {
+        max-height: 250px;
+    }
+    
+    .zkill-member-item {
+        padding: 0.6rem 1rem;
+    }
+    
+    .zkill-member-avatar {
+        width: 28px;
+        height: 28px;
+    }
+}

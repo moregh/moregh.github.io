@@ -810,3 +810,9 @@ function getCurrentView() {
     // This will be set by the main app
     return window.currentView || 'grid';
 }
+export function getEntityMaps() {
+    return {
+        corpToCharactersMap,
+        allianceToCorpsMap
+    };
+}

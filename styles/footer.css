@@ -145,10 +145,10 @@
     transition-duration: 0.1s
 }
 
-.container > .disclaimer {
+.container>.disclaimer {
     margin-top: 2.5rem
 }
 
-.container > .copyright {
+.container>.copyright {
     margin-top: 1rem
 }

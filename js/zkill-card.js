@@ -16,7 +16,8 @@ import {
     ALLIANCE_LOGO_SIZE_PX,
     ZKILL_CARD_ANIMATION_DURATION_MS
 } from './config.js';
-
+// Import entity maps from rendering module
+import { getEntityMaps } from './rendering.js';
 /**
  * zKillboard Stats Card Manager
  */
@@ -24,10 +25,15 @@ class ZKillStatsCard {
     constructor() {
         this.currentModal = null;
         this.isVisible = false;
-        this.navigationHistory = []; // Add this line
+        this.navigationHistory = [];
         this.setupEventListeners();
+        this.updateEntityMaps();
     }
-
+    updateEntityMaps() {
+    const maps = getEntityMaps();
+    this.corpToCharactersMap = maps.corpToCharactersMap;
+    this.allianceToCorpsMap = maps.allianceToCorpsMap;
+}
     setupEventListeners() {
         // Close modal on Escape key
         document.addEventListener('keydown', (e) => {
@@ -491,8 +497,79 @@ class ZKillStatsCard {
         const backBtn = modal.querySelector('.zkill-back-btn');
         backBtn.addEventListener('click', () => this.goBack());
 
+        // Add dropdown toggle functionality
+modal.addEventListener('click', (e) => {
+    if (e.target.closest('[data-action="toggle-members"]')) {
+        e.preventDefault();
+        e.stopPropagation();
+        const dropdown = modal.querySelector('#zkill-members-dropdown');
+        if (dropdown) {
+            dropdown.classList.toggle('expanded');
+        }
+    }
+});
+
+// Add member click functionality
+modal.addEventListener('click', (e) => {
+    const memberItem = e.target.closest('[data-click-action]');
+    if (memberItem) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const action = memberItem.dataset.clickAction;
+        
+        if (action === 'show-character') {
+            const characterId = memberItem.dataset.characterId;
+            const characterName = memberItem.dataset.characterName;
+            
+            // Add current card to history
+            this.addToNavigationHistory();
+            
+            // Close current modal and show character
+            this.close();
+            setTimeout(() => {
+                this.showCharacterStats(characterId, characterName);
+            }, 350);
+            
+        } else if (action === 'show-corporation') {
+            const corporationId = memberItem.dataset.corporationId;
+            const corporationName = memberItem.dataset.corporationName;
+            
+            // Add current card to history
+            this.addToNavigationHistory();
+            
+            // Close current modal and show corporation
+            this.close();
+            setTimeout(() => {
+                this.showCorporationStats(corporationId, corporationName);
+            }, 350);
+        }
+    }
+});
+
         return modal;
     }
+    addToNavigationHistory() {
+    if (!this.currentModal) return;
+    
+    const currentEntityType = this.currentModal.querySelector('.zkill-entity-type').textContent;
+    const currentEntityName = this.currentModal.querySelector('.zkill-entity-details h2').textContent.replace(' ⚔️', '');
+    const currentEntityId = this.getCurrentEntityId();
+    
+    if (currentEntityId) {
+        this.navigationHistory.push({
+            entityType: currentEntityType,
+            entityId: currentEntityId,
+            entityName: currentEntityName,
+            apiType: currentEntityType + 'ID'
+        });
+        
+        // Limit history to 3 items (character -> corp -> alliance)
+        if (this.navigationHistory.length > 3) {
+            this.navigationHistory.shift();
+        }
+    }
+}
     // Navigate back to previous card
     goBack() {
         if (this.navigationHistory.length > 0) {
@@ -588,8 +665,93 @@ class ZKillStatsCard {
     /**
      * Create main stats HTML
      */
+    // Add this method to the ZKillStatsCard class
+createMembersDropdownHTML(entityType, entityId) {
+    if (entityType === 'corporation') {
+        const characters = this.corpToCharactersMap.get(parseInt(entityId)) || [];
+        if (characters.length === 0) return '';
+        
+        const membersHTML = characters.map(character => `
+            <div class="zkill-member-item" 
+                 data-click-action="show-character" 
+                 data-character-id="${character.character_id}"
+                 data-character-name="${this.escapeHtml(character.character_name)}">
+                <img src="https://images.evetech.net/characters/${character.character_id}/portrait?size=32"
+                     alt="${this.escapeHtml(character.character_name)}" 
+                     class="zkill-member-avatar"
+                     loading="lazy">
+                <div class="zkill-member-info">
+                    <div class="zkill-member-name">${this.escapeHtml(character.character_name)}</div>
+                    <div class="zkill-member-details">Character</div>
+                </div>
+            </div>
+        `).join('');
+        
+        return `
+            <div class="zkill-members-section">
+                <div class="zkill-members-dropdown" id="zkill-members-dropdown">
+                    <div class="zkill-members-header" data-action="toggle-members">
+                        <div class="zkill-members-title">
+                            <span class="zkill-section-icon">👥</span>
+                            Corporation Members
+                            <span class="zkill-members-count">${characters.length}</span>
+                        </div>
+                        <div class="zkill-members-toggle">▼</div>
+                    </div>
+                    <div class="zkill-members-list">
+                        <div class="zkill-members-content">
+                            ${membersHTML}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    } else if (entityType === 'alliance') {
+        const corps = this.allianceToCorpsMap.get(parseInt(entityId)) || [];
+        if (corps.length === 0) return '';
+        
+        const membersHTML = corps.map(corp => `
+            <div class="zkill-member-item" 
+                 data-click-action="show-corporation" 
+                 data-corporation-id="${corp.id}"
+                 data-corporation-name="${this.escapeHtml(corp.name)}">
+                <img src="https://images.evetech.net/corporations/${corp.id}/logo?size=32"
+                     alt="${this.escapeHtml(corp.name)}" 
+                     class="zkill-member-avatar"
+                     loading="lazy">
+                <div class="zkill-member-info">
+                    <div class="zkill-member-name">${this.escapeHtml(corp.name)}</div>
+                    <div class="zkill-member-details">${corp.count} member${corp.count !== 1 ? 's' : ''}</div>
+                </div>
+            </div>
+        `).join('');
+        
+        return `
+            <div class="zkill-members-section">
+                <div class="zkill-members-dropdown" id="zkill-members-dropdown">
+                    <div class="zkill-members-header" data-action="toggle-members">
+                        <div class="zkill-members-title">
+                            <span class="zkill-section-icon">🏢</span>
+                            Member Corporations
+                            <span class="zkill-members-count">${corps.length}</span>
+                        </div>
+                        <div class="zkill-members-toggle">▼</div>
+                    </div>
+                    <div class="zkill-members-list">
+                        <div class="zkill-members-content">
+                            ${membersHTML}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    return '';
+}
     createStatsHTML(stats, entityType, entityId) {
         return `
+        <!-- Members Dropdown -->
+        ${this.createMembersDropdownHTML(entityType, entityId)}
         <!-- Main Stats Grid -->
         <div class="zkill-stats-grid">
             <div class="zkill-stat-item kills">
@@ -667,7 +829,6 @@ class ZKillStatsCard {
                 </div>
             </div>
         </div>
-
         <!-- Top Locations -->
         ${this.createTopLocationsHTML(stats.topLocations)}
 
@@ -884,4 +1045,8 @@ export function showAllianceStats(allianceId, allianceName) {
 
 export function closeStatsCard() {
     zkillStatsCard.close();
+}
+// Export the singleton instance for external access
+export function getZkillCardInstance() {
+    return zkillStatsCard;
 }
