@@ -7,27 +7,57 @@ const baseUrl = "https://zkillboard.com/api/stats/";
 const isInteger = (value) => /^\d+$/.test(value);
 const formatUserAgent = (ua) => `${ua || "UnknownClient"} +vercel-proxy`;
 
-// Simple in-memory cache (per Lambda instance)
+// Enhanced in-memory cache (per Lambda instance)
 const cache = new Map();
 const CACHE_TTL = 30 * 60 * 1000; // 30 minutes in ms
+const MAX_CACHE_SIZE = 1000; // Prevent memory bloat
 
 function getCache(key) {
   const entry = cache.get(key);
-  if (!entry) return null;
-  if (Date.now() > entry.expiry) {
-    cache.delete(key);
+  if (!entry) {
+    console.log(`Cache MISS for ${key}`);
     return null;
   }
+  if (Date.now() > entry.expiry) {
+    cache.delete(key);
+    console.log(`Cache EXPIRED for ${key}`);
+    return null;
+  }
+  console.log(`Cache HIT for ${key}`);
   return entry.data;
 }
 
 function setCache(key, data) {
-  cache.set(key, { data, expiry: Date.now() + CACHE_TTL });
-  // Optional LRU eviction: cap cache size
-  if (cache.size > 500) {
+  // LRU eviction: remove oldest entries if cache is full
+  if (cache.size >= MAX_CACHE_SIZE) {
     const firstKey = cache.keys().next().value;
     cache.delete(firstKey);
+    console.log(`Cache evicted oldest entry: ${firstKey}`);
   }
+  
+  cache.set(key, { 
+    data, 
+    expiry: Date.now() + CACHE_TTL,
+    created: Date.now()
+  });
+  console.log(`Cache SET for ${key}, total entries: ${cache.size}`);
+}
+
+// Get cache stats for debugging
+function getCacheStats() {
+  const now = Date.now();
+  let valid = 0;
+  let expired = 0;
+  
+  for (const [key, entry] of cache.entries()) {
+    if (now > entry.expiry) {
+      expired++;
+    } else {
+      valid++;
+    }
+  }
+  
+  return { total: cache.size, valid, expired };
 }
 
 // ------------------------------
@@ -42,6 +72,14 @@ export default async function handler(request, response) {
   // Handle CORS preflight
   if (request.method === "OPTIONS") {
     return response.status(200).end();
+  }
+
+  // Special endpoint for cache stats (debugging)
+  if (request.url?.endsWith('/stats')) {
+    return response.status(200).json({
+      cache: getCacheStats(),
+      timestamp: new Date().toISOString()
+    });
   }
 
   const { query } = request;
@@ -115,16 +153,20 @@ export default async function handler(request, response) {
     return response.status(403).json({ error: "Insufficient PoW difficulty" });
   }
 
-  // ---- Cache lookup ----
+  // ---- Cache lookup (FIXED: use entity-based key, not URL-based) ----
   const cacheKey = `${idType}:${idValue}`;
   const cached = getCache(cacheKey);
   if (cached) {
+    // Add cache hit header
+    response.setHeader("X-Cache", "HIT");
     response.setHeader("Cache-Control", "public, max-age=1800");
     return response.status(200).json(cached);
   }
 
   // ---- Fetch from zKillboard ----
   try {
+    console.log(`Fetching fresh data for ${cacheKey} from ${targetUrl}`);
+    
     const zkillResponse = await fetch(targetUrl, {
       headers: {
         "User-Agent": formatUserAgent(request.headers["user-agent"]),
@@ -132,6 +174,7 @@ export default async function handler(request, response) {
     });
 
     if (!zkillResponse.ok) {
+      console.error(`zKillboard returned ${zkillResponse.status} for ${targetUrl}`);
       return response
         .status(zkillResponse.status)
         .json({ error: "Upstream zKillboard error" });
@@ -143,10 +186,12 @@ export default async function handler(request, response) {
     setCache(cacheKey, data);
 
     // Cache headers for client/CDN
+    response.setHeader("X-Cache", "MISS");
     response.setHeader("Cache-Control", "public, max-age=1800");
 
     return response.status(200).json(data);
   } catch (error) {
+    console.error(`Error fetching from zKillboard:`, error);
     return response
       .status(502)
       .json({ error: `Failed to fetch from zKillboard: ${error.message}` });

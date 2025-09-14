@@ -17,7 +17,8 @@ const ZKILL_CONFIG = {
     //     'https://your-project-name.vercel.app/api/zkill',
     // ],
 
-    PROXY_BASE_URL: 'https://zkill-proxy.vercel.app/api/zkill',
+    // PROXY_BASE_URL: 'https://zkill-proxy.vercel.app/api/zkill',
+    PROXY_BASE_URL: 'https://zkill2.zkillproxy.workers.dev/',
     POW_DIFFICULTY: 12, // bitsize, 16 = 4 zeros, 12 = 3 zeros
     USER_AGENT: USER_AGENT,
     // Reduced intervals since we're using our own proxy
