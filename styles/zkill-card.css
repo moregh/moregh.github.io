@@ -46,7 +46,7 @@
     max-width: 900px;
     width: 100%;
     max-height: 90vh;
-    overflow-y: auto;
+    overflow: visible; /* Changed from overflow-y: auto */
     position: relative;
     transform: scale(0.8) translateY(50px);
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -62,7 +62,7 @@
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-start; /* Changed from space-between */
     background: linear-gradient(90deg,
             rgba(0, 212, 255, 0.1) 0%,
             rgba(74, 222, 128, 0.05) 50%,
@@ -116,49 +116,67 @@
 }
 
 .zkill-close-btn {
-    background: rgba(248, 113, 113, 0.2);
-    border: 1px solid rgba(248, 113, 113, 0.3);
-    color: var(--danger-color);
-    padding: 0.5rem;
-    border-radius: 8px;
+    background: linear-gradient(135deg, rgba(248, 113, 113, 0.9), rgba(220, 38, 38, 0.9));
+    border: 2px solid rgba(248, 113, 113, 0.6);
+    color: white;
+    padding: 0;
+    border-radius: 50%;
     cursor: pointer;
-    transition: all 0.2s ease;
-    font-size: 1.2rem;
-    width: 40px;
-    height: 40px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    font-size: 16px;
+    width: 36px;
+    height: 36px;
     display: flex;
     align-items: center;
     justify-content: center;
+    box-shadow: 0 4px 12px rgba(248, 113, 113, 0.3), 
+                0 2px 4px rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(8px);
+    font-weight: 600;
 }
-
 .zkill-close-btn:hover {
-    background: rgba(248, 113, 113, 0.3);
-    border-color: var(--danger-color);
-    transform: scale(1.1);
+    background: linear-gradient(135deg, rgba(248, 113, 113, 1), rgba(220, 38, 38, 1));
+    border-color: rgba(248, 113, 113, 0.8);
+    transform: scale(1.1) rotate(90deg);
+    box-shadow: 0 6px 20px rgba(248, 113, 113, 0.5), 
+                0 4px 8px rgba(0, 0, 0, 0.3);
 }
 
 .zkill-header-controls {
+    position: absolute;
+    top: -10px;
+    right: -10px;
     display: flex;
-    align-items: center;
-    gap: 0.5rem;
+    gap: 8px;
+    z-index: 10901;
 }
 
 .zkill-back-btn {
-    background: rgba(0, 212, 255, 0.2);
-    border: 1px solid rgba(0, 212, 255, 0.3);
-    color: var(--primary-color);
-    padding: 0.4rem 0.8rem;
-    border-radius: 6px;
+    background: linear-gradient(135deg, rgba(0, 212, 255, 0.9), rgba(0, 153, 204, 0.9));
+    border: 2px solid rgba(0, 212, 255, 0.6);
+    color: white;
+    padding: 0;
+    border-radius: 50%;
     cursor: pointer;
-    transition: all 0.2s ease;
-    font-size: 0.9rem;
-    font-weight: 500;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    font-size: 14px;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(0, 212, 255, 0.3), 
+                0 2px 4px rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(8px);
+    font-weight: 600;
 }
 
 .zkill-back-btn:hover {
-    background: rgba(0, 212, 255, 0.3);
-    border-color: var(--primary-color);
-    transform: translateX(-2px);
+    background: linear-gradient(135deg, rgba(0, 212, 255, 1), rgba(0, 153, 204, 1));
+    border-color: rgba(0, 212, 255, 0.8);
+    transform: scale(1.1) translateX(-2px);
+    box-shadow: 0 6px 20px rgba(0, 212, 255, 0.5), 
+                0 4px 8px rgba(0, 0, 0, 0.3);
 }
 
 /* Card Content */
@@ -1097,5 +1115,45 @@
     .zkill-member-avatar {
         width: 28px;
         height: 28px;
+    }
+}
+/* Responsive adjustments for floating buttons */
+@media (max-width: 768px) {
+    .zkill-header-controls {
+        top: -8px;
+        right: -8px;
+        gap: 6px;
+    }
+    
+    .zkill-close-btn {
+        width: 32px;
+        height: 32px;
+        font-size: 14px;
+    }
+    
+    .zkill-back-btn {
+        width: 28px;
+        height: 28px;
+        font-size: 12px;
+    }
+}
+
+@media (max-width: 480px) {
+    .zkill-header-controls {
+        top: -6px;
+        right: -6px;
+        gap: 4px;
+    }
+    
+    .zkill-close-btn {
+        width: 28px;
+        height: 28px;
+        font-size: 12px;
+    }
+    
+    .zkill-back-btn {
+        width: 24px;
+        height: 24px;
+        font-size: 10px;
     }
 }

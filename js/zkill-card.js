@@ -476,7 +476,7 @@ class ZKillStatsCard {
                 </div>
                 <div class="zkill-header-controls">
     <button class="zkill-back-btn" id="zkill-back-btn" title="Back" style="display: none;">
-        ← Back
+        ←
     </button>
     <button class="zkill-close-btn" title="Close">✕</button>
 </div>
