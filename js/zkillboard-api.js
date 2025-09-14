@@ -218,11 +218,11 @@ async executeRequest(entityType, entityId, retryCount = 0) {
         }
 
         // Compute proof-of-work
-        console.log(`Computing proof-of-work for ${entityType} ${entityId}...`);
-        const powStart = performance.now();
+        // console.log(`Computing proof-of-work for ${entityType} ${entityId}...`);
+        // const powStart = performance.now();
         const { nonce, ts, hash } = await this.computePoW(entityId);
-        const powTime = Math.round(performance.now() - powStart);
-        console.log(`Proof-of-work computed in ${powTime}ms: nonce=${nonce}, hash=${hash.substring(0, 8)}...`);
+        // const powTime = Math.round(performance.now() - powStart);
+        // console.log(`Proof-of-work computed in ${powTime}ms: nonce=${nonce}, hash=${hash.substring(0, 8)}...`);
 
         // Build proxy URL
         const proxyUrl = `${ZKILL_CONFIG.PROXY_BASE_URL}?${proxyParam}=${entityId}&nonce=${nonce}&ts=${ts}&hash=${hash}`;

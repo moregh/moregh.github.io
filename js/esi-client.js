@@ -244,6 +244,7 @@ export class ESIClient {
         // Check rate limiting
         const rateLimitCheck = this.shouldWaitForRateLimit();
         if (rateLimitCheck.shouldWait && retryCount === 0) {
+            showWarning(`Rate limit approaching, waiting ${rateLimitCheck.waitTime}ms`);
             console.warn(`Rate limit approaching, waiting ${rateLimitCheck.waitTime}ms`);
             await new Promise(resolve => setTimeout(resolve, rateLimitCheck.waitTime));
         }
@@ -272,6 +273,8 @@ export class ESIClient {
                     const jitter = Math.random() * 1000; // Add jitter
                     const delay = baseDelay + jitter;
 
+
+                    showWarning(`ESI request failed, retrying in ${Math.round(delay)}ms (attempt ${retryCount + 1}/${maxRetries})`);
                     console.warn(`ESI request failed, retrying in ${Math.round(delay)}ms (attempt ${retryCount + 1}/${maxRetries})`);
                     await new Promise(resolve => setTimeout(resolve, delay));
                     
