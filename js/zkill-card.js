@@ -68,30 +68,56 @@ class ZKillStatsCard {
      * Generic method to show stats card
      */
     async showStats(entityType, entityId, entityName, apiType) {
-        // Close existing modal if any
-        if (this.isVisible) {
-            this.close();
-        }
-
-        // Create modal structure
-        this.currentModal = this.createModalStructure(entityType, entityId, entityName);
-        document.body.appendChild(this.currentModal);
-
-        // Show modal with animation
-        requestAnimationFrame(() => {
-            this.currentModal.classList.add('show');
-            this.isVisible = true;
-        });
-
-        // Load stats data
-        try {
-            const stats = await this.loadStats(apiType, entityId);
-            this.populateStatsData(stats, entityType, entityId, entityName);
-        } catch (error) {
-            console.error('Failed to load zKillboard stats:', error);
-            this.showError('Failed to load killboard statistics. Please try again later.');
-        }
+    // Close existing modal if any
+    if (this.isVisible) {
+        this.close();
     }
+
+    // Create modal structure
+    this.currentModal = this.createModalStructure(entityType, entityId, entityName);
+    document.body.appendChild(this.currentModal);
+
+    // Show modal with animation
+    requestAnimationFrame(() => {
+        this.currentModal.classList.add('show');
+        this.isVisible = true;
+    });
+
+    // Load stats data and affiliations in parallel
+    try {
+        const [stats, affiliationData] = await Promise.all([
+            this.loadStats(apiType, entityId),
+            this.fetchEntityAffiliations(entityType, entityId)
+        ]);
+        
+        // Fetch entity names if we have affiliation data
+        let corporationName = null;
+        let allianceName = null;
+        
+        if (affiliationData) {
+            const names = await this.fetchEntityNames(
+                affiliationData.corporation_id, 
+                affiliationData.alliance_id
+            );
+            corporationName = names.corporationName;
+            allianceName = names.allianceName;
+        }
+        
+        // Render affiliations
+        this.renderAffiliations(
+            affiliationData?.corporation_id,
+            corporationName,
+            affiliationData?.alliance_id,
+            allianceName
+        );
+        
+        // Populate stats as before
+        this.populateStatsData(stats, entityType, entityId, entityName);
+    } catch (error) {
+        console.error('Failed to load zKillboard stats:', error);
+        this.showError('Failed to load killboard statistics. Please try again later.');
+    }
+}
 
     /**
      * Load stats from appropriate API
@@ -210,6 +236,130 @@ class ZKillStatsCard {
         </div>
     `;
     }
+    async fetchEntityAffiliations(entityType, entityId) {
+    try {
+        let affiliationData = null;
+        
+        if (entityType === 'character') {
+            // Get character affiliation from ESI
+            const response = await fetch(`https://esi.evetech.net/latest/characters/${entityId}/`);
+            if (response.ok) {
+                const charData = await response.json();
+                affiliationData = {
+                    corporation_id: charData.corporation_id,
+                    alliance_id: charData.alliance_id || null
+                };
+            }
+        } else if (entityType === 'corporation') {
+            // Get corporation info from ESI
+            const response = await fetch(`https://esi.evetech.net/latest/corporations/${entityId}/`);
+            if (response.ok) {
+                const corpData = await response.json();
+                affiliationData = {
+                    alliance_id: corpData.alliance_id || null
+                };
+            }
+        }
+        
+        return affiliationData;
+    } catch (error) {
+        console.warn('Failed to fetch entity affiliations:', error);
+        return null;
+    }
+}
+async fetchEntityNames(corporationId, allianceId) {
+    const names = {};
+    
+    try {
+        if (corporationId) {
+            const corpResponse = await fetch(`https://esi.evetech.net/latest/corporations/${corporationId}/`);
+            if (corpResponse.ok) {
+                const corpData = await corpResponse.json();
+                names.corporationName = corpData.name;
+            }
+        }
+        
+        if (allianceId) {
+            const allianceResponse = await fetch(`https://esi.evetech.net/latest/alliances/${allianceId}/`);
+            if (allianceResponse.ok) {
+                const allianceData = await allianceResponse.json();
+                names.allianceName = allianceData.name;
+            }
+        }
+    } catch (error) {
+        console.warn('Failed to fetch entity names:', error);
+    }
+    
+    return names;
+}
+renderAffiliations(corporationId, corporationName, allianceId, allianceName) {
+    const affiliationsContainer = document.getElementById('zkill-affiliations');
+    if (!affiliationsContainer) return;
+
+    let affiliationsHTML = '';
+    
+    if (corporationId && corporationName) {
+        affiliationsHTML += `
+            <div class="zkill-affiliation-item">
+                <img src="https://images.evetech.net/corporations/${corporationId}/logo?size=32" 
+                     alt="${corporationName}" 
+                     class="zkill-affiliation-logo"
+                     loading="lazy">
+                <div class="zkill-affiliation-info">
+                    <div class="zkill-affiliation-label">Corporation</div>
+                    <div class="zkill-affiliation-link" 
+     data-entity-type="corporation" 
+     data-entity-id="${corporationId}"
+     data-entity-name="${this.escapeHtml(corporationName)}"
+     style="cursor: pointer;">${this.escapeHtml(corporationName)}</div>
+                </div>
+            </div>
+        `;
+    }
+    
+    if (allianceId && allianceName) {
+        affiliationsHTML += `
+            <div class="zkill-affiliation-item">
+                <img src="https://images.evetech.net/alliances/${allianceId}/logo?size=32" 
+                     alt="${allianceName}" 
+                     class="zkill-affiliation-logo"
+                     loading="lazy">
+                <div class="zkill-affiliation-info">
+                    <div class="zkill-affiliation-label">Alliance</div>
+                    <div class="zkill-affiliation-link" 
+     data-entity-type="alliance" 
+     data-entity-id="${allianceId}"
+     data-entity-name="${this.escapeHtml(allianceName)}"
+     style="cursor: pointer;">${this.escapeHtml(allianceName)}</div>
+                </div>
+            </div>
+        `;
+    }
+    
+    affiliationsContainer.innerHTML = affiliationsHTML;
+    const affiliationLinks = affiliationsContainer.querySelectorAll('.zkill-affiliation-link');
+affiliationLinks.forEach(link => {
+    link.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const entityType = link.dataset.entityType;
+        const entityId = link.dataset.entityId;
+        const entityName = link.dataset.entityName;
+        
+        // Close current modal first, then open new one after animation completes
+        this.close();
+        
+        setTimeout(() => {
+            if (entityType === 'corporation') {
+                this.showCorporationStats(entityId, entityName);
+            } else if (entityType === 'alliance') {
+                this.showAllianceStats(entityId, entityName);
+            }
+        }, 350); // Wait for close animation to complete (300ms + buffer)
+    });
+});
+}
 
     /**
      * Create activity charts section HTML
@@ -265,42 +415,44 @@ createActivityChartsHTML(activityData) {
      * Create modal DOM structure
      */
     createModalStructure(entityType, entityId, entityName) {
-        const modal = document.createElement('div');
-        modal.className = 'zkill-modal-backdrop';
+    const modal = document.createElement('div');
+    modal.className = 'zkill-modal-backdrop';
 
-        const avatarSize = entityType === 'character' ? CHARACTER_PORTRAIT_SIZE_PX :
-            entityType === 'corporation' ? CORP_LOGO_SIZE_PX : ALLIANCE_LOGO_SIZE_PX;
+    const avatarSize = entityType === 'character' ? CHARACTER_PORTRAIT_SIZE_PX :
+        entityType === 'corporation' ? CORP_LOGO_SIZE_PX : ALLIANCE_LOGO_SIZE_PX;
 
-        modal.innerHTML = `
-            <div class="zkill-stats-card">
-                <div class="zkill-card-header">
-                    <div class="zkill-entity-info">
-                        <img src="https://images.evetech.net/${entityType === 'character' ? 'characters' : entityType + 's'}/${entityId}/${entityType === 'character' ? 'portrait' : 'logo'}?size=${avatarSize}"
-                             alt="${entityName}" 
-                             class="zkill-entity-avatar"
-                             loading="eager">
-                        <div class="zkill-entity-details">
-                            <h2>${this.escapeHtml(entityName)} <span class="zkill-stats-icon">⚔️</span></h2>
-                            <div class="zkill-entity-type">${entityType}</div>
-                        </div>
+    modal.innerHTML = `
+        <div class="zkill-stats-card">
+            <div class="zkill-card-header">
+                <div class="zkill-entity-info">
+                    <img src="https://images.evetech.net/${entityType === 'character' ? 'characters' : entityType + 's'}/${entityId}/${entityType === 'character' ? 'portrait' : 'logo'}?size=${avatarSize}"
+                         alt="${entityName}" 
+                         class="zkill-entity-avatar"
+                         loading="eager">
+                    <div class="zkill-entity-details">
+                        <h2>${this.escapeHtml(entityName)} <span class="zkill-stats-icon">⚔️</span></h2>
+                        <div class="zkill-entity-type">${entityType}</div>
                     </div>
-                    <button class="zkill-close-btn" title="Close">✕</button>
+                    <!-- Affiliations now separate from entity-details -->
+                    <div class="zkill-entity-affiliations" id="zkill-affiliations"></div>
                 </div>
-                <div class="zkill-card-content">
-                    <div class="zkill-loading">
-                        <div class="zkill-loading-spinner"></div>
-                        <div class="zkill-loading-text">Loading killboard statistics...</div>
-                    </div>
+                <button class="zkill-close-btn" title="Close">✕</button>
+            </div>
+            <div class="zkill-card-content">
+                <div class="zkill-loading">
+                    <div class="zkill-loading-spinner"></div>
+                    <div class="zkill-loading-text">Loading killboard statistics...</div>
                 </div>
             </div>
-        `;
+        </div>
+    `;
 
-        // Add close button functionality
-        const closeBtn = modal.querySelector('.zkill-close-btn');
-        closeBtn.addEventListener('click', () => this.close());
+    // Add close button functionality
+    const closeBtn = modal.querySelector('.zkill-close-btn');
+    closeBtn.addEventListener('click', () => this.close());
 
-        return modal;
-    }
+    return modal;
+}
 
     formatDangerRatio(ratio) {
         if (ratio === 0) return '0.00';
@@ -509,6 +661,9 @@ createActivityChartsHTML(activityData) {
      * Close modal
      */
     close() {
+        if (this.currentModal) {
+            this.currentModal.removeEventListener('click', this.affiliationClickHandler);
+        }
         if (!this.currentModal || !this.isVisible) return;
 
         this.currentModal.classList.remove('show');

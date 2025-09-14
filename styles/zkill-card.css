@@ -751,3 +751,179 @@
         padding: 0.6rem;
     }
 }
+/* Replace the zkill-entity-info and affiliation styles in styles/zkill-card.css with these: */
+
+.zkill-entity-info {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex: 1;
+}
+
+.zkill-entity-details {
+    display: flex;
+    flex-direction: column;
+    min-width: 0; /* Allow shrinking */
+}
+
+.zkill-entity-details h2 {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--primary-color);
+    margin-bottom: 0.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    white-space: nowrap;
+}
+
+.zkill-entity-type {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    text-transform: capitalize;
+}
+
+/* Entity Affiliations - Horizontal Layout */
+.zkill-entity-affiliations {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    margin-left: 2rem; /* Push to the right */
+    flex-shrink: 0;
+}
+
+.zkill-affiliation-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.zkill-affiliation-item:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(0, 212, 255, 0.3);
+    transform: translateY(-1px);
+}
+
+.zkill-affiliation-logo {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    object-fit: cover;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: linear-gradient(45deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+    transition: opacity 0.3s ease;
+    flex-shrink: 0;
+}
+
+.zkill-affiliation-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.zkill-affiliation-label {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.1rem;
+}
+
+.zkill-affiliation-link {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: color 0.2s ease;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.zkill-affiliation-link:hover {
+    color: #66e0ff;
+    text-decoration: underline;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1024px) {
+    .zkill-entity-info {
+        flex-wrap: wrap;
+        gap: 0.75rem;
+    }
+    
+    .zkill-entity-affiliations {
+        margin-left: 0;
+        width: 100%;
+        justify-content: flex-start;
+    }
+}
+
+@media (max-width: 768px) {
+    .zkill-card-header {
+        padding: 1rem 1.5rem;
+        flex-direction: column;
+        gap: 1rem;
+        text-align: center;
+    }
+
+    .zkill-entity-info {
+        flex-direction: column;
+        text-align: center;
+        width: 100%;
+    }
+    
+    .zkill-entity-affiliations {
+        flex-direction: column;
+        gap: 0.5rem;
+        margin-left: 0;
+        width: 100%;
+    }
+    
+    .zkill-affiliation-item {
+        justify-content: center;
+        width: 100%;
+        max-width: 280px;
+        margin: 0 auto;
+    }
+    
+    .zkill-affiliation-logo {
+        width: 28px;
+        height: 28px;
+    }
+    
+    .zkill-affiliation-link {
+        font-size: 0.8rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .zkill-entity-details h2 {
+        font-size: 1.2rem;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+    
+    .zkill-affiliation-item {
+        padding: 0.4rem 0.6rem;
+        max-width: 240px;
+    }
+    
+    .zkill-affiliation-logo {
+        width: 24px;
+        height: 24px;
+    }
+    
+    .zkill-affiliation-link {
+        font-size: 0.75rem;
+    }
+    
+    .zkill-affiliation-label {
+        font-size: 0.65rem;
+    }
+}
