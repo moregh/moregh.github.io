@@ -466,3 +466,180 @@
         font-size: 1.2rem;
     }
 }
+/* Recent Activity Grid */
+.zkill-activity-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.zkill-activity-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 1rem;
+    text-align: center;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.zkill-activity-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+    opacity: 0.6;
+}
+
+.zkill-activity-card:hover {
+    transform: translateY(-2px);
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(0, 212, 255, 0.3);
+}
+
+.zkill-activity-icon {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+    opacity: 0.8;
+}
+
+.zkill-activity-number {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--primary-color);
+    margin-bottom: 0.25rem;
+}
+
+.zkill-activity-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 500;
+}
+
+/* Compact Locations Grid */
+.zkill-locations-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
+    gap: 0.8rem;
+    margin-bottom: 1rem;
+}
+
+.zkill-location-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 0.8rem;
+    border-left: 3px solid var(--secondary-color);
+    transition: all 0.2s ease;
+    min-height: 60px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.zkill-location-card:hover {
+    background: rgba(255, 255, 255, 0.06);
+    transform: translateY(-1px);
+    border-left-color: var(--primary-color);
+}
+
+.zkill-location-name {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    margin-bottom: 0.4rem;
+    line-height: 1.2;
+}
+
+.zkill-location-bottom {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.zkill-location-security {
+    padding: 0.15rem 0.4rem;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.zkill-location-security.highsec {
+    background: rgba(74, 222, 128, 0.2);
+    color: var(--secondary-color);
+}
+
+.zkill-location-security.lowsec {
+    background: rgba(251, 191, 36, 0.2);
+    color: var(--warning-color);
+}
+
+.zkill-location-security.nullsec {
+    background: rgba(248, 113, 113, 0.2);
+    color: var(--danger-color);
+}
+
+.zkill-location-security.unknown {
+    background: rgba(128, 128, 128, 0.2);
+    color: var(--text-muted);
+}
+
+.zkill-location-kills {
+    color: var(--secondary-color);
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+/* Remove old location styles that are no longer used */
+.zkill-locations-list {
+    display: none; /* Hide old list style */
+}
+
+.zkill-location-item {
+    display: none; /* Hide old item style */
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .zkill-activity-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.8rem;
+    }
+    
+    .zkill-locations-grid {
+        grid-template-columns: 1fr;
+        gap: 0.6rem;
+    }
+    
+    .zkill-activity-number {
+        font-size: 1.2rem;
+    }
+    
+    .zkill-activity-icon {
+        font-size: 1.3rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .zkill-activity-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .zkill-activity-card {
+        padding: 0.8rem;
+    }
+    
+    .zkill-location-card {
+        padding: 0.6rem;
+        min-height: 50px;
+    }
+}

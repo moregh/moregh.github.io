@@ -16,7 +16,7 @@ const ZKILL_CONFIG = {
     //     'https://zkillproxy.zkillproxy.workers.dev/',
     //     'https://your-project-name.vercel.app/api/zkill',
     // ],
-  
+
     PROXY_BASE_URL: 'https://zkill-proxy.vercel.app/api/zkill',
     POW_DIFFICULTY: 12, // bitsize, 16 = 4 zeros, 12 = 3 zeros
     USER_AGENT: USER_AGENT,
@@ -72,7 +72,7 @@ class ZKillRateLimiter {
             try {
                 const now = Date.now();
                 const timeSinceLastRequest = now - this.lastRequestTime;
-                
+
                 if (timeSinceLastRequest < ZKILL_CONFIG.REQUEST_INTERVAL_MS) {
                     const delayNeeded = ZKILL_CONFIG.REQUEST_INTERVAL_MS - timeSinceLastRequest;
                     console.log(`Rate limiting: waiting ${delayNeeded}ms`);
@@ -175,19 +175,19 @@ class ZKillboardClient {
         const ts = Math.floor(Date.now() / 1000);
         let nonce = 0;
         const targetPrefix = '0'.repeat(difficulty / 4); // 16 bits = 4 hex chars
-        
+
         while (true) {
             const input = `${id}|${nonce}|${ts}`;
             const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
             const hashHex = [...new Uint8Array(buf)]
                 .map(x => x.toString(16).padStart(2, "0"))
                 .join("");
-            
+
             if (hashHex.startsWith(targetPrefix)) {
                 return { nonce, ts, hash: hashHex };
             }
             nonce++;
-            
+
             // Prevent infinite loops - if we haven't found a solution after 1M attempts, something's wrong
             if (nonce > 1000000) {
                 throw new ZKillError('Proof-of-work computation failed - too many iterations', 500);
@@ -197,94 +197,94 @@ class ZKillboardClient {
     /**
  * Execute HTTP request using custom proxy with proof-of-work
  */
-/**
- * Execute HTTP request using custom proxy with proof-of-work
- */
-async executeRequest(entityType, entityId, retryCount = 0) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), ZKILL_CONFIG.REQUEST_TIMEOUT_MS);
+    /**
+     * Execute HTTP request using custom proxy with proof-of-work
+     */
+    async executeRequest(entityType, entityId, retryCount = 0) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), ZKILL_CONFIG.REQUEST_TIMEOUT_MS);
 
-    try {
-        // Map entity types to proxy parameters
-        const entityTypeMap = {
-            'characterID': 'character',
-            'corporationID': 'corporation', 
-            'allianceID': 'alliance'
-        };
-        
-        const proxyParam = entityTypeMap[entityType];
-        if (!proxyParam) {
-            throw new ZKillError(`Unsupported entity type: ${entityType}`, 400);
-        }
-
-        // Compute proof-of-work
-        // console.log(`Computing proof-of-work for ${entityType} ${entityId}...`);
-        // const powStart = performance.now();
-        const { nonce, ts, hash } = await this.computePoW(entityId);
-        // const powTime = Math.round(performance.now() - powStart);
-        // console.log(`Proof-of-work computed in ${powTime}ms: nonce=${nonce}, hash=${hash.substring(0, 8)}...`);
-
-        // Build proxy URL
-        const proxyUrl = `${ZKILL_CONFIG.PROXY_BASE_URL}?${proxyParam}=${entityId}&nonce=${nonce}&ts=${ts}&hash=${hash}`;
-
-        this.requestCount++;
-        
-        const response = await fetch(proxyUrl, {
-            method: 'GET',
-            headers: {
-                'Accept': 'application/json'
-            },
-            signal: controller.signal
-        });
-
-        clearTimeout(timeoutId);
-
-        if (!response.ok) {
-            if (response.status === 404) {
-                // Entity not found or no data
-                return null;
-            } else if (response.status === 429 || response.status === 420) {
-                throw new ZKillError('Rate limited by proxy. Please try again later.', 429);
-            } else if (response.status >= 500) {
-                throw new ZKillError(`Proxy server error (${response.status})`, response.status);
-            } else if (response.status === 400) {
-                throw new ZKillError('Invalid proof-of-work or request format', 400);
-            } else {
-                throw new ZKillError(`Proxy request failed: ${response.status} ${response.statusText}`, response.status);
-            }
-        }
-
-        const text = await response.text();
-        
         try {
-            const data = JSON.parse(text);
-            return data;
-        } catch (parseError) {
-            console.warn('Failed to parse JSON response:', text.substring(0, 200));
-            throw new ZKillError('Invalid JSON response from proxy', 422);
+            // Map entity types to proxy parameters
+            const entityTypeMap = {
+                'characterID': 'character',
+                'corporationID': 'corporation',
+                'allianceID': 'alliance'
+            };
+
+            const proxyParam = entityTypeMap[entityType];
+            if (!proxyParam) {
+                throw new ZKillError(`Unsupported entity type: ${entityType}`, 400);
+            }
+
+            // Compute proof-of-work
+            // console.log(`Computing proof-of-work for ${entityType} ${entityId}...`);
+            // const powStart = performance.now();
+            const { nonce, ts, hash } = await this.computePoW(entityId);
+            // const powTime = Math.round(performance.now() - powStart);
+            // console.log(`Proof-of-work computed in ${powTime}ms: nonce=${nonce}, hash=${hash.substring(0, 8)}...`);
+
+            // Build proxy URL
+            const proxyUrl = `${ZKILL_CONFIG.PROXY_BASE_URL}?${proxyParam}=${entityId}&nonce=${nonce}&ts=${ts}&hash=${hash}`;
+
+            this.requestCount++;
+
+            const response = await fetch(proxyUrl, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json'
+                },
+                signal: controller.signal
+            });
+
+            clearTimeout(timeoutId);
+
+            if (!response.ok) {
+                if (response.status === 404) {
+                    // Entity not found or no data
+                    return null;
+                } else if (response.status === 429 || response.status === 420) {
+                    throw new ZKillError('Rate limited by proxy. Please try again later.', 429);
+                } else if (response.status >= 500) {
+                    throw new ZKillError(`Proxy server error (${response.status})`, response.status);
+                } else if (response.status === 400) {
+                    throw new ZKillError('Invalid proof-of-work or request format', 400);
+                } else {
+                    throw new ZKillError(`Proxy request failed: ${response.status} ${response.statusText}`, response.status);
+                }
+            }
+
+            const text = await response.text();
+
+            try {
+                const data = JSON.parse(text);
+                return data;
+            } catch (parseError) {
+                console.warn('Failed to parse JSON response:', text.substring(0, 200));
+                throw new ZKillError('Invalid JSON response from proxy', 422);
+            }
+
+        } catch (error) {
+            clearTimeout(timeoutId);
+
+            if (error.name === 'AbortError') {
+                throw new ZKillError('Request timed out. Please try again.', 408);
+            }
+
+            // Retry logic for certain errors
+            if (retryCount < ZKILL_CONFIG.MAX_RETRIES &&
+                (error.status >= 500 || error.status === 408 || error.status === 429)) {
+
+                const backoffDelay = Math.min(1000 * Math.pow(2, retryCount), 10000);
+                console.warn(`Proxy request failed, retrying in ${backoffDelay}ms (attempt ${retryCount + 1}/${ZKILL_CONFIG.MAX_RETRIES})`);
+
+                await new Promise(resolve => setTimeout(resolve, backoffDelay));
+                return this.executeRequest(entityType, entityId, retryCount + 1);
+            }
+
+            throw error;
         }
-
-    } catch (error) {
-        clearTimeout(timeoutId);
-
-        if (error.name === 'AbortError') {
-            throw new ZKillError('Request timed out. Please try again.', 408);
-        }
-
-        // Retry logic for certain errors
-        if (retryCount < ZKILL_CONFIG.MAX_RETRIES && 
-            (error.status >= 500 || error.status === 408 || error.status === 429)) {
-            
-            const backoffDelay = Math.min(1000 * Math.pow(2, retryCount), 10000);
-            console.warn(`Proxy request failed, retrying in ${backoffDelay}ms (attempt ${retryCount + 1}/${ZKILL_CONFIG.MAX_RETRIES})`);
-            
-            await new Promise(resolve => setTimeout(resolve, backoffDelay));
-            return this.executeRequest(entityType, entityId, retryCount + 1);
-        }
-
-        throw error;
     }
-}
 
     /**
      * Build proxy URL for CORS bypass
@@ -321,14 +321,14 @@ async executeRequest(entityType, entityId, retryCount = 0) {
     /**
  * Get performance statistics
  */
-getStats() {
-    return {
-        requests: this.requestCount,
-        cache: this.cache.getStats(),
-        queueSize: this.rateLimiter.requestQueue.length,
-        proxy: 'Custom zKillboard Proxy'
-    };
-}
+    getStats() {
+        return {
+            requests: this.requestCount,
+            cache: this.cache.getStats(),
+            queueSize: this.rateLimiter.requestQueue.length,
+            proxy: 'Custom zKillboard Proxy'
+        };
+    }
 
     /**
      * Get stats for any entity type
@@ -395,9 +395,9 @@ getStats() {
             entityType: entityType,
             entityId: parseInt(entityId),
             totalKills: this.safeGet(rawData, 'shipsDestroyed', 0),
-            totalLosses: this.safeGet(rawData, 'shipsLost', 0),
+            totalLosses: this.safeGet(rawData, 'shipsLost', 0), // This is correct
             soloKills: this.safeGet(rawData, 'soloKills', 0),
-            soloLosses: this.safeGet(rawData, 'soloLosses', 0),
+            soloLosses: this.safeGet(rawData, 'soloLosses', 0), // Add solo losses
             iskDestroyed: this.safeGet(rawData, 'iskDestroyed', 0),
             iskLost: this.safeGet(rawData, 'iskLost', 0),
             efficiency: this.calculateEfficiency(rawData),
@@ -457,10 +457,11 @@ getStats() {
         const destroyed = this.safeGet(data, 'iskDestroyed', 0);
         const lost = this.safeGet(data, 'iskLost', 0);
 
-        if (destroyed === 0 && lost === 0) return 0;
-        if (lost === 0) return 100;
+        if (destroyed === 0 && lost === 0) return 0.00;
+        if (lost === 0) return 100.00;
 
-        return Math.round((destroyed / (destroyed + lost)) * 100);
+        const efficiency = (destroyed / (destroyed + lost)) * 100;
+        return Math.round(efficiency * 100) / 100; // 2 decimal places
     }
 
     /**
@@ -470,8 +471,11 @@ getStats() {
         const kills = this.safeGet(data, 'shipsDestroyed', 0);
         const losses = this.safeGet(data, 'shipsLost', 0);
 
-        if (kills === 0) return losses > 0 ? 999 : 0;
-        return Math.round((losses / kills) * 100) / 100;
+        // Avoid division by zero
+        const ratio = losses === 0 ? kills : kills / losses;
+
+        // Round to 2 decimal places
+        return parseFloat(ratio.toFixed(2));
     }
 
     /**
@@ -492,37 +496,29 @@ getStats() {
      * Extract recent activity data from months array
      */
     extractRecentActivity(data) {
-        const months = data.months || {};
-        const now = new Date();
+        const activepvp = data.activepvp || {};
 
-        let last7Days = { kills: 0, losses: 0 };
-        let last30Days = { kills: 0, losses: 0 };
-        let last90Days = { kills: 0, losses: 0 };
+        // Extract data from activepvp section
+        const characters = activepvp.characters?.count || 1;  // default to 1 in case it's a character lookup
+        const ships = activepvp.ships?.count || 0;
+        const systems = activepvp.systems?.count || 0;
+        const regions = activepvp.regions?.count || 0;
+        const totalKills = activepvp.kills?.count || 0;
 
-        // Process recent months data - the months are in YYYYMM format
-        Object.entries(months).forEach(([monthKey, monthData]) => {
-            // Parse YYYYMM format (e.g., "202509" = September 2025)
-            const year = parseInt(monthKey.substring(0, 4));
-            const month = parseInt(monthKey.substring(4, 6));
-            const monthDate = new Date(year, month - 1, 1); // month - 1 because JS months are 0-indexed
-
-            const daysDiff = Math.floor((now - monthDate) / (1000 * 60 * 60 * 24));
-
-            if (daysDiff <= 7) {
-                last7Days.kills += this.safeGet(monthData, 'shipsDestroyed', 0);
-                last7Days.losses += this.safeGet(monthData, 'shipsLost', 0);
-            }
-            if (daysDiff <= 30) {
-                last30Days.kills += this.safeGet(monthData, 'shipsDestroyed', 0);
-                last30Days.losses += this.safeGet(monthData, 'shipsLost', 0);
-            }
-            if (daysDiff <= 90) {
-                last90Days.kills += this.safeGet(monthData, 'shipsDestroyed', 0);
-                last90Days.losses += this.safeGet(monthData, 'shipsLost', 0);
-            }
-        });
-
-        return { last7Days, last30Days, last90Days };
+        // Since activepvp only gives us recent activity totals, we'll display this differently
+        return {
+            activePvPData: {
+                ships,
+                systems,
+                regions,
+                totalKills,
+                characters
+            },
+            // Keep these for compatibility but mark as unavailable from this data source
+            last7Days: { kills: 'N/A', losses: 'N/A' },
+            last30Days: { kills: 'N/A', losses: 'N/A' },
+            last90Days: { kills: 'N/A', losses: 'N/A' }
+        };
     }
 
     /**
@@ -540,17 +536,16 @@ getStats() {
             return [];
         }
 
-        return systemList.values
-            .slice(0, 3)
-            .map(system => ({
-                systemId: system.solarSystemID || system.id,
-                systemName: system.solarSystemName || system.name || 'Unknown System',
-                kills: system.kills || 0,
-                losses: system.losses || 0,
-                securityStatus: system.solarSystemSecurity !== undefined
-                    ? parseFloat(system.solarSystemSecurity)
-                    : null
-            }));
+        // Return all systems, not just top 3
+        return systemList.values.map(system => ({
+            systemId: system.solarSystemID || system.id,
+            systemName: system.solarSystemName || system.name || 'Unknown System',
+            kills: system.kills || 0,
+            // Remove losses since they're always 0
+            securityStatus: system.solarSystemSecurity !== undefined
+                ? parseFloat(system.solarSystemSecurity)
+                : null
+        }));
     }
 
     /**

@@ -5,12 +5,12 @@
     Licensed under AGPL License.
 */
 
-import { 
-    get_zkill_character_stats, 
-    get_zkill_corporation_stats, 
-    get_zkill_alliance_stats 
+import {
+    get_zkill_character_stats,
+    get_zkill_corporation_stats,
+    get_zkill_alliance_stats
 } from './zkillboard-api.js';
-import { 
+import {
     CHARACTER_PORTRAIT_SIZE_PX,
     CORP_LOGO_SIZE_PX,
     ALLIANCE_LOGO_SIZE_PX,
@@ -116,8 +116,8 @@ class ZKillStatsCard {
         const modal = document.createElement('div');
         modal.className = 'zkill-modal-backdrop';
 
-        const avatarSize = entityType === 'character' ? CHARACTER_PORTRAIT_SIZE_PX : 
-                          entityType === 'corporation' ? CORP_LOGO_SIZE_PX : ALLIANCE_LOGO_SIZE_PX;
+        const avatarSize = entityType === 'character' ? CHARACTER_PORTRAIT_SIZE_PX :
+            entityType === 'corporation' ? CORP_LOGO_SIZE_PX : ALLIANCE_LOGO_SIZE_PX;
 
         modal.innerHTML = `
             <div class="zkill-stats-card">
@@ -150,6 +150,12 @@ class ZKillStatsCard {
         return modal;
     }
 
+    formatDangerRatio(ratio) {
+        if (ratio === 0) return '0.00';
+        if (ratio >= 100) return Math.round(ratio).toString();
+        return ratio.toFixed(2);
+    }
+
     /**
      * Populate modal with stats data
      */
@@ -157,7 +163,7 @@ class ZKillStatsCard {
         if (!this.currentModal) return;
 
         const content = this.currentModal.querySelector('.zkill-card-content');
-        
+
         if (!stats || (stats.totalKills === 0 && stats.totalLosses === 0)) {
             content.innerHTML = this.createEmptyStateHTML(entityName);
             return;
@@ -171,96 +177,105 @@ class ZKillStatsCard {
      */
     createStatsHTML(stats, entityType, entityId) {
         return `
-            <!-- Main Stats Grid -->
+        <!-- Main Stats Grid -->
+        <div class="zkill-stats-grid">
+            <div class="zkill-stat-item kills">
+                <span class="zkill-stat-value">${this.formatNumber(stats.totalKills)}</span>
+                <div class="zkill-stat-label">Total Kills</div>
+            </div>
+            <div class="zkill-stat-item kills">
+                <span class="zkill-stat-value">${this.formatNumber(stats.soloKills)}</span>
+                <div class="zkill-stat-label">Solo Kills</div>
+            </div>
+            <div class="zkill-stat-item">
+                <span class="zkill-stat-value">${this.formatDangerRatio(stats.dangerRatio)}</span>
+                <div class="zkill-stat-label">Kill/Death Ratio</div>
+            </div>
+            <div class="zkill-stat-item losses">
+                <span class="zkill-stat-value">${this.formatNumber(stats.totalLosses)}</span>
+                <div class="zkill-stat-label">Total Losses</div>
+            </div>
+            <div class="zkill-stat-item losses">
+                <span class="zkill-stat-value">${this.formatNumber(stats.soloLosses)}</span>
+                <div class="zkill-stat-label">Solo Losses</div>
+            </div>
+            <div class="zkill-stat-item">
+                <span class="zkill-stat-value">${stats.gangRatio}%</span>
+                <div class="zkill-stat-label">Gang Activity</div>
+            </div>
+        </div>
+
+        <!-- ISK Values -->
+        <div class="zkill-section">
+            <h3 class="zkill-section-title">
+                <span class="zkill-section-icon">💰</span>
+                ISK Statistics
+            </h3>
             <div class="zkill-stats-grid">
                 <div class="zkill-stat-item kills">
-                    <span class="zkill-stat-value">${this.formatNumber(stats.totalKills)}</span>
-                    <div class="zkill-stat-label">Total Kills</div>
+                    <span class="zkill-stat-value">${this.formatISK(stats.iskDestroyed)}</span>
+                    <div class="zkill-stat-label">ISK Destroyed</div>
                 </div>
                 <div class="zkill-stat-item losses">
-                    <span class="zkill-stat-value">${this.formatNumber(stats.totalLosses)}</span>
-                    <div class="zkill-stat-label">Total Losses</div>
+                    <span class="zkill-stat-value">${this.formatISK(stats.iskLost)}</span>
+                    <div class="zkill-stat-label">ISK Lost</div>
                 </div>
                 <div class="zkill-stat-item efficiency">
-                    <span class="zkill-stat-value">${stats.efficiency}%</span>
-                    <div class="zkill-stat-label">ISK Efficiency</div>
+                    <span class="zkill-stat-value">${stats.efficiency.toFixed(2)}%</span>
+                <div class="zkill-stat-label">ISK Efficiency</div>
+            </div>
+            </div>
+        </div>
+
+        <!-- Recent Activity - Using activepvp data -->
+        <div class="zkill-section">
+            <h3 class="zkill-section-title">
+                <span class="zkill-section-icon">📊</span>
+                Recent PvP Activity
+            </h3>
+            <div class="zkill-activity-grid">
+                <div class="zkill-activity-card">
+                    <div class="zkill-activity-icon">👤</div>
+                    <div class="zkill-activity-number">${stats.recentActivity.activePvPData.characters}</div>
+                    <div class="zkill-activity-label">Characters</div>
                 </div>
-                <div class="zkill-stat-item">
-                    <span class="zkill-stat-value">${this.formatNumber(stats.soloKills)}</span>
-                    <div class="zkill-stat-label">Solo Kills</div>
+                <div class="zkill-activity-card">
+                    <div class="zkill-activity-icon">🚀</div>
+                    <div class="zkill-activity-number">${stats.recentActivity.activePvPData.ships}</div>
+                    <div class="zkill-activity-label">Ship Types</div>
                 </div>
-                <div class="zkill-stat-item">
-                    <span class="zkill-stat-value">${stats.dangerRatio}</span>
-                    <div class="zkill-stat-label">Danger Ratio</div>
+                <div class="zkill-activity-card">
+                    <div class="zkill-activity-icon">⚔️</div>
+                    <div class="zkill-activity-number">${stats.recentActivity.activePvPData.totalKills}</div>
+                    <div class="zkill-activity-label">Recent Kills</div>
                 </div>
-                <div class="zkill-stat-item">
-                    <span class="zkill-stat-value">${stats.gangRatio}%</span>
-                    <div class="zkill-stat-label">Gang Activity</div>
+                <div class="zkill-activity-card">
+                    <div class="zkill-activity-icon">🌍</div>
+                    <div class="zkill-activity-number">${stats.recentActivity.activePvPData.systems}</div>
+                    <div class="zkill-activity-label">Systems</div>
+                </div>
+                <div class="zkill-activity-card">
+                    <div class="zkill-activity-icon">🗺️</div>
+                    <div class="zkill-activity-number">${stats.recentActivity.activePvPData.regions}</div>
+                    <div class="zkill-activity-label">Regions</div>
                 </div>
             </div>
+        </div>
 
-            <!-- ISK Values -->
-            <div class="zkill-section">
-                <h3 class="zkill-section-title">
-                    <span class="zkill-section-icon">💰</span>
-                    ISK Statistics
-                </h3>
-                <div class="zkill-stats-grid">
-                    <div class="zkill-stat-item kills">
-                        <span class="zkill-stat-value">${this.formatISK(stats.iskDestroyed)}</span>
-                        <div class="zkill-stat-label">ISK Destroyed</div>
-                    </div>
-                    <div class="zkill-stat-item losses">
-                        <span class="zkill-stat-value">${this.formatISK(stats.iskLost)}</span>
-                        <div class="zkill-stat-label">ISK Lost</div>
-                    </div>
-                </div>
-            </div>
+        <!-- Top Locations -->
+        ${this.createTopLocationsHTML(stats.topLocations)}
 
-            <!-- Recent Activity -->
-            <div class="zkill-section">
-                <h3 class="zkill-section-title">
-                    <span class="zkill-section-icon">📊</span>
-                    Recent Activity
-                </h3>
-                <div class="zkill-activity-timeline">
-                    <div class="zkill-activity-period">
-                        <div class="zkill-activity-period-label">Last 7 Days</div>
-                        <div class="zkill-activity-values">
-                            <span class="zkill-activity-kills">${stats.recentActivity.last7Days.kills} K</span>
-                            <span class="zkill-activity-losses">${stats.recentActivity.last7Days.losses} L</span>
-                        </div>
-                    </div>
-                    <div class="zkill-activity-period">
-                        <div class="zkill-activity-period-label">Last 30 Days</div>
-                        <div class="zkill-activity-values">
-                            <span class="zkill-activity-kills">${stats.recentActivity.last30Days.kills} K</span>
-                            <span class="zkill-activity-losses">${stats.recentActivity.last30Days.losses} L</span>
-                        </div>
-                    </div>
-                    <div class="zkill-activity-period">
-                        <div class="zkill-activity-period-label">Last 90 Days</div>
-                        <div class="zkill-activity-values">
-                            <span class="zkill-activity-kills">${stats.recentActivity.last90Days.kills} K</span>
-                            <span class="zkill-activity-losses">${stats.recentActivity.last90Days.losses} L</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Top Locations -->
-            ${this.createTopLocationsHTML(stats.topLocations)}
-
-            <!-- Footer -->
-            <div style="text-align: center; padding: 1rem; border-top: 1px solid rgba(255, 255, 255, 0.1); margin-top: 1rem;">
-                <a href="https://zkillboard.com/${entityType}/${entityId}/" 
-                   target="_blank" 
-                   style="color: var(--primary-color); text-decoration: none; font-weight: 600;">
-                    View full stats on zKillboard →
-                </a>
-            </div>
-        `;
+        <!-- Footer -->
+        <div style="text-align: center; padding: 1rem; border-top: 1px solid rgba(255, 255, 255, 0.1); margin-top: 1rem;">
+            <a href="https://zkillboard.com/${entityType}/${entityId}/" 
+               target="_blank" 
+               style="color: var(--primary-color); text-decoration: none; font-weight: 600;">
+                View full stats on zKillboard →
+            </a>
+        </div>
+    `;
     }
+
 
     /**
      * Create top locations HTML
@@ -268,9 +283,9 @@ class ZKillStatsCard {
     /**
  * Create top locations HTML
  */
-createTopLocationsHTML(locations) {
-    if (!locations || locations.length === 0) {
-        return `
+    createTopLocationsHTML(locations) {
+        if (!locations || locations.length === 0) {
+            return `
             <div class="zkill-section">
                 <h3 class="zkill-section-title">
                     <span class="zkill-section-icon">🌍</span>
@@ -281,35 +296,32 @@ createTopLocationsHTML(locations) {
                 </div>
             </div>
         `;
-    }
+        }
 
-    const locationsHTML = locations.map(location => `
-        <div class="zkill-location-item">
-            <div class="zkill-location-info">
-                <div class="zkill-location-name">${this.escapeHtml(location.systemName)}</div>
+        const locationsHTML = locations.map(location => `
+        <div class="zkill-location-card">
+            <div class="zkill-location-name">${this.escapeHtml(location.systemName)}</div>
+            <div class="zkill-location-bottom">
                 <div class="zkill-location-security ${this.getSecurityClass(location.securityStatus)}">
                     ${this.formatSecurity(location.securityStatus)}
                 </div>
-            </div>
-            <div class="zkill-location-stats">
-                <span class="zkill-location-kills">${location.kills} kills</span>
-                <span class="zkill-location-losses">${location.losses} losses</span>
+                <div class="zkill-location-kills">${location.kills} kills</div>
             </div>
         </div>
     `).join('');
 
-    return `
+        return `
         <div class="zkill-section">
             <h3 class="zkill-section-title">
                 <span class="zkill-section-icon">🌍</span>
                 Top PVP Locations
             </h3>
-            <div class="zkill-locations-list">
+            <div class="zkill-locations-grid">
                 ${locationsHTML}
             </div>
         </div>
     `;
-}
+    }
 
     /**
      * Create empty state HTML
@@ -385,50 +397,50 @@ createTopLocationsHTML(locations) {
     }
 
     formatSecurity(security) {
-    if (security === null || security === undefined) {
-        return 'Unknown';
-    }
-    
-    // Handle string security values
-    if (typeof security === 'string') {
-        const numSec = parseFloat(security);
-        if (isNaN(numSec)) {
+        if (security === null || security === undefined) {
             return 'Unknown';
         }
-        security = numSec;
-    }
-    
-    if (security >= 0.5) {
-        return security.toFixed(1);
-    } else if (security > 0.0) {
-        return security.toFixed(1);
-    } else {
-        return '0.0';
-    }
-}
 
-getSecurityClass(security) {
-    if (security === null || security === undefined) {
-        return 'unknown';
+        // Handle string security values
+        if (typeof security === 'string') {
+            const numSec = parseFloat(security);
+            if (isNaN(numSec)) {
+                return 'Unknown';
+            }
+            security = numSec;
+        }
+
+        if (security >= 0.5) {
+            return security.toFixed(1);
+        } else if (security > 0.0) {
+            return security.toFixed(1);
+        } else {
+            return '0.0';
+        }
     }
-    
-    // Handle string security values
-    if (typeof security === 'string') {
-        const numSec = parseFloat(security);
-        if (isNaN(numSec)) {
+
+    getSecurityClass(security) {
+        if (security === null || security === undefined) {
             return 'unknown';
         }
-        security = numSec;
+
+        // Handle string security values
+        if (typeof security === 'string') {
+            const numSec = parseFloat(security);
+            if (isNaN(numSec)) {
+                return 'unknown';
+            }
+            security = numSec;
+        }
+
+        if (security >= 0.5) {
+            return 'highsec';
+        } else if (security > 0.0) {
+            return 'lowsec';
+        } else {
+            return 'nullsec';
+        }
     }
-    
-    if (security >= 0.5) {
-        return 'highsec';
-    } else if (security > 0.0) {
-        return 'lowsec';
-    } else {
-        return 'nullsec';
-    }
-}
 
     escapeHtml(text) {
         const div = document.createElement('div');
