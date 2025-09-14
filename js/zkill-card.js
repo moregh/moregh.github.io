@@ -889,7 +889,7 @@ createMembersDropdownHTML(entityType, entityId) {
             </div>
             <div class="zkill-location-bottom">
                 <div class="zkill-location-security ${this.getSecurityClass(location.securityStatus)}">
-                    ${this.formatSecurity(location.securityStatus)}
+                    ${this.formatSecurity(location.securityStatus, location.systemName)}
                 </div>
                 <div class="zkill-location-kills">${location.kills} kills</div>
             </div>
@@ -985,7 +985,7 @@ createMembersDropdownHTML(entityType, entityId) {
         return isk.toFixed(0) + ' ISK';
     }
 
-    formatSecurity(security) {
+    formatSecurity(security, systemName) {
         if (security === null || security === undefined) {
             return 'Unknown';
         }
@@ -1004,7 +1004,10 @@ createMembersDropdownHTML(entityType, entityId) {
         } else if (security > 0.0) {
             return security.toFixed(1);
         } else if (security === -1.0) {
-            return 'WH'
+            if (systemName && systemName[0] == 'J') {
+                return 'WH'
+            }
+            return 'POCH';
         } else {
             return '0.0';
         }
