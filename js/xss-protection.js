@@ -251,6 +251,28 @@ export function sanitizeAttribute(value) {
 }
 
 /**
+ * Decodes HTML entities for display purposes
+ * @param {string} str - String with HTML entities
+ * @returns {string} - Decoded string
+ */
+export function decodeHtmlEntities(str) {
+    if (typeof str !== 'string') {
+        return '';
+    }
+
+    // Handle double-escaping: &amp;#x27; -> &#x27; -> '
+    let decoded = str;
+
+    // First decode &amp; back to &
+    decoded = decoded.replace(/&amp;/g, '&');
+
+    // Then use textarea to decode all HTML entities
+    const textarea = document.createElement('textarea');
+    textarea.innerHTML = decoded;
+    return textarea.value;
+}
+
+/**
  * Validates and sanitizes an EVE image URL from CCP's CDN
  * @param {string} url - Image URL to validate
  * @returns {string} - Safe image URL or empty string if invalid

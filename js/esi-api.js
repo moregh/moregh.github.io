@@ -408,7 +408,7 @@ async function processUncachedCorporations(uncachedIds, corpMap, startingCount, 
                 if (result && result.name !== undefined) {
                     // Successful response - sanitize the data
                     corporationInfo = {
-                        name: sanitizeCorporationName(result.name),
+                        name: result.name,
                         war_eligible: Boolean(result.war_eligible)
                     };
                 } else {
@@ -486,7 +486,7 @@ async function processUncachedAlliances(uncachedIds, allianceMap, startingCount,
                 if (result && result.name !== undefined) {
                     // Successful response - sanitize the data
                     allianceInfo = {
-                        name: sanitizeAllianceName(result.name)
+                        name: result.name
                     };
                 } else {
                     // Failed response or null
@@ -545,9 +545,9 @@ export function buildCharacterResults(characters, affiliationMap, corpMap, allia
             }
 
             let result = {
-                character_name: sanitizeCharacterName(char.name),
+                character_name: char.name,
                 character_id: sanitizeId(char.id),
-                corporation_name: sanitizeCorporationName(corpInfo.name),
+                corporation_name: corpInfo.name,
                 corporation_id: sanitizeId(affiliation.corporation_id),
                 alliance_name: null,
                 alliance_id: null,
@@ -557,7 +557,7 @@ export function buildCharacterResults(characters, affiliationMap, corpMap, allia
             if (affiliation.alliance_id) {
                 const allianceInfo = allianceMap.get(affiliation.alliance_id);
                 if (allianceInfo) {
-                    result.alliance_name = sanitizeAllianceName(allianceInfo.name);
+                    result.alliance_name = allianceInfo.name;
                     result.alliance_id = sanitizeId(affiliation.alliance_id);
                 }
             }
@@ -568,7 +568,7 @@ export function buildCharacterResults(characters, affiliationMap, corpMap, allia
             showError(`Error processing character ${char.name}: ${e}`);
             console.error(`Error processing character ${char.name}:`, e);
             results.push({
-                character_name: sanitizeCharacterName(char.name),
+                character_name: char.name,
                 character_id: sanitizeId(char.id),
                 corporation_name: 'Error loading',
                 corporation_id: null,

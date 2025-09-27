@@ -5,12 +5,15 @@
     Licensed under AGPL License.
 */
 
+
 // Filter state
 let filterState = {
     warEligibleOnly: false,
     nameSearch: '',
     minCorpSize: 1,
+    maxCorpSize: 500, // Will be updated from actual data
     minAllianceSize: 1,
+    maxAllianceSize: 10000, // Will be updated from actual data
     selectedCorporation: '',
     selectedAlliance: '',
     isCollapsed: true
@@ -51,13 +54,17 @@ function cacheFilterElements() {
         warEligibleOnly: document.getElementById('filter-war-eligible-only'),
         nameSearch: document.getElementById('filter-name'),
         minCorpSize: document.getElementById('filter-min-corp-size'),
+        maxCorpSize: document.getElementById('filter-max-corp-size'),
         minAllianceSize: document.getElementById('filter-min-alliance-size'),
+        maxAllianceSize: document.getElementById('filter-max-alliance-size'),
         corporationSelect: document.getElementById('filter-corporation'),
         allianceSelect: document.getElementById('filter-alliance'),
 
         // Value displays
-        corpSizeValue: document.getElementById('corp-size-value'),
-        allianceSizeValue: document.getElementById('alliance-size-value'),
+        minCorpSizeValue: document.getElementById('min-corp-size-value'),
+        maxCorpSizeValue: document.getElementById('max-corp-size-value'),
+        minAllianceSizeValue: document.getElementById('min-alliance-size-value'),
+        maxAllianceSizeValue: document.getElementById('max-alliance-size-value'),
         resultsCount: document.getElementById('filter-results-count'),
     };
 }
@@ -79,8 +86,10 @@ function setupEventListeners() {
     filterElements.nameSearch?.addEventListener('input', debounce(handleFilterChange, 300));
 
     // Range sliders
-    filterElements.minCorpSize?.addEventListener('input', handleRangeChange);
-    filterElements.minAllianceSize?.addEventListener('input', handleRangeChange);
+    filterElements.minCorpSize?.addEventListener('input', handleMinCorpSizeChange);
+    filterElements.maxCorpSize?.addEventListener('input', handleMaxCorpSizeChange);
+    filterElements.minAllianceSize?.addEventListener('input', handleMinAllianceSizeChange);
+    filterElements.maxAllianceSize?.addEventListener('input', handleMaxAllianceSizeChange);
 
     // Dropdown filters
     filterElements.corporationSelect?.addEventListener('change', handleFilterChange);
@@ -102,11 +111,87 @@ function handleFilterChange() {
 }
 
 /**
- * Handle range slider changes
+ * Handle min corp size change with validation
  */
-function handleRangeChange(event) {
-    updateRangeValues();
-    handleFilterChange();
+function handleMinCorpSizeChange() {
+    filterState.minCorpSize = parseInt(filterElements.minCorpSize.value);
+    filterElements.minCorpSizeValue.textContent = filterState.minCorpSize;
+
+    // Ensure min doesn't exceed max
+    if (filterState.minCorpSize > filterState.maxCorpSize) {
+        filterState.maxCorpSize = filterState.minCorpSize;
+        filterElements.maxCorpSize.value = filterState.maxCorpSize;
+        filterElements.maxCorpSizeValue.textContent = filterState.maxCorpSize;
+    }
+
+    applyFilters();
+    updateResultsDisplay();
+    if (onFiltersChangeCallback) {
+        onFiltersChangeCallback();
+    }
+}
+
+/**
+ * Handle max corp size change with validation
+ */
+function handleMaxCorpSizeChange() {
+    filterState.maxCorpSize = parseInt(filterElements.maxCorpSize.value);
+    filterElements.maxCorpSizeValue.textContent = filterState.maxCorpSize;
+
+    // Ensure max doesn't go below min
+    if (filterState.maxCorpSize < filterState.minCorpSize) {
+        filterState.minCorpSize = filterState.maxCorpSize;
+        filterElements.minCorpSize.value = filterState.minCorpSize;
+        filterElements.minCorpSizeValue.textContent = filterState.minCorpSize;
+    }
+
+    applyFilters();
+    updateResultsDisplay();
+    if (onFiltersChangeCallback) {
+        onFiltersChangeCallback();
+    }
+}
+
+/**
+ * Handle min alliance size change with validation
+ */
+function handleMinAllianceSizeChange() {
+    filterState.minAllianceSize = parseInt(filterElements.minAllianceSize.value);
+    filterElements.minAllianceSizeValue.textContent = filterState.minAllianceSize;
+
+    // Ensure min doesn't exceed max
+    if (filterState.minAllianceSize > filterState.maxAllianceSize) {
+        filterState.maxAllianceSize = filterState.minAllianceSize;
+        filterElements.maxAllianceSize.value = filterState.maxAllianceSize;
+        filterElements.maxAllianceSizeValue.textContent = filterState.maxAllianceSize;
+    }
+
+    applyFilters();
+    updateResultsDisplay();
+    if (onFiltersChangeCallback) {
+        onFiltersChangeCallback();
+    }
+}
+
+/**
+ * Handle max alliance size change with validation
+ */
+function handleMaxAllianceSizeChange() {
+    filterState.maxAllianceSize = parseInt(filterElements.maxAllianceSize.value);
+    filterElements.maxAllianceSizeValue.textContent = filterState.maxAllianceSize;
+
+    // Ensure max doesn't go below min
+    if (filterState.maxAllianceSize < filterState.minAllianceSize) {
+        filterState.minAllianceSize = filterState.maxAllianceSize;
+        filterElements.minAllianceSize.value = filterState.minAllianceSize;
+        filterElements.minAllianceSizeValue.textContent = filterState.minAllianceSize;
+    }
+
+    applyFilters();
+    updateResultsDisplay();
+    if (onFiltersChangeCallback) {
+        onFiltersChangeCallback();
+    }
 }
 
 /**
@@ -119,7 +204,9 @@ function updateFilterState() {
         warEligibleOnly: filterElements.warEligibleOnly?.checked ?? false,
         nameSearch: filterElements.nameSearch?.value.toLowerCase().trim() ?? '',
         minCorpSize: parseInt(filterElements.minCorpSize?.value) ?? 1,
+        maxCorpSize: parseInt(filterElements.maxCorpSize?.value) ?? 500,
         minAllianceSize: parseInt(filterElements.minAllianceSize?.value) ?? 1,
+        maxAllianceSize: parseInt(filterElements.maxAllianceSize?.value) ?? 10000,
         selectedCorporation: filterElements.corporationSelect?.value ?? '',
         selectedAlliance: filterElements.allianceSelect?.value ?? '',
         isCollapsed: filterState.isCollapsed
@@ -160,12 +247,12 @@ function applyFilters() {
 
         // Corporation size filter
         const corpSize = getCorpSize(character.corporation_id);
-        if (corpSize < filterState.minCorpSize) return false;
+        if (corpSize < filterState.minCorpSize || corpSize > filterState.maxCorpSize) return false;
 
-        // Alliance size filter (number of corporations in alliance)
+        // Alliance size filter (total members in alliance)
         if (character.alliance_id) {
-            const allianceSize = getAllianceSize(character.alliance_id);
-            if (allianceSize < filterState.minAllianceSize) return false;
+            const allianceSize = getAllianceMemberCount(character.alliance_id);
+            if (allianceSize < filterState.minAllianceSize || allianceSize > filterState.maxAllianceSize) return false;
         }
 
         return true;
@@ -183,17 +270,13 @@ function getCorpSize(corporationId) {
 }
 
 /**
- * Get alliance size (number of corporations) from our results data
+ * Get alliance size (total member count) from our results data
  */
-function getAllianceSize(allianceId) {
+function getAllianceMemberCount(allianceId) {
     if (!allResults.length) return 1;
 
-    const uniqueCorps = new Set();
-    allResults
-        .filter(char => char.alliance_id === allianceId)
-        .forEach(char => uniqueCorps.add(char.corporation_id));
-
-    return uniqueCorps.size;
+    const allianceMembers = allResults.filter(char => char.alliance_id === allianceId);
+    return allianceMembers.length;
 }
 
 
@@ -203,14 +286,20 @@ function getAllianceSize(allianceId) {
 function updateRangeValues() {
     if (!filterElements) return;
 
-    if (filterElements.corpSizeValue && filterElements.minCorpSize) {
-        const value = filterElements.minCorpSize.value;
-        filterElements.corpSizeValue.textContent = value;
+    if (filterElements.minCorpSizeValue && filterElements.minCorpSize) {
+        filterElements.minCorpSizeValue.textContent = filterElements.minCorpSize.value;
     }
 
-    if (filterElements.allianceSizeValue && filterElements.minAllianceSize) {
-        const value = filterElements.minAllianceSize.value;
-        filterElements.allianceSizeValue.textContent = `${value} corps`;
+    if (filterElements.maxCorpSizeValue && filterElements.maxCorpSize) {
+        filterElements.maxCorpSizeValue.textContent = filterElements.maxCorpSize.value;
+    }
+
+    if (filterElements.minAllianceSizeValue && filterElements.minAllianceSize) {
+        filterElements.minAllianceSizeValue.textContent = filterElements.minAllianceSize.value;
+    }
+
+    if (filterElements.maxAllianceSizeValue && filterElements.maxAllianceSize) {
+        filterElements.maxAllianceSizeValue.textContent = filterElements.maxAllianceSize.value;
     }
 }
 
@@ -285,9 +374,11 @@ function clearAllFilters() {
     // Clear text search
     filterElements.nameSearch.value = '';
 
-    // Reset sliders to minimum values
+    // Reset sliders to minimum/maximum values
     filterElements.minCorpSize.value = 1;
+    filterElements.maxCorpSize.value = filterElements.maxCorpSize.max;
     filterElements.minAllianceSize.value = 1;
+    filterElements.maxAllianceSize.value = filterElements.maxAllianceSize.max;
 
     // Reset dropdowns to "All" options
     filterElements.corporationSelect.value = '';
@@ -303,9 +394,58 @@ function clearAllFilters() {
  */
 export function setResultsData(results) {
     allResults = results || [];
+    updateSliderMaximums(results);
     populateDropdowns(results);
     applyFilters();
     updateResultsDisplay();
+}
+
+/**
+ * Update slider maximum values based on actual data
+ */
+function updateSliderMaximums(results) {
+    if (!results || !results.length || !filterElements) return;
+
+    // Calculate max corporation size
+    const corpSizes = new Map();
+    results.forEach(char => {
+        const corpId = char.corporation_id;
+        corpSizes.set(corpId, (corpSizes.get(corpId) || 0) + 1);
+    });
+    const maxCorpSize = Math.max(...corpSizes.values());
+
+    // Calculate max alliance size (total members)
+    const allianceSizes = new Map();
+    results.forEach(char => {
+        if (char.alliance_id) {
+            const allianceId = char.alliance_id;
+            allianceSizes.set(allianceId, (allianceSizes.get(allianceId) || 0) + 1);
+        }
+    });
+    const maxAllianceSize = allianceSizes.size > 0 ? Math.max(...allianceSizes.values()) : 1;
+
+    // Update slider max attributes
+    if (filterElements.minCorpSize && filterElements.maxCorpSize) {
+        filterElements.minCorpSize.max = maxCorpSize;
+        filterElements.maxCorpSize.max = maxCorpSize;
+        // Update max corp size value if it exceeds new maximum
+        if (filterState.maxCorpSize > maxCorpSize) {
+            filterState.maxCorpSize = maxCorpSize;
+            filterElements.maxCorpSize.value = maxCorpSize;
+            filterElements.maxCorpSizeValue.textContent = maxCorpSize;
+        }
+    }
+
+    if (filterElements.minAllianceSize && filterElements.maxAllianceSize) {
+        filterElements.minAllianceSize.max = maxAllianceSize;
+        filterElements.maxAllianceSize.max = maxAllianceSize;
+        // Update max alliance size value if it exceeds new maximum
+        if (filterState.maxAllianceSize > maxAllianceSize) {
+            filterState.maxAllianceSize = maxAllianceSize;
+            filterElements.maxAllianceSize.value = maxAllianceSize;
+            filterElements.maxAllianceSizeValue.textContent = maxAllianceSize;
+        }
+    }
 }
 
 /**

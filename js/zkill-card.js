@@ -499,6 +499,12 @@ class ZKillStatsCard {
         const allowedTypes = ['character', 'corporation', 'alliance'];
         const sanitizedType = allowedTypes.includes(entityType) ? entityType : 'character';
         const sanitizedId = sanitizeId(entityId);
+        // For header, escape only dangerous chars but leave apostrophes
+        const headerName = entityName.replace(/[<>&"]/g, (match) => {
+            return {'<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;'}[match];
+        });
+
+        // For other contexts that need full sanitization, keep the sanitized version
         const sanitizedName = sanitizedType === 'character' ?
             sanitizeCharacterName(entityName) :
             sanitizedType === 'corporation' ?
@@ -521,7 +527,7 @@ class ZKillStatsCard {
                          class="zkill-entity-avatar"
                          loading="eager">
                     <div class="zkill-entity-details">
-                        <h2>${sanitizedName} ${warStatusBadge} <span class="zkill-stats-icon">📊</span></h2>
+                        <h2>${headerName} ${warStatusBadge} <span class="zkill-stats-icon">📊</span></h2>
                         <div class="zkill-entity-type">${sanitizedType}</div>
                     </div>
                     <!-- Affiliations now separate from entity-details -->

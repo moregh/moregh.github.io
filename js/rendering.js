@@ -23,7 +23,8 @@ import {
     sanitizeAllianceName,
     sanitizeId,
     sanitizeAttribute,
-    sanitizeForDOM
+    sanitizeForDOM,
+    decodeHtmlEntities
 } from './xss-protection.js';
 
 // Create single observer instance
@@ -147,7 +148,7 @@ export function updateElementContent(element, character, viewType) {
     }
 
     if (characterLink) {
-        characterLink.textContent = character.character_name;
+        characterLink.innerHTML = sanitizeCharacterName(character.character_name);
         characterLink.href = `https://zkillboard.com/character/${character.character_id}/`;
     }
 
@@ -163,7 +164,7 @@ export function updateElementContent(element, character, viewType) {
     }
 
     if (corpLink) {
-        corpLink.textContent = character.corporation_name;
+        corpLink.innerHTML = sanitizeCorporationName(character.corporation_name);
         corpLink.href = `https://zkillboard.com/corporation/${character.corporation_id}/`;
     }
 
@@ -213,7 +214,7 @@ export function updateElementContent(element, character, viewType) {
             }
 
             if (allianceLink) {
-                allianceLink.textContent = character.alliance_name;
+                allianceLink.innerHTML = sanitizeAllianceName(character.alliance_name);
                 allianceLink.href = `https://zkillboard.com/alliance/${character.alliance_id}/`;
             }
         }
@@ -310,7 +311,7 @@ export function createSummaryItem({ id, name, count, type, war_eligible }) {
     // zkill implementation with sanitized data
     item.dataset.clickable = sanitizedType;
     item.dataset.entityId = sanitizeAttribute(sanitizedId.toString());
-    item.dataset.entityName = sanitizeAttribute(sanitizedName);
+    item.dataset.entityName = name;
     item.style.cursor = 'pointer';
 
     const logo = document.createElement("img");

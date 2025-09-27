@@ -220,6 +220,19 @@
     gap: 0.8rem
 }
 
+.filter-range-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem
+}
+
+.range-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-bottom: 0.2rem;
+    font-weight: 500
+}
+
 .filter-slider {
     flex: 1;
     height: 4px;
