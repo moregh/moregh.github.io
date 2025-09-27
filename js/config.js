@@ -18,7 +18,7 @@ export const CHUNK_DELAY = 25;
 export const STATS_UPDATE_DELAY = 100;
 export const DB_NAME = 'EVEWarTargetCache';
 export const DB_VERSION = 1;
-export const VERSION = "0.5.2";
+export const VERSION = "0.5.3";
 
 // Time and throttling
 export const PROGRESS_UPDATE_THROTTLE_MS = 50;
@@ -30,6 +30,7 @@ export const CHARACTER_COUNT_DEBOUNCE_MS = 150;
 export const SCROLL_STATE_TIMEOUT_MS = 150;
 export const SCROLL_THROTTLE_MS = 8;
 export const ANIMATION_FRAME_THROTTLE_FPS = 16;
+export const POPUP_SHOW_DELAY = 200;
 
 // Character validation
 export const MIN_CHARACTER_NAME_LENGTH = 3;

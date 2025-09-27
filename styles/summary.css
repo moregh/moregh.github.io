@@ -93,12 +93,13 @@
 /* Summary Wrapper */
 .summary-wrapper {
     max-height: 1000px;
-    overflow: hidden;
+    overflow: visible;
     transition: max-height 0.3s ease
 }
 
 .summary-section.collapsed .summary-wrapper {
-    max-height: 0
+    max-height: 0;
+    overflow: hidden
 }
 
 .summary-section h3 {
@@ -121,7 +122,8 @@
 }
 
 .summary-column {
-    overflow: visible
+    overflow: visible;
+    position: relative
 }
 
 .summary-column h4 {
@@ -156,7 +158,9 @@
     display: flex;
     flex-direction: column;
     gap: 0.72rem;
-    overflow: visible
+    max-height: 400px;
+    overflow-y: auto;
+    overflow-x: hidden
 }
 
 .summary-item {
@@ -169,7 +173,7 @@
     border-left: 2.7px solid var(--secondary-color);
     transition: all 0.27s ease;
     animation: slideIn 0.45s ease forwards;
-    min-height: 3rem;
+    min-height: 3.5rem;
     position: relative;
     z-index: 1
 }
@@ -244,24 +248,8 @@
 }
 
 /* Mouseover Cards */
-.summary-item .mouseover-card {
-    opacity: 0;
-    visibility: hidden;
-    transition: all 0.25s ease;
-    pointer-events: none
-}
-
-.summary-item:hover .mouseover-card {
-    opacity: 1;
-    visibility: visible;
-    pointer-events: auto
-}
-
 .mouseover-card {
     position: absolute;
-    top: 100%;
-    left: 50%;
-    transform: translateX(-50%);
     width: 320px;
     max-height: 400px;
     background: #0a0a0a;
@@ -274,8 +262,15 @@
     opacity: 0;
     visibility: hidden;
     transition: all 0.25s ease;
-    margin-top: 0.5rem;
-    overflow-y: auto
+    overflow-y: auto;
+    pointer-events: none
+}
+
+.mouseover-card.visible {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    z-index: 10000
 }
 
 .mouseover-card-header {

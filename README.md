@@ -18,7 +18,7 @@ An intelligence tool for EVE Online character and corporation analysis.
 
 ### Core Functionality
 - **Bulk Character Analysis**: Process thousands of character names simultaneously
-- **Comprehensive Intelligence**: Get detailed character, corporation, and alliance information
+- **Detailed Intelligence**: Get detailed character, corporation, and alliance information
 - **War Eligibility Detection**: Instantly identify which entities can be targeted in highsec wars
 - **Organization Summaries**: View top corporations and alliances with member counts
 - **zKillboard Integration**: Access kill statistics and activity data for characters and organizations
@@ -48,7 +48,7 @@ Visit the live application: **[EVE Target Intel](https://moregh.github.io/)**
 
 1. **Enter Character Names**: Paste character names in the text area, one per line
 2. **Run Analysis**: Click "Analyze Characters" or use `Ctrl+Enter`
-3. **Review Results**: View comprehensive character, corporation, and alliance information
+3. **Review Results**: View detailed character, corporation, and alliance information
 4. **Apply Filters**: Use the filtering system to narrow down results by various criteria
 5. **Explore Organizations**: View summaries of corporations and alliances with detailed statistics
 6. **Access Kill Data**: Click on any character or organization to view zKillboard statistics

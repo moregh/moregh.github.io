@@ -13,7 +13,8 @@ import {
     MOUSEOVER_CARD_MAX_ITEMS,
     SCROLL_STATE_TIMEOUT_MS,
     SCROLL_THROTTLE_MS,
-    ANIMATION_FRAME_THROTTLE_FPS
+    ANIMATION_FRAME_THROTTLE_FPS,
+    POPUP_SHOW_DELAY
 } from './config.js';
 import { ManagedObservers, setImageObserverEnabled } from './observers.js';
 import {
@@ -339,7 +340,96 @@ export function createSummaryItem({ id, name, count, type, war_eligible }) {
     content.appendChild(countDiv);
 
     item.appendChild(content);
-    item.appendChild(createMouseoverCard({ id: sanitizedId, name: sanitizedName, count: sanitizedCount, war_eligible }, sanitizedType));
+
+    // Create mouseover card but don't append it to the item
+    const mouseoverCard = createMouseoverCard({ id: sanitizedId, name: sanitizedName, count: sanitizedCount, war_eligible }, sanitizedType);
+
+    // Store reference to the card on the item for later use
+    item._mouseoverCard = mouseoverCard;
+
+    // Add event listeners to position and show the card with delay
+    item.addEventListener('mouseenter', function() {
+        const card = this._mouseoverCard;
+        if (card) {
+            // Clear any existing timeout
+            if (this._showTimeout) {
+                clearTimeout(this._showTimeout);
+            }
+
+            // Add delay before showing popup to prevent flashing during scrolling
+            this._showTimeout = setTimeout(() => {
+                // Check if mouse is still over the item
+                if (this.matches(':hover')) {
+                    // Hide all other visible popup cards first
+                    const allCards = document.querySelectorAll('.mouseover-card.visible');
+                    allCards.forEach(otherCard => {
+                        if (otherCard !== card) {
+                            otherCard.classList.remove('visible');
+                        }
+                    });
+
+                    const itemRect = this.getBoundingClientRect();
+                    const columnRect = this.closest('.summary-column').getBoundingClientRect();
+
+                    // Position card relative to the summary-column
+                    const relativeTop = itemRect.top - columnRect.top + (itemRect.height / 2);
+                    const relativeLeft = itemRect.left - columnRect.left + (itemRect.width / 2);
+
+                    card.style.position = 'absolute';
+                    card.style.top = relativeTop + 'px';
+                    card.style.left = relativeLeft + 'px';
+                    card.style.transform = 'translateX(-50%)';
+
+                    // Show the card
+                    card.classList.add('visible');
+                }
+                this._showTimeout = null;
+            }, POPUP_SHOW_DELAY);
+        }
+    });
+
+    item.addEventListener('mouseleave', function(e) {
+        const card = this._mouseoverCard;
+
+        // Clear the show timeout if mouse leaves before delay completes
+        if (this._showTimeout) {
+            clearTimeout(this._showTimeout);
+            this._showTimeout = null;
+        }
+
+        if (card) {
+            // Only hide the card if we're not moving to the card itself
+            setTimeout(() => {
+                if (!card.matches(':hover')) {
+                    card.classList.remove('visible');
+                }
+            }, 10);
+        }
+    });
+
+    // Add mouse event handling to the card itself
+    mouseoverCard.addEventListener('mouseenter', function() {
+        // Keep the card visible when hovering over it
+        this.classList.add('visible');
+    });
+
+    mouseoverCard.addEventListener('mouseleave', function() {
+        // Hide the card when leaving it
+        this.classList.remove('visible');
+    });
+
+    // Prevent mouse events from bubbling through the card to elements behind it
+    mouseoverCard.addEventListener('mousemove', function(e) {
+        e.stopPropagation();
+    });
+
+    mouseoverCard.addEventListener('mouseenter', function(e) {
+        e.stopPropagation();
+    });
+
+    mouseoverCard.addEventListener('mouseleave', function(e) {
+        e.stopPropagation();
+    });
 
     // FIXED: Observe the logo image after it's in the DOM structure
     requestAnimationFrame(() => {
@@ -392,6 +482,16 @@ export function renderGrid(containerId, items, type = 'character', limit = null)
         // Single DOM update
         container.innerHTML = "";
         container.appendChild(fragment);
+
+        // Now append all mouseover cards to the summary-column (parent container)
+        const summaryColumn = container.closest('.summary-column');
+        if (summaryColumn) {
+            elements.forEach(element => {
+                if (element._mouseoverCard) {
+                    summaryColumn.appendChild(element._mouseoverCard);
+                }
+            });
+        }
     }
 }
 
