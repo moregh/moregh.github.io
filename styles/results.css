@@ -107,6 +107,18 @@
     color: var(--primary-color)
 }
 
+.alliance-stat,
+.alliance-stat .stat-number {
+    border-left-color: var(--warning-color);
+    color: var(--warning-color)
+}
+
+.corporation-stat,
+.corporation-stat .stat-number {
+    border-left-color: var(--danger-color);
+    color: var(--danger-color)
+}
+
 .cache-stat,
 .cache-stat .stat-number {
     border-left-color: var(--secondary-color);
@@ -140,8 +152,8 @@
 
 /* Results Container */
 .results-container {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    display: flex;
+    flex-direction: column;
     gap: 2rem
 }
 
@@ -151,6 +163,46 @@
     position: relative;
     z-index: 1;
     min-width: 0
+}
+
+.result-column.full-width {
+    flex: 1;
+    max-width: 100%;
+}
+
+/* War Eligibility Badges */
+.war-eligible-badge {
+    display: inline-block;
+    background: linear-gradient(135deg, #ff4757, #ff3742);
+    color: white;
+    padding: 2px 6px;
+    border-radius: 8px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-left: 6px;
+    box-shadow: 0 2px 6px rgba(255, 71, 87, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    animation: warPulse 2s infinite;
+    vertical-align: middle;
+}
+
+@keyframes warPulse {
+    0%, 100% {
+        box-shadow: 0 2px 6px rgba(255, 71, 87, 0.3);
+        transform: scale(1);
+    }
+    50% {
+        box-shadow: 0 2px 10px rgba(255, 71, 87, 0.5);
+        transform: scale(1.05);
+    }
+}
+
+/* Highlight war-eligible items */
+.result-item.war-eligible {
+    border: 1px solid rgba(255, 71, 87, 0.3);
+    background: linear-gradient(135deg, rgba(255, 71, 87, 0.03), rgba(255, 71, 87, 0.08));
 }
 
 .column-header {

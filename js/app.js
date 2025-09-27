@@ -38,9 +38,9 @@ import { getZkillCardInstance } from './zkill-card.js'
 
 // Application state
 let currentView = 'grid';
-let allResults = { eligible: [], ineligible: [] };
-let displayedResults = { eligible: 0, ineligible: 0 };
-let expandedSections = { eligible: false, ineligible: false };
+let allResults = [];
+let displayedResults = 0;
+let expandedSection = false;
 
 // Summary data and display tracking
 let allSummaryData = { alliance: [], corporation: [] };
@@ -81,7 +81,16 @@ function setupCollapsedIndicatorClick() {
 
 // Event delegation handler
 document.addEventListener('click', function (event) {
-    // Check for zkill stats clicks FIRST (before checking for data-action)
+    // Check for zkill card items FIRST (prevent event bubbling)
+    const zkillCardItem = event.target.closest('.zkill-card-clickable');
+    if (zkillCardItem) {
+        event.preventDefault();
+        event.stopPropagation();
+        handleZkillCardLinkClick(zkillCardItem);
+        return;
+    }
+
+    // Check for zkill stats clicks SECOND (before checking for data-action)
     const clickableElement = event.target.closest('[data-clickable]');
     if (clickableElement) {
         handleZkillStatsClick(clickableElement);
@@ -101,10 +110,10 @@ document.addEventListener('click', function (event) {
             toggleView(viewType);
             break;
         case 'toggle-expanded':
-            toggleExpanded(type);
+            toggleExpanded();
             break;
         case 'load-more':
-            loadMoreResults(type);
+            loadMoreResults();
             break;
         case 'toggle-summary-expanded':
             toggleSummaryExpanded(type);
@@ -131,23 +140,25 @@ function summarizeEntities(results) {
     const allianceCounts = new Map();
 
     results.forEach(result => {
-        if (result.war_eligible) {
-            if (result.corporation_id) {
-                corpCounts.set(result.corporation_id, {
-                    id: result.corporation_id,
-                    name: result.corporation_name,
-                    count: (corpCounts.get(result.corporation_id)?.count || 0) + 1,
-                    type: 'corporation'
-                });
-            }
-            if (result.alliance_id) {
-                allianceCounts.set(result.alliance_id, {
-                    id: result.alliance_id,
-                    name: result.alliance_name,
-                    count: (allianceCounts.get(result.alliance_id)?.count || 0) + 1,
-                    type: 'alliance'
-                });
-            }
+        if (result.corporation_id) {
+            const existing = corpCounts.get(result.corporation_id);
+            corpCounts.set(result.corporation_id, {
+                id: result.corporation_id,
+                name: result.corporation_name,
+                count: (existing?.count || 0) + 1,
+                type: 'corporation',
+                war_eligible: existing?.war_eligible || result.war_eligible
+            });
+        }
+        if (result.alliance_id) {
+            const existing = allianceCounts.get(result.alliance_id);
+            allianceCounts.set(result.alliance_id, {
+                id: result.alliance_id,
+                name: result.alliance_name,
+                count: (existing?.count || 0) + 1,
+                type: 'alliance',
+                war_eligible: existing?.war_eligible || result.war_eligible
+            });
         }
     });
 
@@ -174,41 +185,33 @@ function toggleView(viewType) {
     });
 
     // Clean up existing virtual scrolling
-    const eligibleContainer = document.getElementById('eligible-grid');
-    const ineligibleContainer = document.getElementById('ineligible-grid');
+    const resultsContainer = document.getElementById('results-grid');
 
-    if (eligibleContainer._cleanup) {
-        eligibleContainer._cleanup();
-    }
-    if (ineligibleContainer._cleanup) {
-        ineligibleContainer._cleanup();
+    if (resultsContainer && resultsContainer._cleanup) {
+        resultsContainer._cleanup();
     }
 
     // Re-render with new view type
-    const eligibleToShow = expandedSections.eligible
-        ? allResults.eligible
-        : allResults.eligible.slice(0, displayedResults.eligible);
-    const ineligibleToShow = expandedSections.ineligible
-        ? allResults.ineligible
-        : allResults.ineligible.slice(0, displayedResults.ineligible);
+    const resultsToShow = expandedSection
+        ? allResults
+        : allResults.slice(0, displayedResults);
 
     // Recreate virtual scrolling with new settings
-    if (eligibleToShow.length > 0) {
-        setupVirtualScrolling('eligible-grid', eligibleToShow);
-    }
-    if (ineligibleToShow.length > 0) {
-        setupVirtualScrolling('ineligible-grid', ineligibleToShow);
+    if (resultsToShow.length > 0) {
+        setupVirtualScrolling('results-grid', resultsToShow);
     }
 }
 
-function toggleExpanded(type) {
-    expandedSections[type] = !expandedSections[type];
+function toggleExpanded() {
+    expandedSection = !expandedSection;
     updateResultsDisplay();
 
-    const button = document.getElementById(`${type}-expand`);
-    button.textContent = expandedSections[type]
-        ? `Show Less (${allResults[type].length})`
-        : `Show All (${allResults[type].length})`;
+    const button = document.getElementById('results-expand');
+    if (button) {
+        button.textContent = expandedSection
+            ? `Show Less (${allResults.length})`
+            : `Show All (${allResults.length})`;
+    }
 }
 
 function toggleSummaryExpanded(type) {
@@ -221,10 +224,10 @@ function toggleSummaryExpanded(type) {
         : `Show All (${allSummaryData[type].length})`;
 }
 
-function loadMoreResults(type) {
-    const currentCount = displayedResults[type];
-    const newCount = Math.min(currentCount + LOAD_MORE_COUNT, allResults[type].length);
-    displayedResults[type] = newCount;
+function loadMoreResults() {
+    const currentCount = displayedResults;
+    const newCount = Math.min(currentCount + LOAD_MORE_COUNT, allResults.length);
+    displayedResults = newCount;
 
     updateResultsDisplay();
 }
@@ -241,16 +244,11 @@ function updateResultsDisplay() {
     // Clean up previous results first
     getObserverManager().cleanupDeadElements();
 
-    const eligibleToShow = expandedSections.eligible
-        ? allResults.eligible
-        : allResults.eligible.slice(0, displayedResults.eligible);
+    const resultsToShow = expandedSection
+        ? allResults
+        : allResults.slice(0, displayedResults);
 
-    const ineligibleToShow = expandedSections.ineligible
-        ? allResults.ineligible
-        : allResults.ineligible.slice(0, displayedResults.ineligible);
-
-    renderGrid("eligible-grid", eligibleToShow, 'character');
-    renderGrid("ineligible-grid", ineligibleToShow, 'character');
+    renderGrid("results-grid", resultsToShow, 'character');
 
     updateLoadMoreButtons();
     updateShowingCount();
@@ -273,17 +271,14 @@ function updateSummaryDisplay() {
 }
 
 function updateLoadMoreButtons() {
-    const eligibleLoadMore = document.getElementById("eligible-load-more");
-    const ineligibleLoadMore = document.getElementById("ineligible-load-more");
+    const loadMore = document.getElementById("results-load-more");
 
-    // Show/hide load more buttons
-    eligibleLoadMore.style.display =
-        !expandedSections.eligible && displayedResults.eligible < allResults.eligible.length
-            ? 'block' : 'none';
-
-    ineligibleLoadMore.style.display =
-        !expandedSections.ineligible && displayedResults.ineligible < allResults.ineligible.length
-            ? 'block' : 'none';
+    // Show/hide load more button
+    if (loadMore) {
+        loadMore.style.display =
+            !expandedSection && displayedResults < allResults.length
+                ? 'block' : 'none';
+    }
 }
 
 function updateSummaryLoadMoreButtons() {
@@ -301,10 +296,8 @@ function updateSummaryLoadMoreButtons() {
 }
 
 function updateShowingCount() {
-    const totalShowing =
-        (expandedSections.eligible ? allResults.eligible.length : displayedResults.eligible) +
-        (expandedSections.ineligible ? allResults.ineligible.length : displayedResults.ineligible);
-    const totalResults = allResults.eligible.length + allResults.ineligible.length;
+    const totalShowing = expandedSection ? allResults.length : displayedResults;
+    const totalResults = allResults.length;
 
     const showingElement = document.getElementById("showing-count");
     if (totalShowing === totalResults) {
@@ -349,9 +342,9 @@ function updateCharacterCount() {
     const button = document.getElementById('checkButton');
     const buttonText = button.querySelector('.button-text');
     if (count > 0) {
-        buttonText.textContent = `Check ${count} Character${count !== 1 ? 's' : ''}`;
+        buttonText.textContent = `Analyze ${count} Character${count !== 1 ? 's' : ''}`;
     } else {
-        buttonText.textContent = 'Check War Eligibility';
+        buttonText.textContent = 'Analyze Characters';
     }
 }
 
@@ -385,25 +378,24 @@ export async function validateNames() {
         completeResults = results;
         buildEntityMaps(results);
 
-        results.sort((a, b) => b.war_eligible - a.war_eligible);
+        results.sort((a, b) => (a.character_name || '').localeCompare(b.character_name || ''));
 
-        allResults.eligible = results.filter(r => r.war_eligible);
-        allResults.ineligible = results.filter(r => !r.war_eligible);
+        allResults = results;
 
         // Reset display counters
-        displayedResults.eligible = Math.min(INITIAL_USER_RESULTS_COUNT, allResults.eligible.length);
-        displayedResults.ineligible = Math.min(INITIAL_USER_RESULTS_COUNT, allResults.ineligible.length);
-        expandedSections.eligible = false;
-        expandedSections.ineligible = false;
+        displayedResults = Math.min(INITIAL_USER_RESULTS_COUNT, allResults.length);
+        expandedSection = false;
 
-        // Reset main result section button states
-        const eligibleButton = document.getElementById('eligible-expand');
-        const ineligibleButton = document.getElementById('ineligible-expand');
-        if (eligibleButton) {
-            eligibleButton.textContent = `Show All (${allResults.eligible.length})`;
+        // Reset main result section button state
+        const resultsButton = document.getElementById('results-expand');
+        if (resultsButton) {
+            resultsButton.textContent = `Show All (${allResults.length})`;
         }
-        if (ineligibleButton) {
-            ineligibleButton.textContent = `Show All (${allResults.ineligible.length})`;
+
+        // Update results total display
+        const resultsTotal = document.getElementById('results-total');
+        if (resultsTotal) {
+            resultsTotal.textContent = allResults.length;
         }
 
         const { allCorps, allAlliances } = summarizeEntities(results);
@@ -443,7 +435,7 @@ export async function validateNames() {
 
         // Wait for results section to be shown before updating stats
         setTimeout(() => {
-            updateStats(allResults.eligible, allResults.ineligible);
+            updateStats(allResults);
             updatePerformanceStats();
         }, STATS_UPDATE_DELAY);
 
@@ -471,10 +463,11 @@ export async function validateNames() {
 
 function handleZkillStatsClick(element) {
     const clickableType = element.dataset.clickable;
-    
-    // Update entity maps before showing zkill cards
-    const zkillCard = getZkillCardInstance(); // You'll need to export this from zkill-card.js
+
+    // Update entity maps and complete results before showing zkill cards
+    const zkillCard = getZkillCardInstance();
     zkillCard.updateEntityMaps();
+    zkillCard.setCompleteResults(completeResults);
 
     if (clickableType === 'character') {
         const characterId = element.dataset.characterId;
@@ -487,6 +480,25 @@ function handleZkillStatsClick(element) {
     } else if (clickableType === 'alliance') {
         const entityId = element.dataset.entityId;
         const entityName = element.dataset.entityName;
+        showAllianceStats(entityId, entityName);
+    }
+}
+
+function handleZkillCardLinkClick(element) {
+    const entityType = element.dataset.entityType;
+    const entityId = element.dataset.entityId;
+    const entityName = element.dataset.entityName;
+
+    // Update entity maps and complete results before showing zkill cards
+    const zkillCard = getZkillCardInstance();
+    zkillCard.updateEntityMaps();
+    zkillCard.setCompleteResults(completeResults);
+
+    if (entityType === 'character') {
+        showCharacterStats(entityId, entityName);
+    } else if (entityType === 'corporation') {
+        showCorporationStats(entityId, entityName);
+    } else if (entityType === 'alliance') {
         showAllianceStats(entityId, entityName);
     }
 }

@@ -176,28 +176,42 @@ export function showError(message) {
 function getStatsElements() {
     if (!statsElements) {
         statsElements = {
-            eligibleCount: document.getElementById("eligible-count"),
-            ineligibleCount: document.getElementById("ineligible-count"),
+            allianceCount: document.getElementById("alliance-count"),
+            corporationCount: document.getElementById("corporation-count"),
             totalCount: document.getElementById("total-count"),
-            eligibleTotal: document.getElementById("eligible-total"),
-            ineligibleTotal: document.getElementById("ineligible-total")
+            allianceTotal: document.getElementById("alliance-total"),
+            corporationTotal: document.getElementById("corporation-total")
         };
     }
     return statsElements;
 }
 
-export function updateStats(eligible, ineligible) {
+export function updateStats(allResults) {
     const elements = getStatsElements();
-    const eligibleLen = eligible.length;
-    const ineligibleLen = ineligible.length;
-    const totalLen = eligibleLen + ineligibleLen;
 
-    if (elements.eligibleCount) elements.eligibleCount.textContent = eligibleLen;
-    if (elements.ineligibleCount) elements.ineligibleCount.textContent = ineligibleLen;
+    // Count unique alliances and corporations
+    const uniqueAlliances = new Set();
+    const uniqueCorporations = new Set();
+
+    allResults.forEach(character => {
+        if (character.alliance_id) {
+            uniqueAlliances.add(character.alliance_id);
+        }
+        if (character.corporation_id) {
+            uniqueCorporations.add(character.corporation_id);
+        }
+    });
+
+    const allianceCount = uniqueAlliances.size;
+    const corporationCount = uniqueCorporations.size;
+    const totalLen = allResults.length;
+
+    if (elements.allianceCount) elements.allianceCount.textContent = allianceCount;
+    if (elements.corporationCount) elements.corporationCount.textContent = corporationCount;
     if (elements.totalCount) elements.totalCount.textContent = totalLen;
-    if (elements.eligibleTotal) elements.eligibleTotal.textContent = eligibleLen;
-    if (elements.ineligibleTotal) elements.ineligibleTotal.textContent = ineligibleLen;
-    updateTitle(eligibleLen, totalLen);
+    if (elements.allianceTotal) elements.allianceTotal.textContent = allianceCount;
+    if (elements.corporationTotal) elements.corporationTotal.textContent = corporationCount;
+    updateTitle(totalLen, totalLen);
 }
 
 export async function updatePerformanceStats() {

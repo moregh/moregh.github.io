@@ -8,7 +8,7 @@
 // Configuration
 export const CACHE_EXPIRY_HOURS = 12;
 export const LONG_CACHE_EXPIRY_HOURS = 168;
-export const INITIAL_USER_RESULTS_COUNT = 6;
+export const INITIAL_USER_RESULTS_COUNT = 12;
 export const INITIAL_CORP_ALLIANCE_COUNT = 5;
 export const LOAD_MORE_COUNT = 12;
 export const MAX_ESI_CALL_SIZE = 100;
@@ -18,7 +18,7 @@ export const CHUNK_DELAY = 25;
 export const STATS_UPDATE_DELAY = 100;
 export const DB_NAME = 'EVEWarTargetCache';
 export const DB_VERSION = 1;
-export const VERSION = "0.4.11";
+export const VERSION = "0.5.0";
 
 // Time and throttling
 export const PROGRESS_UPDATE_THROTTLE_MS = 50;
@@ -80,7 +80,7 @@ export const ESI_HEADERS = {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
     'User-Agent': USER_AGENT,
-    'X-User-Agent': `WarTargetFinder/${VERSION}`
+    'X-User-Agent': `${USER_AGENT}`
 };
 
 // ZKill constants

@@ -22,8 +22,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="application-name" content="War Target Finder">
-  <title>War Target Finder</title>
+  <meta name="application-name" content="EVE Target Intel">
+  <title>EVE Target Intel</title>
   <link rel="stylesheet" href="styles/base.css">
   <link rel="stylesheet" href="styles/animations.css">
   <link rel="stylesheet" href="styles/header.css">
@@ -46,6 +46,7 @@
 
 <body>
   <script type="module" src="js/config.js"></script>
+  <script type="module" src="js/xss-protection.js"></script>
   <script type="module" src="js/database.js"></script>
   <script type="module" src="js/observers.js"></script>
   <script type="module" src="js/validation.js"></script>
@@ -68,7 +69,7 @@
       <a href="#" data-action="reload-page" class="title-link">
         <div class="title-container">
           <h1>
-            <span class="title-primary">War</span>
+            <span class="title-primary">EVE</span>
             <span class="title-primary">Tar<svg class="target-icon" viewBox="0 0 24 24" fill="none"
                 xmlns="http://www.w3.org/2000/svg">
                 <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5" />
@@ -76,13 +77,13 @@
                 <circle cx="12" cy="12" r="2" fill="currentColor" />
                 <path d="M12 2v4M12 18v4M2 12h4M18 12h4" stroke="currentColor" stroke-width="1.5"
                   stroke-linecap="round" />
-              </svg>et</span>
-            <span class="title-secondary">Finder</span>
+              </svg>get</span>
+            <span class="title-secondary">Intel</span>
           </h1>
         </div>
       </a>
       <div class="header-meta">
-        <span class="subtitle">Find targets for EVE Online highsec warfare</span>
+        <span class="subtitle">Comprehensive EVE Online character and corporation intelligence</span>
         <a href="https://github.com/moregh/moregh.github.io/" target="_blank">
           <span class="version-badge" id="version-display">
             v0.0.0
@@ -111,8 +112,8 @@
           </div>
         </div>
         <button class="check-button" id="checkButton" onclick="validateNames()">
-          <span class="button-text">Check War Eligibility</span>
-          <span class="button-icon">🎯</span>
+          <span class="button-text">Analyze Characters</span>
+          <span class="button-icon">🔍</span>
         </button>
       </div>
     </div>
@@ -145,21 +146,21 @@
             <div class="stat-icon">👥</div>
             <div class="stat-content">
               <span id="total-count" class="stat-number">0</span>
-              <div class="stat-label">Total</div>
+              <div class="stat-label">Characters</div>
             </div>
           </div>
-          <div class="stat-card eligible-stat">
-            <div class="stat-icon">⚔️</div>
+          <div class="stat-card alliance-stat">
+            <div class="stat-icon">🏛️</div>
             <div class="stat-content">
-              <span id="eligible-count" class="stat-number">0</span>
-              <div class="stat-label">Eligible</div>
+              <span id="alliance-count" class="stat-number">0</span>
+              <div class="stat-label">Alliances</div>
             </div>
           </div>
-          <div class="stat-card ineligible-stat">
-            <div class="stat-icon">🛡️</div>
+          <div class="stat-card corporation-stat">
+            <div class="stat-icon">🏢</div>
             <div class="stat-content">
-              <span id="ineligible-count" class="stat-number">0</span>
-              <div class="stat-label">Ineligible</div>
+              <span id="corporation-count" class="stat-number">0</span>
+              <div class="stat-label">Corporations</div>
             </div>
           </div>
           <div class="stat-card performance-stat">
@@ -188,7 +189,6 @@
       </div>
 
       <div class="summary-section glass-card">
-        <h3>Top War-Eligible Organizations</h3>
         <div class="summary-container">
           <div class="summary-column" id="top-alliances">
             <div class="summary-header">
@@ -201,7 +201,7 @@
               </div>
             </div>
             <div id="top-alliance-grid" class="summary-grid">
-              <div class="no-summary">No war-eligible alliances found</div>
+              <div class="no-summary">No alliances found</div>
             </div>
             <div class="summary-load-more-container" id="alliance-load-more" style="display: none;">
               <button class="summary-load-more-btn" data-action="load-more-summary" data-type="alliance">
@@ -220,7 +220,7 @@
               </div>
             </div>
             <div id="top-corp-grid" class="summary-grid">
-              <div class="no-summary">No war-eligible corporations found</div>
+              <div class="no-summary">No corporations found</div>
             </div>
             <div class="summary-load-more-container" id="corporation-load-more" style="display: none;">
               <button class="summary-load-more-btn" data-action="load-more-summary" data-type="corporation">
@@ -246,39 +246,20 @@
       </div>
 
       <div class="results-container">
-        <div class="result-column eligible glass-card">
+        <div class="result-column full-width glass-card">
           <div class="column-header">
-            <h3><span class="status-icon">⚔️</span>War Eligible</h3>
+            <h3><span class="status-icon">👥</span>All Characters</h3>
             <div class="column-controls">
-              <button class="expand-btn" id="eligible-expand" data-action="toggle-expanded" data-type="eligible">
-                Show All (<span id="eligible-total">0</span>)
+              <button class="expand-btn" id="results-expand" data-action="toggle-expanded">
+                Show All (<span id="results-total">0</span>)
               </button>
             </div>
           </div>
-          <div id="eligible-grid" class="result-grid">
+          <div id="results-grid" class="result-grid">
             <div class="no-results">No data yet</div>
           </div>
-          <div class="load-more-container" id="eligible-load-more" style="display: none;">
-            <button class="load-more-btn" data-action="load-more" data-type="eligible">
-              Load More Results
-            </button>
-          </div>
-        </div>
-
-        <div class="result-column ineligible glass-card">
-          <div class="column-header">
-            <h3><span class="status-icon">🛡️</span>Not Eligible</h3>
-            <div class="column-controls">
-              <button class="expand-btn" id="ineligible-expand" data-action="toggle-expanded" data-type="ineligible">
-                Show All (<span id="ineligible-total">0</span>)
-              </button>
-            </div>
-          </div>
-          <div id="ineligible-grid" class="result-grid">
-            <div class="no-results">No data yet</div>
-          </div>
-          <div class="load-more-container" id="ineligible-load-more" style="display: none;">
-            <button class="load-more-btn" data-action="load-more" data-type="ineligible">
+          <div class="load-more-container" id="results-load-more" style="display: none;">
+            <button class="load-more-btn" data-action="load-more">
               Load More Results
             </button>
           </div>
@@ -290,7 +271,7 @@
       characters, names, marks, and logos are intellectual property of CCP hf.
     </div>
     <div class="copyright">
-      <a href="https://github.com/moregh/moregh.github.io/" target="_blank">War Target Finder</a> © 2025 <a
+      <a href="https://github.com/moregh/moregh.github.io/" target="_blank">EVE Target Intel</a> © 2025 <a
         href="https://github.com/moregh/" target="_blank">moregh</a>. Licensed under AGPL License.
     </div>
   </div>

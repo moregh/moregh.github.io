@@ -16,6 +16,14 @@ import {
     ANIMATION_FRAME_THROTTLE_FPS
 } from './config.js';
 import { ManagedObservers, setImageObserverEnabled } from './observers.js';
+import {
+    sanitizeCharacterName,
+    sanitizeCorporationName,
+    sanitizeAllianceName,
+    sanitizeId,
+    sanitizeAttribute,
+    sanitizeForDOM
+} from './xss-protection.js';
 
 // Create single observer instance
 const observerManager = new ManagedObservers();
@@ -30,7 +38,7 @@ export function buildEntityMaps(results) {
 
     // Build corp to characters map
     results.forEach(character => {
-        if (character.war_eligible && character.corporation_id) {
+        if (character.corporation_id) {
             if (!corpToCharactersMap.has(character.corporation_id)) {
                 corpToCharactersMap.set(character.corporation_id, []);
             }
@@ -41,7 +49,7 @@ export function buildEntityMaps(results) {
     // Build alliance to corps map
     const corpsByAlliance = new Map();
     results.forEach(character => {
-        if (character.war_eligible && character.alliance_id && character.corporation_id) {
+        if (character.alliance_id && character.corporation_id) {
             if (!corpsByAlliance.has(character.alliance_id)) {
                 corpsByAlliance.set(character.alliance_id, new Set());
             }
@@ -81,11 +89,11 @@ export function createMouseoverCard(entity, type) {
       <div class="mouseover-card-header">Corporations in ${entity.name}</div>
       <div class="mouseover-card-content">
         ${items.map(corp => `
-          <div class="mouseover-card-item">
-            <img src="https://images.evetech.net/corporations/${corp.id}/logo?size=${CORP_LOGO_SIZE_PX}" 
+          <div class="mouseover-card-item zkill-card-clickable" data-entity-type="corporation" data-entity-id="${corp.id}" data-entity-name="${corp.name}">
+            <img src="https://images.evetech.net/corporations/${corp.id}/logo?size=${CORP_LOGO_SIZE_PX}"
                  alt="${corp.name}" class="mouseover-card-avatar" loading="lazy">
             <div class="mouseover-card-name">
-              <a href="https://zkillboard.com/corporation/${corp.id}/" target="_blank">${corp.name}</a>
+              <span>${corp.name}</span>
             </div>
             <div class="summary-count">${corp.count}</div>
           </div>
@@ -100,11 +108,11 @@ export function createMouseoverCard(entity, type) {
       <div class="mouseover-card-header">Characters in ${entity.name}</div>
       <div class="mouseover-card-content">
         ${items.map(char => `
-          <div class="mouseover-card-item">
-            <img src="https://images.evetech.net/characters/${char.character_id}/portrait?size=${MOUSEOVER_CARD_AVATAR_SIZE_PX}" 
+          <div class="mouseover-card-item zkill-card-clickable" data-entity-type="character" data-entity-id="${char.character_id}" data-entity-name="${char.character_name}">
+            <img src="https://images.evetech.net/characters/${char.character_id}/portrait?size=${MOUSEOVER_CARD_AVATAR_SIZE_PX}"
                  alt="${char.character_name}" class="mouseover-card-avatar" loading="lazy">
             <div class="mouseover-card-name">
-              <a href="https://zkillboard.com/character/${char.character_id}/" target="_blank">${char.character_name}</a>
+              <span>${char.character_name}</span>
             </div>
           </div>
         `).join('')}
@@ -221,49 +229,61 @@ export function createCharacterItem(character, viewType = 'grid') {
     const template = document.createElement('template');
     const placeholder = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3C/svg%3E";
 
-    const allianceSection = character.alliance_name && character.alliance_id ? `
+    // Sanitize character data
+    const characterId = sanitizeId(character.character_id);
+    const characterName = sanitizeCharacterName(character.character_name);
+    const corporationId = sanitizeId(character.corporation_id);
+    const corporationName = sanitizeCorporationName(character.corporation_name);
+    const allianceId = character.alliance_id ? sanitizeId(character.alliance_id) : null;
+    const allianceName = character.alliance_name ? sanitizeAllianceName(character.alliance_name) : null;
+
+    const allianceSection = allianceName && allianceId ? `
         <div class="org-item">
-            <img src="${placeholder}" 
-                 data-src="https://images.evetech.net/alliances/${character.alliance_id}/logo?size=${ALLIANCE_LOGO_SIZE_PX}"
-                 alt="${character.alliance_name}" 
-                 class="org-logo" 
-                 loading="lazy" 
+            <img src="${placeholder}"
+                 data-src="https://images.evetech.net/alliances/${allianceId}/logo?size=${ALLIANCE_LOGO_SIZE_PX}"
+                 alt="${sanitizeAttribute(allianceName)}"
+                 class="org-logo"
+                 loading="lazy"
                  decoding="async">
-            <a href="https://zkillboard.com/alliance/${character.alliance_id}/" 
-               target="_blank" 
-               class="character-link">${character.alliance_name}</a>
+            <a href="https://zkillboard.com/alliance/${allianceId}/"
+               target="_blank"
+               class="character-link">${allianceName}</a>
         </div>
     ` : '';
 
+    const warEligibleBadge = character.war_eligible ?
+        '<span class="war-eligible-badge">WAR</span>' : '';
+
     template.innerHTML = `
-    <div class="result-item ${viewType}-view animate-ready" 
-         data-character-id="${character.character_id}" 
-         data-clickable="character" 
+    <div class="result-item ${viewType}-view animate-ready ${character.war_eligible ? 'war-eligible' : ''}"
+         data-character-id="${sanitizeAttribute(characterId.toString())}"
+         data-clickable="character"
          style="cursor: pointer;">
-            <img src="${placeholder}" 
-                 data-src="https://images.evetech.net/characters/${character.character_id}/portrait?size=${CHARACTER_PORTRAIT_SIZE_PX}"
-                 alt="${character.character_name}" 
-                 class="character-avatar" 
-                 loading="lazy" 
+            <img src="${placeholder}"
+                 data-src="https://images.evetech.net/characters/${characterId}/portrait?size=${CHARACTER_PORTRAIT_SIZE_PX}"
+                 alt="${sanitizeAttribute(characterName)}"
+                 class="character-avatar"
+                 loading="lazy"
                  decoding="async">
             <div class="character-content">
                 <div class="character-name">
-                    <a href="https://zkillboard.com/character/${character.character_id}/" 
-                       target="_blank" 
-                       class="character-link">${character.character_name}</a>
+                    <a href="https://zkillboard.com/character/${characterId}/"
+                       target="_blank"
+                       class="character-link">${characterName}</a>
+                    ${warEligibleBadge}
                 </div>
                 <div class="character-details">
                     <div class="corp-alliance-info">
                         <div class="org-item">
-                            <img src="${placeholder}" 
-                                 data-src="https://images.evetech.net/corporations/${character.corporation_id}/logo?size=${CORP_LOGO_SIZE_PX}"
-                                 alt="${character.corporation_name}" 
-                                 class="org-logo" 
-                                 loading="lazy" 
+                            <img src="${placeholder}"
+                                 data-src="https://images.evetech.net/corporations/${corporationId}/logo?size=${CORP_LOGO_SIZE_PX}"
+                                 alt="${sanitizeAttribute(corporationName)}"
+                                 class="org-logo"
+                                 loading="lazy"
                                  decoding="async">
-                            <a href="https://zkillboard.com/corporation/${character.corporation_id}/" 
-                               target="_blank" 
-                               class="character-link">${character.corporation_name}</a>
+                            <a href="https://zkillboard.com/corporation/${corporationId}/"
+                               target="_blank"
+                               class="character-link">${corporationName}</a>
                         </div>
                         ${allianceSection}
                     </div>
@@ -275,25 +295,32 @@ export function createCharacterItem(character, viewType = 'grid') {
     return template.content.firstElementChild;
 }
 
-export function createSummaryItem({ id, name, count, type }) {
-    const item = document.createElement("div");
-    item.className = "summary-item";
+export function createSummaryItem({ id, name, count, type, war_eligible }) {
+    // Sanitize input data
+    const sanitizedId = sanitizeId(id);
+    const sanitizedName = type === 'corporation' ? sanitizeCorporationName(name) : sanitizeAllianceName(name);
+    const sanitizedCount = Math.max(0, Math.floor(count || 0));
+    const allowedTypes = ['corporation', 'alliance'];
+    const sanitizedType = allowedTypes.includes(type) ? type : 'corporation';
 
-    // zkill implementation
-    item.dataset.clickable = type;
-    item.dataset.entityId = id;
-    item.dataset.entityName = name;
+    const item = document.createElement("div");
+    item.className = `summary-item ${war_eligible ? 'war-eligible' : ''}`;
+
+    // zkill implementation with sanitized data
+    item.dataset.clickable = sanitizedType;
+    item.dataset.entityId = sanitizeAttribute(sanitizedId.toString());
+    item.dataset.entityName = sanitizeAttribute(sanitizedName);
     item.style.cursor = 'pointer';
 
     const logo = document.createElement("img");
     logo.className = "summary-logo";
-    logo.alt = name;
+    logo.alt = sanitizeAttribute(sanitizedName);
     logo.loading = "lazy";
     logo.decoding = "async";
 
     const placeholder = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3C/svg%3E";
     logo.src = placeholder;
-    logo.dataset.src = `https://images.evetech.net/${type}s/${id}/logo?size=32`;
+    logo.dataset.src = `https://images.evetech.net/${sanitizedType}s/${sanitizedId}/logo?size=32`;
 
     item.appendChild(logo);
 
@@ -302,16 +329,17 @@ export function createSummaryItem({ id, name, count, type }) {
 
     const nameDiv = document.createElement("div");
     nameDiv.className = "summary-name";
-    nameDiv.innerHTML = `<a href="https://zkillboard.com/${type}/${id}/" target="_blank" class="character-link">${name}</a>`;
+    const warBadge = war_eligible ? '<span class="war-eligible-badge summary-war-badge">WAR</span>' : '';
+    nameDiv.innerHTML = `<a href="https://zkillboard.com/${sanitizedType}/${sanitizedId}/" target="_blank" class="character-link">${sanitizedName}</a> ${warBadge}`;
     content.appendChild(nameDiv);
 
     const countDiv = document.createElement("div");
     countDiv.className = "summary-count";
-    countDiv.textContent = count;
+    countDiv.textContent = sanitizedCount;
     content.appendChild(countDiv);
 
     item.appendChild(content);
-    item.appendChild(createMouseoverCard({ id, name, count }, type));
+    item.appendChild(createMouseoverCard({ id: sanitizedId, name: sanitizedName, count: sanitizedCount, war_eligible }, sanitizedType));
 
     // FIXED: Observe the logo image after it's in the DOM structure
     requestAnimationFrame(() => {
@@ -346,7 +374,7 @@ export function renderGrid(containerId, items, type = 'character', limit = null)
             container.innerHTML = `
                 <div class="no-summary">
                     <div class="no-results-icon">📊</div>
-                    <div class="no-results-text">No war-eligible ${type}s found</div>
+                    <div class="no-results-text">No ${type}s found</div>
                 </div>
             `;
             return;

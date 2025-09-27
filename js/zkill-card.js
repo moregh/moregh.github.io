@@ -16,8 +16,18 @@ import {
     ALLIANCE_LOGO_SIZE_PX,
     ZKILL_CARD_ANIMATION_DURATION_MS
 } from './config.js';
-// Import entity maps from rendering module
 import { getEntityMaps } from './rendering.js';
+import { esiClient } from './esi-client.js';
+import {
+    sanitizeCharacterName,
+    sanitizeCorporationName,
+    sanitizeAllianceName,
+    sanitizeId,
+    sanitizeAttribute,
+    sanitizeZkillStats,
+    escapeHtml
+} from './xss-protection.js';
+
 /**
  * zKillboard Stats Card Manager
  */
@@ -26,14 +36,35 @@ class ZKillStatsCard {
         this.currentModal = null;
         this.isVisible = false;
         this.navigationHistory = [];
+        this.completeResults = [];
         this.setupEventListeners();
         this.updateEntityMaps();
     }
+    
     updateEntityMaps() {
-    const maps = getEntityMaps();
-    this.corpToCharactersMap = maps.corpToCharactersMap;
-    this.allianceToCorpsMap = maps.allianceToCorpsMap;
-}
+        const maps = getEntityMaps();
+        this.corpToCharactersMap = maps.corpToCharactersMap;
+        this.allianceToCorpsMap = maps.allianceToCorpsMap;
+    }
+
+    setCompleteResults(results) {
+        this.completeResults = results;
+    }
+
+    getWarEligibility(entityType, entityId) {
+        if (entityType === 'character') {
+            const character = this.completeResults.find(char => char.character_id == entityId);
+            return character?.war_eligible || false;
+        } else if (entityType === 'corporation') {
+            const character = this.completeResults.find(char => char.corporation_id == entityId);
+            return character?.war_eligible || false;
+        } else if (entityType === 'alliance') {
+            const character = this.completeResults.find(char => char.alliance_id == entityId);
+            return character?.war_eligible || false;
+        }
+        return false;
+    }
+
     setupEventListeners() {
         // Close modal on Escape key
         document.addEventListener('keydown', (e) => {
@@ -113,7 +144,6 @@ class ZKillStatsCard {
                 allianceName = names.allianceName;
             }
 
-            // Render affiliations
             this.renderAffiliations(
                 affiliationData?.corporation_id,
                 corporationName,
@@ -121,7 +151,6 @@ class ZKillStatsCard {
                 allianceName
             );
 
-            // Populate stats as before
             this.populateStatsData(stats, entityType, entityId, entityName);
         } catch (error) {
             console.error('Failed to load zKillboard stats:', error);
@@ -144,9 +173,179 @@ class ZKillStatsCard {
                 throw new Error(`Unknown API type: ${apiType}`);
         }
     }
+
     /**
- * Create a bar chart SVG
- */
+     * FIXED: Use ESI client instead of direct fetch calls
+     * Fetch entity affiliations using the existing ESI infrastructure
+     */
+    async fetchEntityAffiliations(entityType, entityId) {
+        try {
+            let affiliationData = null;
+
+            if (entityType === 'character') {
+                // Use ESI client for character data
+                const charData = await esiClient.get(`/characters/${entityId}/`);
+                if (charData) {
+                    affiliationData = {
+                        corporation_id: charData.corporation_id,
+                        alliance_id: charData.alliance_id || null
+                    };
+                }
+            } else if (entityType === 'corporation') {
+                // Use ESI client for corporation data
+                const corpData = await esiClient.get(`/corporations/${entityId}/`);
+                if (corpData) {
+                    affiliationData = {
+                        alliance_id: corpData.alliance_id || null
+                    };
+                }
+            }
+
+            return affiliationData;
+        } catch (error) {
+            console.warn('Failed to fetch entity affiliations:', error);
+            return null;
+        }
+    }
+
+    /**
+     * FIXED: Use ESI client instead of direct fetch calls
+     * Fetch entity names using the existing ESI infrastructure
+     */
+    async fetchEntityNames(corporationId, allianceId) {
+        const names = {};
+
+        try {
+            // Use Promise.all to fetch both names concurrently
+            const promises = [];
+            
+            if (corporationId) {
+                promises.push(
+                    esiClient.get(`/corporations/${corporationId}/`)
+                        .then(corpData => {
+                            if (corpData && corpData.name) {
+                                names.corporationName = corpData.name;
+                            }
+                        })
+                        .catch(error => {
+                            console.warn(`Failed to fetch corporation ${corporationId} name:`, error);
+                        })
+                );
+            }
+
+            if (allianceId) {
+                promises.push(
+                    esiClient.get(`/alliances/${allianceId}/`)
+                        .then(allianceData => {
+                            if (allianceData && allianceData.name) {
+                                names.allianceName = allianceData.name;
+                            }
+                        })
+                        .catch(error => {
+                            console.warn(`Failed to fetch alliance ${allianceId} name:`, error);
+                        })
+                );
+            }
+
+            // Wait for all requests to complete
+            await Promise.all(promises);
+        } catch (error) {
+            console.warn('Failed to fetch entity names:', error);
+        }
+
+        return names;
+    }
+
+    renderAffiliations(corporationId, corporationName, allianceId, allianceName) {
+        const affiliationsContainer = document.getElementById('zkill-affiliations');
+        if (!affiliationsContainer) return;
+
+        let affiliationsHTML = '';
+
+        if (corporationId && corporationName) {
+            affiliationsHTML += `
+            <div class="zkill-affiliation-item">
+                <img src="https://images.evetech.net/corporations/${corporationId}/logo?size=32" 
+                     alt="${corporationName}" 
+                     class="zkill-affiliation-logo"
+                     loading="lazy">
+                <div class="zkill-affiliation-info">
+                    <div class="zkill-affiliation-label">Corporation</div>
+                    <div class="zkill-affiliation-link" 
+                        data-entity-type="corporation" 
+                        data-entity-id="${corporationId}"
+                        data-entity-name="${sanitizeAttribute(corporationName)}"
+                        style="cursor: pointer;">${sanitizeCorporationName(corporationName)}
+                    </div>
+                </div>
+            </div>
+        `;
+        }
+
+        if (allianceId && allianceName) {
+            affiliationsHTML += `
+            <div class="zkill-affiliation-item">
+                <img src="https://images.evetech.net/alliances/${allianceId}/logo?size=32" 
+                     alt="${allianceName}" 
+                     class="zkill-affiliation-logo"
+                     loading="lazy">
+                <div class="zkill-affiliation-info">
+                    <div class="zkill-affiliation-label">Alliance</div>
+                    <div class="zkill-affiliation-link" 
+     data-entity-type="alliance" 
+     data-entity-id="${allianceId}"
+     data-entity-name="${sanitizeAttribute(allianceName)}"
+     style="cursor: pointer;">${sanitizeAllianceName(allianceName)}</div>
+                </div>
+            </div>
+        `;
+        }
+
+        affiliationsContainer.innerHTML = affiliationsHTML;
+        // Add individual click handlers to prevent conflicts
+        const affiliationLinks = affiliationsContainer.querySelectorAll('.zkill-affiliation-link');
+        affiliationLinks.forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+
+                const entityType = link.dataset.entityType;
+                const entityId = link.dataset.entityId;
+                const entityName = link.dataset.entityName;
+
+                // Add current card to history before navigating
+                const currentEntityType = this.currentModal.querySelector('.zkill-entity-type').textContent;
+                const currentEntityName = this.currentModal.querySelector('.zkill-entity-details h2').textContent.replace(' ⚔️', '');
+                const currentEntityId = this.getCurrentEntityId(); // We'll need to store this
+
+                this.navigationHistory.push({
+                    entityType: currentEntityType,
+                    entityId: currentEntityId,
+                    entityName: currentEntityName,
+                    apiType: currentEntityType + 'ID'
+                });
+
+                // Limit history to 2 items (character -> corp -> alliance)
+                if (this.navigationHistory.length > 2) {
+                    this.navigationHistory.shift();
+                }
+
+                this.close();
+
+                setTimeout(() => {
+                    if (entityType === 'corporation') {
+                        this.showCorporationStats(entityId, entityName);
+                    } else if (entityType === 'alliance') {
+                        this.showAllianceStats(entityId, entityName);
+                    }
+                }, 350);
+            });
+        });
+    }
+
+    /**
+     * Create a bar chart SVG
+     */
     createBarChart(data, title, maxValue) {
         if (!data || data.length === 0) {
             return `<div class="zkill-chart-empty">No activity data available</div>`;
@@ -246,157 +445,7 @@ class ZKillStatsCard {
         </div>
     `;
     }
-    async fetchEntityAffiliations(entityType, entityId) {
-        try {
-            let affiliationData = null;
 
-            if (entityType === 'character') {
-                // Get character affiliation from ESI
-                const response = await fetch(`https://esi.evetech.net/latest/characters/${entityId}/`);
-                if (response.ok) {
-                    const charData = await response.json();
-                    affiliationData = {
-                        corporation_id: charData.corporation_id,
-                        alliance_id: charData.alliance_id || null
-                    };
-                }
-            } else if (entityType === 'corporation') {
-                // Get corporation info from ESI
-                const response = await fetch(`https://esi.evetech.net/latest/corporations/${entityId}/`);
-                if (response.ok) {
-                    const corpData = await response.json();
-                    affiliationData = {
-                        alliance_id: corpData.alliance_id || null
-                    };
-                }
-            }
-
-            return affiliationData;
-        } catch (error) {
-            console.warn('Failed to fetch entity affiliations:', error);
-            return null;
-        }
-    }
-    async fetchEntityNames(corporationId, allianceId) {
-        const names = {};
-
-        try {
-            if (corporationId) {
-                const corpResponse = await fetch(`https://esi.evetech.net/latest/corporations/${corporationId}/`);
-                if (corpResponse.ok) {
-                    const corpData = await corpResponse.json();
-                    names.corporationName = corpData.name;
-                }
-            }
-
-            if (allianceId) {
-                const allianceResponse = await fetch(`https://esi.evetech.net/latest/alliances/${allianceId}/`);
-                if (allianceResponse.ok) {
-                    const allianceData = await allianceResponse.json();
-                    names.allianceName = allianceData.name;
-                }
-            }
-        } catch (error) {
-            console.warn('Failed to fetch entity names:', error);
-        }
-
-        return names;
-    }
-    renderAffiliations(corporationId, corporationName, allianceId, allianceName) {
-        const affiliationsContainer = document.getElementById('zkill-affiliations');
-        if (!affiliationsContainer) return;
-
-        let affiliationsHTML = '';
-
-        if (corporationId && corporationName) {
-            affiliationsHTML += `
-            <div class="zkill-affiliation-item">
-                <img src="https://images.evetech.net/corporations/${corporationId}/logo?size=32" 
-                     alt="${corporationName}" 
-                     class="zkill-affiliation-logo"
-                     loading="lazy">
-                <div class="zkill-affiliation-info">
-                    <div class="zkill-affiliation-label">Corporation</div>
-                    <div class="zkill-affiliation-link" 
-     data-entity-type="corporation" 
-     data-entity-id="${corporationId}"
-     data-entity-name="${this.escapeHtml(corporationName)}"
-     style="cursor: pointer;">${this.escapeHtml(corporationName)}</div>
-                </div>
-            </div>
-        `;
-        }
-
-        if (allianceId && allianceName) {
-            affiliationsHTML += `
-            <div class="zkill-affiliation-item">
-                <img src="https://images.evetech.net/alliances/${allianceId}/logo?size=32" 
-                     alt="${allianceName}" 
-                     class="zkill-affiliation-logo"
-                     loading="lazy">
-                <div class="zkill-affiliation-info">
-                    <div class="zkill-affiliation-label">Alliance</div>
-                    <div class="zkill-affiliation-link" 
-     data-entity-type="alliance" 
-     data-entity-id="${allianceId}"
-     data-entity-name="${this.escapeHtml(allianceName)}"
-     style="cursor: pointer;">${this.escapeHtml(allianceName)}</div>
-                </div>
-            </div>
-        `;
-        }
-
-        affiliationsContainer.innerHTML = affiliationsHTML;
-        // Add individual click handlers to prevent conflicts
-        const affiliationLinks = affiliationsContainer.querySelectorAll('.zkill-affiliation-link');
-        affiliationLinks.forEach(link => {
-            link.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-
-                const entityType = link.dataset.entityType;
-                const entityId = link.dataset.entityId;
-                const entityName = link.dataset.entityName;
-
-                // Add current card to history before navigating
-                const currentEntityType = this.currentModal.querySelector('.zkill-entity-type').textContent;
-                const currentEntityName = this.currentModal.querySelector('.zkill-entity-details h2').textContent.replace(' ⚔️', '');
-                const currentEntityId = this.getCurrentEntityId(); // We'll need to store this
-
-                this.navigationHistory.push({
-                    entityType: currentEntityType,
-                    entityId: currentEntityId,
-                    entityName: currentEntityName,
-                    apiType: currentEntityType + 'ID'
-                });
-
-                // Limit history to 2 items (character -> corp -> alliance)
-                if (this.navigationHistory.length > 2) {
-                    this.navigationHistory.shift();
-                }
-
-                this.close();
-
-                setTimeout(() => {
-                    if (entityType === 'corporation') {
-                        this.showCorporationStats(entityId, entityName);
-                    } else if (entityType === 'alliance') {
-                        this.showAllianceStats(entityId, entityName);
-                    }
-                }, 350);
-            });
-        });
-    }
-
-    /**
-     * Create activity charts section HTML
-     */
-    /**
- * Create activity charts section HTML
- */
-    /**
-     * Create activity charts section HTML
-     */
     getCurrentEntityId() {
         if (!this.currentModal) return null;
         const avatar = this.currentModal.querySelector('.zkill-entity-avatar');
@@ -407,21 +456,10 @@ class ZKillStatsCard {
         const matches = src.match(/\/(\d+)\//);
         return matches ? matches[1] : null;
     }
+
     createActivityChartsHTML(activityData) {
         if (!activityData || !activityData.hasData) {
-        //     return `
-        //     <div class="zkill-section">
-        //         <h3 class="zkill-section-title">
-        //             <span class="zkill-section-icon">📊</span>
-        //             Activity Patterns
-        //         </h3>
-        //         <div class="zkill-charts-empty">
-        //             <div class="zkill-empty-icon">📈</div>
-        //             <div class="zkill-empty-text">No activity data available</div>
-        //         </div>
-        //     </div>
-        // `;
-        return '';
+            return '';
         }
 
         const hourlyChart = this.createBarChart(
@@ -449,6 +487,7 @@ class ZKillStatsCard {
         </div>
     `;
     }
+
     /**
      * Create modal DOM structure
      */
@@ -456,30 +495,46 @@ class ZKillStatsCard {
         const modal = document.createElement('div');
         modal.className = 'zkill-modal-backdrop';
 
-        const avatarSize = entityType === 'character' ? CHARACTER_PORTRAIT_SIZE_PX :
-            entityType === 'corporation' ? CORP_LOGO_SIZE_PX : ALLIANCE_LOGO_SIZE_PX;
+        // Sanitize input data
+        const allowedTypes = ['character', 'corporation', 'alliance'];
+        const sanitizedType = allowedTypes.includes(entityType) ? entityType : 'character';
+        const sanitizedId = sanitizeId(entityId);
+        const sanitizedName = sanitizedType === 'character' ?
+            sanitizeCharacterName(entityName) :
+            sanitizedType === 'corporation' ?
+                sanitizeCorporationName(entityName) :
+                sanitizeAllianceName(entityName);
+
+        const avatarSize = sanitizedType === 'character' ? CHARACTER_PORTRAIT_SIZE_PX :
+            sanitizedType === 'corporation' ? CORP_LOGO_SIZE_PX : ALLIANCE_LOGO_SIZE_PX;
+
+        const warEligible = this.getWarEligibility(sanitizedType, sanitizedId);
+        const warStatusBadge = warEligible ?
+            '<span class="war-eligible-badge zkill-war-badge">WAR</span>' : '';
 
         modal.innerHTML = `
-        <div class="zkill-stats-card">
+        <div class="zkill-stats-card ${warEligible ? 'war-eligible' : ''}">
             <div class="zkill-card-header">
                 <div class="zkill-entity-info">
-                    <img src="https://images.evetech.net/${entityType === 'character' ? 'characters' : entityType + 's'}/${entityId}/${entityType === 'character' ? 'portrait' : 'logo'}?size=${avatarSize}"
-                         alt="${entityName}" 
+                    <img src="https://images.evetech.net/${sanitizedType === 'character' ? 'characters' : sanitizedType + 's'}/${sanitizedId}/${sanitizedType === 'character' ? 'portrait' : 'logo'}?size=${avatarSize}"
+                         alt="${sanitizeAttribute(sanitizedName)}"
                          class="zkill-entity-avatar"
                          loading="eager">
                     <div class="zkill-entity-details">
-                        <h2>${this.escapeHtml(entityName)} <span class="zkill-stats-icon">⚔️</span></h2>
-                        <div class="zkill-entity-type">${entityType}</div>
+                        <h2>${sanitizedName} ${warStatusBadge} <span class="zkill-stats-icon">📊</span></h2>
+                        <div class="zkill-entity-type">${sanitizedType}</div>
                     </div>
                     <!-- Affiliations now separate from entity-details -->
                     <div class="zkill-entity-affiliations" id="zkill-affiliations"></div>
                 </div>
                 <div class="zkill-header-controls">
-    <button class="zkill-back-btn" id="zkill-back-btn" title="Back" style="display: none;">
-        ←
-    </button>
-    <button class="zkill-close-btn" title="Close">✕</button>
-</div>
+                    <button class="zkill-back-btn" id="zkill-back-btn" title="Back" style="display: none;">
+                        ←
+                    </button>
+                    <button class="zkill-close-btn" title="Close">
+                        ✕
+                    </button>
+                </div>
             </div>
             <div class="zkill-card-content">
                 <div class="zkill-loading">
@@ -499,78 +554,80 @@ class ZKillStatsCard {
         backBtn.addEventListener('click', () => this.goBack());
 
         // Add dropdown toggle functionality
-modal.addEventListener('click', (e) => {
-    if (e.target.closest('[data-action="toggle-members"]')) {
-        e.preventDefault();
-        e.stopPropagation();
-        const dropdown = modal.querySelector('#zkill-members-dropdown');
-        if (dropdown) {
-            dropdown.classList.toggle('expanded');
-        }
-    }
-});
+        modal.addEventListener('click', (e) => {
+            if (e.target.closest('[data-action="toggle-members"]')) {
+                e.preventDefault();
+                e.stopPropagation();
+                const dropdown = modal.querySelector('#zkill-members-dropdown');
+                if (dropdown) {
+                    dropdown.classList.toggle('expanded');
+                }
+            }
+        });
 
-// Add member click functionality
-modal.addEventListener('click', (e) => {
-    const memberItem = e.target.closest('[data-click-action]');
-    if (memberItem) {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        const action = memberItem.dataset.clickAction;
-        
-        if (action === 'show-character') {
-            const characterId = memberItem.dataset.characterId;
-            const characterName = memberItem.dataset.characterName;
-            
-            // Add current card to history
-            this.addToNavigationHistory();
-            
-            // Close current modal and show character
-            this.close();
-            setTimeout(() => {
-                this.showCharacterStats(characterId, characterName);
-            }, 350);
-            
-        } else if (action === 'show-corporation') {
-            const corporationId = memberItem.dataset.corporationId;
-            const corporationName = memberItem.dataset.corporationName;
-            
-            // Add current card to history
-            this.addToNavigationHistory();
-            
-            // Close current modal and show corporation
-            this.close();
-            setTimeout(() => {
-                this.showCorporationStats(corporationId, corporationName);
-            }, 350);
-        }
-    }
-});
+        // Add member click functionality
+        modal.addEventListener('click', (e) => {
+            const memberItem = e.target.closest('[data-click-action]');
+            if (memberItem) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const action = memberItem.dataset.clickAction;
+                
+                if (action === 'show-character') {
+                    const characterId = memberItem.dataset.characterId;
+                    const characterName = memberItem.dataset.characterName;
+                    
+                    // Add current card to history
+                    this.addToNavigationHistory();
+                    
+                    // Close current modal and show character
+                    this.close();
+                    setTimeout(() => {
+                        this.showCharacterStats(characterId, characterName);
+                    }, 350);
+                    
+                } else if (action === 'show-corporation') {
+                    const corporationId = memberItem.dataset.corporationId;
+                    const corporationName = memberItem.dataset.corporationName;
+                    
+                    // Add current card to history
+                    this.addToNavigationHistory();
+                    
+                    // Close current modal and show corporation
+                    this.close();
+                    setTimeout(() => {
+                        this.showCorporationStats(corporationId, corporationName);
+                    }, 350);
+                }
+            }
+        });
 
         return modal;
     }
+    
     addToNavigationHistory() {
-    if (!this.currentModal) return;
-    
-    const currentEntityType = this.currentModal.querySelector('.zkill-entity-type').textContent;
-    const currentEntityName = this.currentModal.querySelector('.zkill-entity-details h2').textContent.replace(' ⚔️', '');
-    const currentEntityId = this.getCurrentEntityId();
-    
-    if (currentEntityId) {
-        this.navigationHistory.push({
-            entityType: currentEntityType,
-            entityId: currentEntityId,
-            entityName: currentEntityName,
-            apiType: currentEntityType + 'ID'
-        });
+        if (!this.currentModal) return;
         
-        // Limit history to 3 items (character -> corp -> alliance)
-        if (this.navigationHistory.length > 3) {
-            this.navigationHistory.shift();
+        const currentEntityType = this.currentModal.querySelector('.zkill-entity-type').textContent;
+        const currentEntityName = this.currentModal.querySelector('.zkill-entity-details h2').textContent.replace(' ⚔️', '');
+        const currentEntityId = this.getCurrentEntityId();
+        
+        if (currentEntityId) {
+            this.navigationHistory.push({
+                entityType: currentEntityType,
+                entityId: currentEntityId,
+                entityName: currentEntityName,
+                apiType: currentEntityType + 'ID'
+            });
+            
+            // Limit history to 3 items (character -> corp -> alliance)
+            if (this.navigationHistory.length > 3) {
+                this.navigationHistory.shift();
+            }
         }
     }
-}
+
     // Navigate back to previous card
     goBack() {
         if (this.navigationHistory.length > 0) {
@@ -641,6 +698,7 @@ modal.addEventListener('click', (e) => {
             backBtn.style.display = this.navigationHistory.length > 0 ? 'block' : 'none';
         }
     }
+
     formatDangerRatio(ratio) {
         if (ratio === 0) return '0.00';
         if (ratio >= 100) return Math.round(ratio).toString();
@@ -667,88 +725,89 @@ modal.addEventListener('click', (e) => {
      * Create main stats HTML
      */
     // Add this method to the ZKillStatsCard class
-createMembersDropdownHTML(entityType, entityId) {
-    if (entityType === 'corporation') {
-        const characters = this.corpToCharactersMap.get(parseInt(entityId)) || [];
-        if (characters.length === 0) return '';
-        
-        const membersHTML = characters.map(character => `
-            <div class="zkill-member-item" 
-                 data-click-action="show-character" 
-                 data-character-id="${character.character_id}"
-                 data-character-name="${this.escapeHtml(character.character_name)}">
-                <img src="https://images.evetech.net/characters/${character.character_id}/portrait?size=32"
-                     alt="${this.escapeHtml(character.character_name)}" 
-                     class="zkill-member-avatar"
-                     loading="lazy">
-                <div class="zkill-member-info">
-                    <div class="zkill-member-name">${this.escapeHtml(character.character_name)}</div>
-                    <div class="zkill-member-details">Character</div>
-                </div>
-            </div>
-        `).join('');
-        
-        return `
-            <div class="zkill-members-section">
-                <div class="zkill-members-dropdown" id="zkill-members-dropdown">
-                    <div class="zkill-members-header" data-action="toggle-members">
-                        <div class="zkill-members-title">
-                            <span class="zkill-section-icon">👥</span>
-                            Corporation Members
-                            <span class="zkill-members-count">${characters.length}</span>
-                        </div>
-                        <div class="zkill-members-toggle">▼</div>
-                    </div>
-                    <div class="zkill-members-list">
-                        <div class="zkill-members-content">
-                            ${membersHTML}
-                        </div>
+    createMembersDropdownHTML(entityType, entityId) {
+        if (entityType === 'corporation') {
+            const characters = this.corpToCharactersMap.get(parseInt(entityId)) || [];
+            if (characters.length === 0) return '';
+            
+            const membersHTML = characters.map(character => `
+                <div class="zkill-member-item" 
+                     data-click-action="show-character" 
+                     data-character-id="${character.character_id}"
+                     data-character-name="${sanitizeAttribute(character.character_name)}">
+                    <img src="https://images.evetech.net/characters/${sanitizeId(character.character_id)}/portrait?size=32"
+                         alt="${sanitizeAttribute(character.character_name)}"
+                         class="zkill-member-avatar"
+                         loading="lazy">
+                    <div class="zkill-member-info">
+                        <div class="zkill-member-name">${sanitizeCharacterName(character.character_name)}</div>
+                        <div class="zkill-member-details">Character</div>
                     </div>
                 </div>
-            </div>
-        `;
-    } else if (entityType === 'alliance') {
-        const corps = this.allianceToCorpsMap.get(parseInt(entityId)) || [];
-        if (corps.length === 0) return '';
-        
-        const membersHTML = corps.map(corp => `
-            <div class="zkill-member-item" 
-                 data-click-action="show-corporation" 
-                 data-corporation-id="${corp.id}"
-                 data-corporation-name="${this.escapeHtml(corp.name)}">
-                <img src="https://images.evetech.net/corporations/${corp.id}/logo?size=32"
-                     alt="${this.escapeHtml(corp.name)}" 
-                     class="zkill-member-avatar"
-                     loading="lazy">
-                <div class="zkill-member-info">
-                    <div class="zkill-member-name">${this.escapeHtml(corp.name)}</div>
-                    <div class="zkill-member-details">${corp.count} member${corp.count !== 1 ? 's' : ''}</div>
-                </div>
-            </div>
-        `).join('');
-        
-        return `
-            <div class="zkill-members-section">
-                <div class="zkill-members-dropdown" id="zkill-members-dropdown">
-                    <div class="zkill-members-header" data-action="toggle-members">
-                        <div class="zkill-members-title">
-                            <span class="zkill-section-icon">🏢</span>
-                            Member Corporations
-                            <span class="zkill-members-count">${corps.length}</span>
+            `).join('');
+            
+            return `
+                <div class="zkill-members-section">
+                    <div class="zkill-members-dropdown" id="zkill-members-dropdown">
+                        <div class="zkill-members-header" data-action="toggle-members">
+                            <div class="zkill-members-title">
+                                <span class="zkill-section-icon">👥</span>
+                                Corporation Members
+                                <span class="zkill-members-count">${characters.length}</span>
+                            </div>
+                            <div class="zkill-members-toggle">▼</div>
                         </div>
-                        <div class="zkill-members-toggle">▼</div>
-                    </div>
-                    <div class="zkill-members-list">
-                        <div class="zkill-members-content">
-                            ${membersHTML}
+                        <div class="zkill-members-list">
+                            <div class="zkill-members-content">
+                                ${membersHTML}
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
-        `;
+            `;
+        } else if (entityType === 'alliance') {
+            const corps = this.allianceToCorpsMap.get(parseInt(entityId)) || [];
+            if (corps.length === 0) return '';
+            
+            const membersHTML = corps.map(corp => `
+                <div class="zkill-member-item" 
+                     data-click-action="show-corporation" 
+                     data-corporation-id="${corp.id}"
+                     data-corporation-name="${sanitizeAttribute(corp.name)}">
+                    <img src="https://images.evetech.net/corporations/${sanitizeId(corp.id)}/logo?size=32"
+                         alt="${sanitizeAttribute(corp.name)}"
+                         class="zkill-member-avatar"
+                         loading="lazy">
+                    <div class="zkill-member-info">
+                        <div class="zkill-member-name">${sanitizeCorporationName(corp.name)}</div>
+                        <div class="zkill-member-details">${corp.count} member${corp.count !== 1 ? 's' : ''}</div>
+                    </div>
+                </div>
+            `).join('');
+            
+            return `
+                <div class="zkill-members-section">
+                    <div class="zkill-members-dropdown" id="zkill-members-dropdown">
+                        <div class="zkill-members-header" data-action="toggle-members">
+                            <div class="zkill-members-title">
+                                <span class="zkill-section-icon">🏢</span>
+                                Member Corporations
+                                <span class="zkill-members-count">${corps.length}</span>
+                            </div>
+                            <div class="zkill-members-toggle">▼</div>
+                        </div>
+                        <div class="zkill-members-list">
+                            <div class="zkill-members-content">
+                                ${membersHTML}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        return '';
     }
-    return '';
-}
+
     createStatsHTML(stats, entityType, entityId) {
         return `
         <!-- Members Dropdown -->
@@ -856,35 +915,22 @@ createMembersDropdownHTML(entityType, entityId) {
         </div>
         `;
     }
+
     /**
      * Create top locations HTML
      */
-    /**
- * Create top locations HTML
- */
     createTopLocationsHTML(locations) {
         if (!locations || locations.length === 0) {
-        //     return `
-        //     <div class="zkill-section">
-        //         <h3 class="zkill-section-title">
-        //             <span class="zkill-section-icon">🌍</span>
-        //             Top PVP Locations
-        //         </h3>
-        //         <div style="text-align: center; color: var(--text-muted); padding: 2rem;">
-        //             No location data available
-        //         </div>
-        //     </div>
-        // `;
             return '';
         }
 
         const locationsHTML = locations.map(location => `
         <div class="zkill-location-card">
             <div class="zkill-location-name">
-                <a href="https://zkillboard.com/system/${this.escapeHtml(location.systemId)}/" 
+                <a href="https://zkillboard.com/system/${sanitizeId(location.systemId)}/" 
                 target="_blank"
                 style="color: var(--primary-color); text-decoration: none; font-weight: 600;">
-                    ${this.escapeHtml(location.systemName)}
+                    ${escapeHtml(location.systemName)}
                 </a>
             </div>
             <div class="zkill-location-bottom">
@@ -918,7 +964,7 @@ createMembersDropdownHTML(entityType, entityId) {
                 <div class="zkill-empty-icon">📊</div>
                 <div class="zkill-empty-text">No killboard data found</div>
                 <div style="color: var(--text-secondary); font-size: 0.9rem; margin-top: 0.5rem;">
-                    ${this.escapeHtml(entityName)} has no recorded kills or losses on zKillboard.
+                    ${escapeHtml(entityName)} has no recorded kills or losses on zKillboard.
                 </div>
             </div>
         `;
@@ -935,7 +981,7 @@ createMembersDropdownHTML(entityType, entityId) {
             <div class="zkill-error">
                 <div class="zkill-error-icon">⚠️</div>
                 <div class="zkill-error-text">Error Loading Data</div>
-                <div class="zkill-error-details">${this.escapeHtml(message)}</div>
+                <div class="zkill-error-details">${escapeHtml(message)}</div>
             </div>
         `;
     }
@@ -1036,11 +1082,6 @@ createMembersDropdownHTML(entityType, entityId) {
         }
     }
 
-    escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
 }
 
 // Create singleton instance
@@ -1062,6 +1103,7 @@ export function showAllianceStats(allianceId, allianceName) {
 export function closeStatsCard() {
     zkillStatsCard.close();
 }
+
 // Export the singleton instance for external access
 export function getZkillCardInstance() {
     return zkillStatsCard;

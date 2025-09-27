@@ -6,6 +6,7 @@
 */
 
 import { MAX_ESI_CALL_SIZE, CHUNK_SIZE, CHUNK_DELAY } from './config.js';
+import { sanitizeCharacterData, sanitizeCorporationData, sanitizeAllianceData, sanitizeId, sanitizeCharacterName, sanitizeCorporationName, sanitizeAllianceName } from './xss-protection.js';
 import {
     getCachedNameToId,
     setCachedNameToId,
@@ -405,10 +406,10 @@ async function processUncachedCorporations(uncachedIds, corpMap, startingCount, 
                 let corporationInfo;
 
                 if (result && result.name !== undefined) {
-                    // Successful response
+                    // Successful response - sanitize the data
                     corporationInfo = {
-                        name: result.name,
-                        war_eligible: result.war_eligible
+                        name: sanitizeCorporationName(result.name),
+                        war_eligible: Boolean(result.war_eligible)
                     };
                 } else {
                     // Failed response or null
@@ -483,9 +484,9 @@ async function processUncachedAlliances(uncachedIds, allianceMap, startingCount,
                 let allianceInfo;
 
                 if (result && result.name !== undefined) {
-                    // Successful response
+                    // Successful response - sanitize the data
                     allianceInfo = {
-                        name: result.name
+                        name: sanitizeAllianceName(result.name)
                     };
                 } else {
                     // Failed response or null
@@ -544,10 +545,10 @@ export function buildCharacterResults(characters, affiliationMap, corpMap, allia
             }
 
             let result = {
-                character_name: char.name,
-                character_id: char.id,
-                corporation_name: corpInfo.name,
-                corporation_id: affiliation.corporation_id,
+                character_name: sanitizeCharacterName(char.name),
+                character_id: sanitizeId(char.id),
+                corporation_name: sanitizeCorporationName(corpInfo.name),
+                corporation_id: sanitizeId(affiliation.corporation_id),
                 alliance_name: null,
                 alliance_id: null,
                 war_eligible: false
@@ -556,19 +557,19 @@ export function buildCharacterResults(characters, affiliationMap, corpMap, allia
             if (affiliation.alliance_id) {
                 const allianceInfo = allianceMap.get(affiliation.alliance_id);
                 if (allianceInfo) {
-                    result.alliance_name = allianceInfo.name;
-                    result.alliance_id = affiliation.alliance_id;
+                    result.alliance_name = sanitizeAllianceName(allianceInfo.name);
+                    result.alliance_id = sanitizeId(affiliation.alliance_id);
                 }
             }
 
-            if (corpInfo.war_eligible !== undefined) result.war_eligible = corpInfo.war_eligible;
+            if (corpInfo.war_eligible !== undefined) result.war_eligible = Boolean(corpInfo.war_eligible);
             results.push(result);
         } catch (e) {
             showError(`Error processing character ${char.name}: ${e}`);
             console.error(`Error processing character ${char.name}:`, e);
             results.push({
-                character_name: char.name,
-                character_id: char.id,
+                character_name: sanitizeCharacterName(char.name),
+                character_id: sanitizeId(char.id),
                 corporation_name: 'Error loading',
                 corporation_id: null,
                 alliance_name: null,

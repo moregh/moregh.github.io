@@ -1,9 +1,33 @@
 /*
     War Target Finder - Summary Section and Mouseover Cards
-    
+
     Copyright (C) 2025 moregh (https://github.com/moregh/)
     Licensed under AGPL License.
 */
+
+/* Summary war eligibility badges */
+.summary-war-badge {
+    display: inline-block;
+    background: linear-gradient(135deg, #ff4757, #ff3742);
+    color: white;
+    padding: 1px 4px;
+    border-radius: 6px;
+    font-size: 0.55rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    margin-left: 4px;
+    box-shadow: 0 1px 4px rgba(255, 71, 87, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    animation: warPulse 2s infinite;
+    vertical-align: middle;
+}
+
+/* Highlight war-eligible summary items */
+.summary-item.war-eligible {
+    border: 1px solid rgba(255, 71, 87, 0.3);
+    background: linear-gradient(135deg, rgba(255, 71, 87, 0.03), rgba(255, 71, 87, 0.08));
+}
 
 /* Summary Section */
 .summary-section {
@@ -214,12 +238,23 @@
     background: rgba(255, 255, 255, 0.02);
     border-radius: 6px;
     border-left: 2px solid var(--secondary-color);
-    transition: all 0.2s ease
+    transition: all 0.2s ease;
+    cursor: pointer;
+    position: relative
 }
 
 .mouseover-card-item:hover {
     background: rgba(255, 255, 255, 0.05);
     transform: translateX(2px)
+}
+
+.zkill-card-clickable {
+    cursor: pointer
+}
+
+.zkill-card-clickable:hover {
+    background: rgba(255, 255, 255, 0.08) !important;
+    transform: translateX(3px) !important
 }
 
 .mouseover-card-avatar {
@@ -238,15 +273,13 @@
     flex: 1
 }
 
-.mouseover-card-name a {
+.mouseover-card-name span {
     color: var(--primary-color);
-    text-decoration: none;
     transition: color 0.18s ease
 }
 
-.mouseover-card-name a:hover {
-    color: #66e0ff;
-    text-decoration: underline
+.zkill-card-clickable:hover .mouseover-card-name span {
+    color: #66e0ff
 }
 
 .mouseover-card-more {
