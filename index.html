@@ -31,6 +31,7 @@
   <link rel="stylesheet" href="styles/loading.css">
   <link rel="stylesheet" href="styles/results.css">
   <link rel="stylesheet" href="styles/summary.css">
+  <link rel="stylesheet" href="styles/filters.css">
   <link rel="stylesheet" href="styles/virtual-scroll.css">
   <link rel="stylesheet" href="styles/messages.css">
   <link rel="stylesheet" href="styles/zkill-card.css">
@@ -54,6 +55,7 @@
   <script type="module" src="js/esi-api.js"></script>
   <script type="module" src="js/zkillboard-api.js"></script>
   <script type="module" src="js/zkill-card.js"></script>
+  <script type="module" src="js/filters.js"></script>
   <script type="module" src="js/ui.js"></script>
   <script type="module" src="js/rendering.js"></script>
   <script type="module" src="js/app.js"></script>
@@ -227,6 +229,79 @@
                 Load More Corporations
               </button>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="filters-section glass-card" id="filters-section">
+        <div class="filters-header">
+          <h3><span class="filter-icon">🔍</span>Filters</h3>
+          <div class="filters-controls">
+            <button class="filter-toggle-btn" id="filter-toggle" data-action="toggle-filters">
+              <span class="toggle-text">Show Filters</span>
+              <span class="toggle-icon">▼</span>
+            </button>
+            <button class="filter-clear-btn" id="filter-clear" data-action="clear-filters">
+              Clear All
+            </button>
+          </div>
+        </div>
+        <div class="filters-content" id="filters-content">
+          <div class="filters-layout">
+            <div class="filters-left-column">
+              <div class="filter-group">
+                <label class="filter-label" for="filter-name">Name Contains</label>
+                <input type="text" id="filter-name" class="filter-input" placeholder="Search characters, corps, alliances...">
+              </div>
+
+              <div class="filter-group">
+                <label class="filter-label" for="filter-corporation">Corporation</label>
+                <select id="filter-corporation" class="filter-select">
+                  <option value="">All Corporations</option>
+                </select>
+              </div>
+
+              <div class="filter-group">
+                <label class="filter-label" for="filter-alliance">Alliance</label>
+                <select id="filter-alliance" class="filter-select">
+                  <option value="">All Alliances</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="filters-right-column">
+              <div class="filter-group">
+                <label class="filter-section-label">Size Filters</label>
+                <div class="filter-sliders-stack">
+                  <div class="filter-slider-item">
+                    <label class="filter-label" for="filter-min-corp-size">Min Corp Size</label>
+                    <div class="filter-range">
+                      <input type="range" id="filter-min-corp-size" min="1" max="500" value="1" class="filter-slider">
+                      <span class="range-value" id="corp-size-value">1</span>
+                    </div>
+                  </div>
+                  <div class="filter-slider-item">
+                    <label class="filter-label" for="filter-min-alliance-size">Min Alliance Size</label>
+                    <div class="filter-range">
+                      <input type="range" id="filter-min-alliance-size" min="1" max="50" value="1" class="filter-slider">
+                      <span class="range-value" id="alliance-size-value">1 corps</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="filter-group">
+                <label class="filter-label">
+                  <input type="checkbox" id="filter-war-eligible-only" class="filter-toggle">
+                  <span class="toggle-switch"></span>
+                  Only Show War Eligible
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="filter-stats">
+            <span id="filter-results-count">Showing all results</span>
           </div>
         </div>
       </div>

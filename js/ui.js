@@ -173,6 +173,10 @@ export function showError(message) {
   `;
 }
 
+export function clearErrorMessage() {
+    document.getElementById("error-container").innerHTML = "";
+}
+
 function getStatsElements() {
     if (!statsElements) {
         statsElements = {

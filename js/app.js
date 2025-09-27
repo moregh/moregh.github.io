@@ -17,6 +17,7 @@ import { initDB, clearExpiredCache } from './database.js';
 import { showCharacterStats, showCorporationStats, showAllianceStats } from './zkill-card.js';
 import { clientValidate } from './validation.js';
 import { validator, resetCounters } from './esi-api.js';
+import { initializeFilters, setResultsData, getFilteredResults } from './filters.js';
 import {
     startLoading,
     stopLoading,
@@ -206,11 +207,12 @@ function toggleExpanded() {
     expandedSection = !expandedSection;
     updateResultsDisplay();
 
+    const filteredResults = getFilteredResults();
     const button = document.getElementById('results-expand');
     if (button) {
         button.textContent = expandedSection
-            ? `Show Less (${allResults.length})`
-            : `Show All (${allResults.length})`;
+            ? `Show Less (${filteredResults.length})`
+            : `Show All (${filteredResults.length})`;
     }
 }
 
@@ -226,7 +228,8 @@ function toggleSummaryExpanded(type) {
 
 function loadMoreResults() {
     const currentCount = displayedResults;
-    const newCount = Math.min(currentCount + LOAD_MORE_COUNT, allResults.length);
+    const filteredResults = getFilteredResults();
+    const newCount = Math.min(currentCount + LOAD_MORE_COUNT, filteredResults.length);
     displayedResults = newCount;
 
     updateResultsDisplay();
@@ -244,9 +247,12 @@ function updateResultsDisplay() {
     // Clean up previous results first
     getObserverManager().cleanupDeadElements();
 
+    // Get filtered results
+    const filteredResults = getFilteredResults();
+
     const resultsToShow = expandedSection
-        ? allResults
-        : allResults.slice(0, displayedResults);
+        ? filteredResults
+        : filteredResults.slice(0, displayedResults);
 
     renderGrid("results-grid", resultsToShow, 'character');
 
@@ -275,8 +281,9 @@ function updateLoadMoreButtons() {
 
     // Show/hide load more button
     if (loadMore) {
+        const filteredResults = getFilteredResults();
         loadMore.style.display =
-            !expandedSection && displayedResults < allResults.length
+            !expandedSection && displayedResults < filteredResults.length
                 ? 'block' : 'none';
     }
 }
@@ -296,14 +303,27 @@ function updateSummaryLoadMoreButtons() {
 }
 
 function updateShowingCount() {
-    const totalShowing = expandedSection ? allResults.length : displayedResults;
-    const totalResults = allResults.length;
+    const filteredResults = getFilteredResults();
+    const totalShowing = expandedSection ? filteredResults.length : Math.min(displayedResults, filteredResults.length);
+    const totalFiltered = filteredResults.length;
+    const totalOriginal = allResults.length;
 
     const showingElement = document.getElementById("showing-count");
-    if (totalShowing === totalResults) {
-        showingElement.textContent = "Showing all results";
+
+    if (totalFiltered === totalOriginal) {
+        // No filters active
+        if (totalShowing === totalFiltered) {
+            showingElement.textContent = "Showing all results";
+        } else {
+            showingElement.textContent = `Showing ${totalShowing} of ${totalFiltered} results`;
+        }
     } else {
-        showingElement.textContent = `Showing ${totalShowing} of ${totalResults} results`;
+        // Filters are active
+        if (totalShowing === totalFiltered) {
+            showingElement.textContent = `Showing ${totalFiltered} of ${totalOriginal} results (filtered)`;
+        } else {
+            showingElement.textContent = `Showing ${totalShowing} of ${totalFiltered} results (${totalOriginal} total)`;
+        }
     }
 }
 
@@ -382,20 +402,24 @@ export async function validateNames() {
 
         allResults = results;
 
+        // Update filters with new results data
+        setResultsData(results);
+
         // Reset display counters
-        displayedResults = Math.min(INITIAL_USER_RESULTS_COUNT, allResults.length);
+        const filteredResults = getFilteredResults();
+        displayedResults = Math.min(INITIAL_USER_RESULTS_COUNT, filteredResults.length);
         expandedSection = false;
 
         // Reset main result section button state
         const resultsButton = document.getElementById('results-expand');
         if (resultsButton) {
-            resultsButton.textContent = `Show All (${allResults.length})`;
+            resultsButton.textContent = `Show All (${filteredResults.length})`;
         }
 
         // Update results total display
         const resultsTotal = document.getElementById('results-total');
         if (resultsTotal) {
-            resultsTotal.textContent = allResults.length;
+            resultsTotal.textContent = filteredResults.length;
         }
 
         const { allCorps, allAlliances } = summarizeEntities(results);
@@ -512,6 +536,9 @@ document.addEventListener('DOMContentLoaded', function () {
         showError(`Failed to initialize IndexedDB: ${err}`);
         console.error('Failed to initialize IndexedDB:', err);
     });
+
+    // Initialize filters system
+    initializeFilters(updateResultsDisplay);
 
     const textarea = document.getElementById('names');
     textarea.addEventListener('input', debouncedUpdateCharacterCount);

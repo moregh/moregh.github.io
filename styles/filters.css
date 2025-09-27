@@ -1,0 +1,405 @@
+/*
+    EVE Target Intel - Results Filtering System
+
+    Copyright (C) 2025 moregh (https://github.com/moregh/)
+    Licensed under AGPL License.
+*/
+
+/* Filters Section */
+.filters-section {
+    padding: 1.2rem 2rem;
+    margin-bottom: 1.5rem;
+    position: relative;
+    z-index: 50
+}
+
+.filters-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem
+}
+
+.filters-header h3 {
+    font-size: 1.17rem;
+    font-weight: 600;
+    margin: 0;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 0.45rem
+}
+
+.filter-icon {
+    font-size: 0.99rem;
+    filter: drop-shadow(0 0 4.5px currentColor)
+}
+
+.filters-controls {
+    display: flex;
+    gap: 0.8rem;
+    align-items: center
+}
+
+.filter-toggle-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 0.4rem 0.8rem;
+    color: var(--text-primary);
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem
+}
+
+.filter-toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(0, 212, 255, 0.3)
+}
+
+.filter-clear-btn {
+    background: rgba(255, 71, 87, 0.1);
+    border: 1px solid rgba(255, 71, 87, 0.3);
+    border-radius: 8px;
+    padding: 0.4rem 0.8rem;
+    color: var(--danger-color);
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s ease
+}
+
+.filter-clear-btn:hover {
+    background: rgba(255, 71, 87, 0.2);
+    border-color: rgba(255, 71, 87, 0.5)
+}
+
+.toggle-icon {
+    transition: transform 0.2s ease;
+    font-size: 0.7rem
+}
+
+.filters-section.collapsed .toggle-icon {
+    transform: rotate(-90deg)
+}
+
+.filters-section.collapsed .toggle-text::after {
+    content: " Filters"
+}
+
+.filters-section:not(.collapsed) .toggle-text::after {
+    content: " Filters"
+}
+
+/* Filters Content */
+.filters-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease
+}
+
+.filters-section:not(.collapsed) .filters-content {
+    max-height: 500px
+}
+
+.filters-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    margin-bottom: 1rem
+}
+
+.filters-left-column,
+.filters-right-column {
+    display: flex;
+    flex-direction: column;
+    gap: 1.2rem
+}
+
+/* Filter Groups */
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem
+}
+
+.filter-label {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 0.3rem
+}
+
+.filter-section-label {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.8rem;
+    display: block
+}
+
+/* Text Input */
+.filter-input {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 0.6rem 0.8rem;
+    color: var(--text-primary);
+    font-size: 0.85rem;
+    transition: all 0.2s ease
+}
+
+.filter-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    background: rgba(255, 255, 255, 0.05);
+    box-shadow: 0 0 8px rgba(0, 212, 255, 0.2)
+}
+
+.filter-input::placeholder {
+    color: var(--text-muted)
+}
+
+/* Checkboxes */
+.filter-checkboxes {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    transition: color 0.2s ease
+}
+
+.checkbox-label:hover {
+    color: var(--primary-color)
+}
+
+.checkbox-label input[type="checkbox"] {
+    display: none
+}
+
+.checkmark {
+    width: 16px;
+    height: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 3px;
+    position: relative;
+    transition: all 0.2s ease;
+    background: rgba(255, 255, 255, 0.02)
+}
+
+.checkbox-label input[type="checkbox"]:checked + .checkmark {
+    background: var(--primary-color);
+    border-color: var(--primary-color)
+}
+
+.checkbox-label input[type="checkbox"]:checked + .checkmark::after {
+    content: '✓';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: white;
+    font-size: 10px;
+    font-weight: bold
+}
+
+/* Range Sliders */
+.filter-range {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem
+}
+
+.filter-slider {
+    flex: 1;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+    outline: none;
+    -webkit-appearance: none;
+    appearance: none
+}
+
+.filter-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    background: var(--primary-color);
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.2s ease
+}
+
+.filter-slider::-webkit-slider-thumb:hover {
+    background: #66e0ff;
+    transform: scale(1.1)
+}
+
+.filter-slider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    background: var(--primary-color);
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s ease
+}
+
+.filter-slider::-moz-range-thumb:hover {
+    background: #66e0ff;
+    transform: scale(1.1)
+}
+
+.range-value {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    min-width: 60px;
+    text-align: right;
+    font-weight: 500
+}
+
+/* Slider Stack */
+.filter-sliders-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem
+}
+
+.filter-slider-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem
+}
+
+/* Toggle Switch */
+.filter-toggle {
+    display: none
+}
+
+.filter-label .toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 22px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 11px;
+    margin-right: 0.8rem;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    vertical-align: middle
+}
+
+.filter-label .toggle-switch::before {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 18px;
+    height: 18px;
+    background: white;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+    transform: translateX(0)
+}
+
+.filter-toggle:checked + .toggle-switch {
+    background: var(--primary-color)
+}
+
+.filter-toggle:checked + .toggle-switch::before {
+    transform: translateX(22px)
+}
+
+.filter-label:has(.filter-toggle) {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 0
+}
+
+/* Select Dropdowns */
+.filter-select {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 0.6rem 0.8rem;
+    color: var(--text-primary);
+    font-size: 0.85rem;
+    transition: all 0.2s ease;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+    background-position: right 0.5rem center;
+    background-repeat: no-repeat;
+    background-size: 1.5em 1.5em;
+    padding-right: 2.5rem
+}
+
+.filter-select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    background: rgba(255, 255, 255, 0.05);
+    box-shadow: 0 0 8px rgba(0, 212, 255, 0.2)
+}
+
+.filter-select option {
+    background: var(--background-dark);
+    color: var(--text-primary)
+}
+
+/* Filter Stats */
+.filter-stats {
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-color);
+    text-align: center
+}
+
+.filter-stats span {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    font-style: italic
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .filters-layout {
+        grid-template-columns: 1fr;
+        gap: 1.5rem
+    }
+
+    .filters-section {
+        padding: 1rem 1.5rem
+    }
+
+    .filters-header {
+        flex-direction: column;
+        gap: 0.8rem;
+        align-items: stretch
+    }
+
+    .filters-controls {
+        justify-content: space-between
+    }
+}
+
+/* Collapse Animation */
+.filters-section.collapsed {
+    margin-bottom: 1rem
+}
+
+.filters-section.collapsed .filters-content {
+    padding-top: 0
+}

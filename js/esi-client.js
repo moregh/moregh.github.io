@@ -6,7 +6,7 @@
 */
 
 import { ESI_BASE, ESI_HEADERS, USER_AGENT } from './config.js';
-import { showError, showWarning } from './ui.js';
+import { showError, showWarning, clearErrorMessage } from './ui.js';
 
 /**
  * ESI Error types for better error handling
@@ -260,7 +260,14 @@ export class ESIClient {
                 }
             });
 
-            return await this.handleResponse(response, endpoint);
+            const result = await this.handleResponse(response, endpoint);
+
+            // Clear any warning messages if this was a retry that succeeded
+            if (retryCount > 0) {
+                clearErrorMessage();
+            }
+
+            return result;
 
         } catch (error) {
             // Handle retryable errors
