@@ -228,29 +228,6 @@ textarea::placeholder {
     font-size: 0.72rem
 }
 
-.view-btn {
-    display: flex;
-    align-items: center;
-    gap: 0.45rem;
-    padding: 0.54rem 0.9rem;
-    background: transparent;
-    border: none;
-    border-radius: 6.3px;
-    color: var(--text-secondary);
-    font-size: 0.81rem;
-    cursor: pointer;
-    transition: all 0.18s ease
-}
-
-.view-btn.active {
-    background: var(--primary-color);
-    color: white
-}
-
-.view-btn:hover:not(.active) {
-    background: rgba(255, 255, 255, 0.05);
-    color: var(--text-primary)
-}
 
 .view-icon {
     font-size: 0.9rem

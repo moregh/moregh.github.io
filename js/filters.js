@@ -43,8 +43,8 @@ function cacheFilterElements() {
         section: document.getElementById('filters-section'),
         content: document.getElementById('filters-content'),
         toggleBtn: document.getElementById('filter-toggle'),
-        toggleText: document.querySelector('.toggle-text'),
-        toggleIcon: document.querySelector('.toggle-icon'),
+        toggleText: document.querySelector('#filter-toggle .toggle-text'),
+        toggleIcon: document.querySelector('#filter-toggle .toggle-icon'),
         clearBtn: document.getElementById('filter-clear'),
 
         // Filter inputs
@@ -59,7 +59,6 @@ function cacheFilterElements() {
         corpSizeValue: document.getElementById('corp-size-value'),
         allianceSizeValue: document.getElementById('alliance-size-value'),
         resultsCount: document.getElementById('filter-results-count'),
-        showingCount: document.getElementById('showing-count')
     };
 }
 
@@ -233,14 +232,6 @@ function updateResultsDisplay() {
         }
     }
 
-    // Update main results count
-    if (filterElements.showingCount) {
-        if (filteredCount === totalResults) {
-            filterElements.showingCount.textContent = 'Showing all results';
-        } else {
-            filterElements.showingCount.textContent = `Showing ${filteredCount} of ${totalResults} results`;
-        }
-    }
 }
 
 /**
@@ -266,7 +257,7 @@ function collapseFilters() {
 
     filterElements.section?.classList.add('collapsed');
     if (filterElements.toggleText) {
-        filterElements.toggleText.textContent = 'Show';
+        filterElements.toggleText.textContent = 'Show Filters';
     }
 }
 
@@ -278,7 +269,7 @@ function expandFilters() {
 
     filterElements.section?.classList.remove('collapsed');
     if (filterElements.toggleText) {
-        filterElements.toggleText.textContent = 'Hide';
+        filterElements.toggleText.textContent = 'Hide Filters';
     }
 }
 

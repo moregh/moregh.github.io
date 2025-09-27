@@ -38,6 +38,69 @@
     z-index: 100
 }
 
+/* Summary Header */
+.summary-section .summary-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem
+}
+
+.summary-section .summary-header h3 {
+    font-size: 1.17rem;
+    font-weight: 600;
+    margin: 0;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 0.45rem
+}
+
+.summary-section .summary-controls {
+    display: flex;
+    gap: 0.8rem;
+    align-items: center
+}
+
+.summary-toggle-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 0.4rem 0.8rem;
+    color: var(--text-primary);
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem
+}
+
+.summary-toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(0, 212, 255, 0.3)
+}
+
+.summary-toggle-btn .toggle-icon {
+    transition: transform 0.2s ease;
+    font-size: 0.7rem
+}
+
+.summary-section.collapsed .toggle-icon {
+    transform: rotate(-90deg)
+}
+
+/* Summary Wrapper */
+.summary-wrapper {
+    max-height: 1000px;
+    overflow: hidden;
+    transition: max-height 0.3s ease
+}
+
+.summary-section.collapsed .summary-wrapper {
+    max-height: 0
+}
+
 .summary-section h3 {
     text-align: center;
     font-size: 1.62rem;
@@ -53,7 +116,8 @@
 .summary-container {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 2rem
+    gap: 2rem;
+    width: 100%
 }
 
 .summary-column {

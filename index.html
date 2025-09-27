@@ -191,7 +191,17 @@
       </div>
 
       <div class="summary-section glass-card">
-        <div class="summary-container">
+        <div class="summary-header">
+          <h3><span class="entity-icon">📊</span>Summary</h3>
+          <div class="summary-controls">
+            <button class="summary-toggle-btn" id="summary-toggle" data-action="toggle-summary">
+              <span class="toggle-text">Hide Summary</span>
+              <span class="toggle-icon">▼</span>
+            </button>
+          </div>
+        </div>
+        <div class="summary-wrapper" id="summary-content">
+          <div class="summary-container">
           <div class="summary-column" id="top-alliances">
             <div class="summary-header">
               <h4><span class="entity-icon">🏛️</span>Alliances</h4>
@@ -229,6 +239,7 @@
                 Load More Corporations
               </button>
             </div>
+          </div>
           </div>
         </div>
       </div>
@@ -303,20 +314,6 @@
           <div class="filter-stats">
             <span id="filter-results-count">Showing all results</span>
           </div>
-        </div>
-      </div>
-
-      <div class="results-controls">
-        <div class="view-options">
-          <button id="grid-view-btn" class="view-btn active" data-action="toggle-view" data-view-type="grid">
-            <span class="view-icon">⊞</span> Grid
-          </button>
-          <button id="list-view-btn" class="view-btn" data-action="toggle-view" data-view-type="list">
-            <span class="view-icon">☰</span> List
-          </button>
-        </div>
-        <div class="results-info">
-          <span id="showing-count">Showing all results</span>
         </div>
       </div>
 

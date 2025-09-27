@@ -55,10 +55,6 @@
         grid-template-columns: 1fr
     }
 
-    .results-controls {
-        flex-direction: column;
-        align-items: flex-start
-    }
 
     .result-grid {
         grid-template-columns: 1fr;

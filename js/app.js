@@ -38,7 +38,7 @@ import {
 import { getZkillCardInstance } from './zkill-card.js'
 
 // Application state
-let currentView = 'grid';
+let currentView = 'grid'; // Fixed to grid view only
 let allResults = [];
 let displayedResults = 0;
 let expandedSection = false;
@@ -107,9 +107,6 @@ document.addEventListener('click', function (event) {
     const viewType = target.dataset.viewType;
 
     switch (action) {
-        case 'toggle-view':
-            toggleView(viewType);
-            break;
         case 'toggle-expanded':
             toggleExpanded();
             break;
@@ -121,6 +118,9 @@ document.addEventListener('click', function (event) {
             break;
         case 'load-more-summary':
             loadMoreSummary(type);
+            break;
+        case 'toggle-summary':
+            toggleSummarySection();
             break;
         case 'reload-page':
             event.preventDefault();
@@ -171,37 +171,6 @@ function summarizeEntities(results) {
     return { allCorps, allAlliances };
 }
 
-function toggleView(viewType) {
-    currentView = viewType;
-    window.currentView = currentView; // Update global reference
-
-    // Update button states
-    document.getElementById('grid-view-btn').classList.toggle('active', viewType === 'grid');
-    document.getElementById('list-view-btn').classList.toggle('active', viewType === 'list');
-
-    // Update grid classes
-    const grids = document.querySelectorAll('.result-grid');
-    grids.forEach(grid => {
-        grid.classList.toggle('list-view', viewType === 'list');
-    });
-
-    // Clean up existing virtual scrolling
-    const resultsContainer = document.getElementById('results-grid');
-
-    if (resultsContainer && resultsContainer._cleanup) {
-        resultsContainer._cleanup();
-    }
-
-    // Re-render with new view type
-    const resultsToShow = expandedSection
-        ? allResults
-        : allResults.slice(0, displayedResults);
-
-    // Recreate virtual scrolling with new settings
-    if (resultsToShow.length > 0) {
-        setupVirtualScrolling('results-grid', resultsToShow);
-    }
-}
 
 function toggleExpanded() {
     expandedSection = !expandedSection;
@@ -224,6 +193,16 @@ function toggleSummaryExpanded(type) {
     button.textContent = expandedSummarySections[type]
         ? `Show Less (${allSummaryData[type].length})`
         : `Show All (${allSummaryData[type].length})`;
+}
+
+function toggleSummarySection() {
+    const summarySection = document.querySelector('.summary-section');
+    const toggleText = document.querySelector('.summary-toggle-btn .toggle-text');
+
+    if (!summarySection || !toggleText) return;
+
+    const isCollapsed = summarySection.classList.toggle('collapsed');
+    toggleText.textContent = isCollapsed ? 'Show Summary' : 'Hide Summary';
 }
 
 function loadMoreResults() {
@@ -257,7 +236,6 @@ function updateResultsDisplay() {
     renderGrid("results-grid", resultsToShow, 'character');
 
     updateLoadMoreButtons();
-    updateShowingCount();
 }
 
 function updateSummaryDisplay() {
@@ -302,30 +280,6 @@ function updateSummaryLoadMoreButtons() {
             ? 'block' : 'none';
 }
 
-function updateShowingCount() {
-    const filteredResults = getFilteredResults();
-    const totalShowing = expandedSection ? filteredResults.length : Math.min(displayedResults, filteredResults.length);
-    const totalFiltered = filteredResults.length;
-    const totalOriginal = allResults.length;
-
-    const showingElement = document.getElementById("showing-count");
-
-    if (totalFiltered === totalOriginal) {
-        // No filters active
-        if (totalShowing === totalFiltered) {
-            showingElement.textContent = "Showing all results";
-        } else {
-            showingElement.textContent = `Showing ${totalShowing} of ${totalFiltered} results`;
-        }
-    } else {
-        // Filters are active
-        if (totalShowing === totalFiltered) {
-            showingElement.textContent = `Showing ${totalFiltered} of ${totalOriginal} results (filtered)`;
-        } else {
-            showingElement.textContent = `Showing ${totalShowing} of ${totalFiltered} results (${totalOriginal} total)`;
-        }
-    }
-}
 
 let characterCountTimeout = null;
 

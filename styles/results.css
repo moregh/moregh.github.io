@@ -125,30 +125,6 @@
     color: var(--secondary-color)
 }
 
-/* Results Controls */
-.results-controls {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1.5rem;
-    padding: 0.8rem 0;
-    border-bottom: 0.9px solid var(--border-color);
-    flex-wrap: wrap;
-    gap: 0.9rem
-}
-
-.view-options {
-    display: flex;
-    gap: 0.45rem;
-    background: rgba(255, 255, 255, 0.05);
-    padding: 0.27rem;
-    border-radius: 9px
-}
-
-.results-info {
-    color: var(--text-secondary);
-    font-size: 0.81rem
-}
 
 /* Results Container */
 .results-container {
