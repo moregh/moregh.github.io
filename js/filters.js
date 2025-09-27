@@ -93,7 +93,7 @@ function setupEventListeners() {
 
     // Dropdown filters
     filterElements.corporationSelect?.addEventListener('change', handleFilterChange);
-    filterElements.allianceSelect?.addEventListener('change', handleFilterChange);
+    filterElements.allianceSelect?.addEventListener('change', handleAllianceChange);
 }
 
 /**
@@ -192,6 +192,70 @@ function handleMaxAllianceSizeChange() {
     if (onFiltersChangeCallback) {
         onFiltersChangeCallback();
     }
+}
+
+/**
+ * Handle alliance change and update corporation dropdown
+ */
+function handleAllianceChange() {
+    // Store current corporation selection
+    const currentCorpSelection = filterElements.corporationSelect.value;
+
+    // Update corporation dropdown based on selected alliance
+    populateCorporationDropdown();
+
+    // Check if the currently selected corporation is still available in the new dropdown
+    const corpOptions = Array.from(filterElements.corporationSelect.options);
+    const isCurrentCorpStillAvailable = corpOptions.some(option => option.value === currentCorpSelection);
+
+    if (isCurrentCorpStillAvailable) {
+        // Keep the corporation selection if it's still valid
+        filterElements.corporationSelect.value = currentCorpSelection;
+    } else {
+        // Only reset if the corporation is not available in the new alliance
+        filterElements.corporationSelect.value = '';
+    }
+
+    // Apply filters
+    handleFilterChange();
+}
+
+/**
+ * Populate corporation dropdown based on selected alliance
+ */
+function populateCorporationDropdown() {
+    if (!filterElements.corporationSelect || !allResults.length) return;
+
+    const corpSelect = filterElements.corporationSelect;
+    const selectedAllianceId = filterElements.allianceSelect?.value;
+
+    // Clear existing options
+    corpSelect.innerHTML = '<option value="">All Corporations</option>';
+
+    // Get corporations data
+    const corporations = new Map();
+    allResults.forEach(character => {
+        if (character.corporation_id && character.corporation_name) {
+            // If an alliance is selected, only include corps from that alliance
+            if (selectedAllianceId) {
+                if (character.alliance_id && character.alliance_id.toString() === selectedAllianceId) {
+                    corporations.set(character.corporation_id, character.corporation_name);
+                }
+            } else {
+                // If no alliance selected, include all corporations
+                corporations.set(character.corporation_id, character.corporation_name);
+            }
+        }
+    });
+
+    // Sort corporations by name and add options
+    const sortedCorps = Array.from(corporations.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+    sortedCorps.forEach(([id, name]) => {
+        const option = document.createElement('option');
+        option.value = id.toString();
+        option.textContent = name;
+        corpSelect.appendChild(option);
+    });
 }
 
 /**
@@ -346,7 +410,7 @@ function collapseFilters() {
 
     filterElements.section?.classList.add('collapsed');
     if (filterElements.toggleText) {
-        filterElements.toggleText.textContent = 'Show Filters';
+        filterElements.toggleText.textContent = 'Show';
     }
 }
 
@@ -358,7 +422,7 @@ function expandFilters() {
 
     filterElements.section?.classList.remove('collapsed');
     if (filterElements.toggleText) {
-        filterElements.toggleText.textContent = 'Hide Filters';
+        filterElements.toggleText.textContent = 'Hide';
     }
 }
 
@@ -381,8 +445,11 @@ function clearAllFilters() {
     filterElements.maxAllianceSize.value = filterElements.maxAllianceSize.max;
 
     // Reset dropdowns to "All" options
-    filterElements.corporationSelect.value = '';
     filterElements.allianceSelect.value = '';
+    filterElements.corporationSelect.value = '';
+
+    // Repopulate corporation dropdown (since alliance selection was cleared)
+    populateCorporationDropdown();
 
     // Update displays and apply filters
     updateRangeValues();
@@ -467,22 +534,8 @@ function populateDropdowns(results) {
         }
     });
 
-    // Populate corporation dropdown
-    if (filterElements.corporationSelect) {
-        const corpSelect = filterElements.corporationSelect;
-
-        // Clear existing options except "All Corporations"
-        corpSelect.innerHTML = '<option value="">All Corporations</option>';
-
-        // Sort corporations by name and add options
-        const sortedCorps = Array.from(corporations.entries()).sort((a, b) => a[1].localeCompare(b[1]));
-        sortedCorps.forEach(([id, name]) => {
-            const option = document.createElement('option');
-            option.value = id.toString();
-            option.textContent = name;
-            corpSelect.appendChild(option);
-        });
-    }
+    // Populate corporation dropdown (initially with all corporations)
+    populateCorporationDropdown();
 
     // Populate alliance dropdown
     if (filterElements.allianceSelect) {

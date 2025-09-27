@@ -149,7 +149,7 @@
 /* War Eligibility Badges */
 .war-eligible-badge {
     display: inline-block;
-    background: linear-gradient(135deg, #ff4757, #ff3742);
+    background: linear-gradient(135deg, var(--war-color), var(--war-color-dark));
     color: white;
     padding: 2px 6px;
     border-radius: 8px;
@@ -363,7 +363,7 @@
 }
 
 .character-name a:hover {
-    color: #66e0ff
+    color: var(--primary-light)
 }
 
 .character-name a:hover::after {
@@ -420,7 +420,7 @@
 }
 
 .character-link:hover {
-    color: #66e0ff;
+    color: var(--primary-light);
     text-decoration: underline
 }
 

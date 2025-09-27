@@ -41,40 +41,7 @@
     align-items: center
 }
 
-.filter-toggle-btn {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 8px;
-    padding: 0.4rem 0.8rem;
-    color: var(--text-primary);
-    font-size: 0.85rem;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    display: flex;
-    align-items: center;
-    gap: 0.4rem
-}
-
-.filter-toggle-btn:hover {
-    background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(0, 212, 255, 0.3)
-}
-
-.filter-clear-btn {
-    background: rgba(255, 71, 87, 0.1);
-    border: 1px solid rgba(255, 71, 87, 0.3);
-    border-radius: 8px;
-    padding: 0.4rem 0.8rem;
-    color: var(--danger-color);
-    font-size: 0.85rem;
-    cursor: pointer;
-    transition: all 0.2s ease
-}
-
-.filter-clear-btn:hover {
-    background: rgba(255, 71, 87, 0.2);
-    border-color: rgba(255, 71, 87, 0.5)
-}
+/* filter button styles moved to components.css */
 
 .toggle-icon {
     transition: transform 0.2s ease;
@@ -255,7 +222,7 @@
 }
 
 .filter-slider::-webkit-slider-thumb:hover {
-    background: #66e0ff;
+    background: var(--primary-light);
     transform: scale(1.1)
 }
 
@@ -270,7 +237,7 @@
 }
 
 .filter-slider::-moz-range-thumb:hover {
-    background: #66e0ff;
+    background: var(--primary-light);
     transform: scale(1.1)
 }
 

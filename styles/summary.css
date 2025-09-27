@@ -8,7 +8,7 @@
 /* Summary war eligibility badges */
 .summary-war-badge {
     display: inline-block;
-    background: linear-gradient(135deg, #ff4757, #ff3742);
+    background: linear-gradient(135deg, var(--war-color), var(--war-color-dark));
     color: white;
     padding: 1px 4px;
     border-radius: 6px;
@@ -62,29 +62,7 @@
     align-items: center
 }
 
-.summary-toggle-btn {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 8px;
-    padding: 0.4rem 0.8rem;
-    color: var(--text-primary);
-    font-size: 0.85rem;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    display: flex;
-    align-items: center;
-    gap: 0.4rem
-}
-
-.summary-toggle-btn:hover {
-    background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(0, 212, 255, 0.3)
-}
-
-.summary-toggle-btn .toggle-icon {
-    transition: transform 0.2s ease;
-    font-size: 0.7rem
-}
+/* summary toggle button styles moved to components.css */
 
 .summary-section.collapsed .toggle-icon {
     transform: rotate(-90deg)
@@ -178,13 +156,7 @@
     z-index: 1
 }
 
-.summary-item:hover {
-    transform: translateX(4.5px) translateZ(0);
-    background: rgba(255, 255, 255, 0.08);
-    z-index: 1000;
-    position: relative;
-    will-change: transform;
-}
+/* .summary-item:hover styles moved to .summary-card:hover in components.css */
 
 .summary-logo {
     width: 36px;
@@ -216,7 +188,7 @@
 }
 
 .summary-name a:hover {
-    color: #66e0ff;
+    color: var(--primary-light);
     text-decoration: underline
 }
 
@@ -252,7 +224,7 @@
     position: absolute;
     width: 320px;
     max-height: 400px;
-    background: #0a0a0a;
+    background: var(--background-dark);
     backdrop-filter: blur(18px);
     border: 1px solid rgba(0, 212, 255, 0.5);
     border-radius: 13.5px;
@@ -338,7 +310,7 @@
 }
 
 .zkill-card-clickable:hover .mouseover-card-name span {
-    color: #66e0ff
+    color: var(--primary-light)
 }
 
 .mouseover-card-more {

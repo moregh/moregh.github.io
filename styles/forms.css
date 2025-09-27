@@ -144,120 +144,17 @@ textarea::placeholder {
     font-weight: 500
 }
 
-.check-button {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.72rem;
-    margin: 1.35rem auto 0;
-    padding: 0.7rem 0.7rem;
-    background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
-    color: white;
-    border: none;
-    border-radius: 50px;
-    font-size: 0.99rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.27s ease;
-    box-shadow: 0 3.6px 18px rgba(0, 212, 255, 0.3), inset 0 0.9px 0 rgba(255, 255, 255, 0.2);
-    position: relative;
-    overflow: hidden
-}
-
-.check-button::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-    transition: left 0.45s ease
-}
-
-.check-button:hover {
-    transform: translateY(-2.7px);
-    box-shadow: 0 7.2px 27px rgba(0, 212, 255, 0.4), inset 0 0.9px 0 rgba(255, 255, 255, 0.2)
-}
-
-.check-button:hover::before {
-    left: 100%
-}
-
-.check-button:active {
-    transform: translateY(-0.9px)
-}
-
-.check-button:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-    transform: none
-}
-
-.check-button:disabled::before {
-    display: none
-}
+/* check-button styles moved to components.css */
 
 .button-icon {
     font-size: 1.08rem;
     filter: drop-shadow(0 0 4.5px currentColor)
 }
 
-/* Button Styles */
-.expand-btn,
-.summary-expand-btn {
-    background: rgba(255, 255, 255, 0.1);
-    border: 0.9px solid var(--border-color);
-    color: var(--text-secondary);
-    padding: 0.45rem 0.9rem;
-    border-radius: 7.2px;
-    font-size: 0.765rem;
-    cursor: pointer;
-    transition: all 0.18s ease
-}
-
-.expand-btn:hover,
-.summary-expand-btn:hover {
-    background: rgba(255, 255, 255, 0.15);
-    color: var(--text-primary)
-}
-
-.summary-expand-btn {
-    padding: 0.36rem 0.72rem;
-    border-radius: 6px;
-    font-size: 0.72rem
-}
-
+/* Button styles moved to components.css */
 
 .view-icon {
     font-size: 0.9rem
-}
-
-.load-more-btn,
-.summary-load-more-btn {
-    background: linear-gradient(135deg, rgba(0, 212, 255, 0.1), rgba(0, 153, 204, 0.1));
-    border: 1.8px solid var(--border-glow);
-    color: var(--primary-color);
-    padding: 0.72rem 1.8rem;
-    border-radius: 22.5px;
-    font-size: 0.9rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.27s ease
-}
-
-.load-more-btn:hover,
-.summary-load-more-btn:hover {
-    background: linear-gradient(135deg, rgba(0, 212, 255, 0.2), rgba(0, 153, 204, 0.2));
-    border-color: var(--primary-color);
-    transform: translateY(-1.8px);
-    box-shadow: 0 4.5px 13.5px rgba(0, 212, 255, 0.2)
-}
-
-.summary-load-more-btn {
-    padding: 0.54rem 1.35rem;
-    border-radius: 18px;
-    font-size: 0.81rem
 }
 
 .input-section.collapsed.loading:hover {

@@ -67,7 +67,7 @@
 }
 
 .title-primary {
-    background: linear-gradient(135deg, var(--primary-color) 0%, #66e0ff 50%, var(--secondary-color) 100%);
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-light) 50%, var(--secondary-color) 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -79,7 +79,7 @@
 }
 
 .title-secondary {
-    background: linear-gradient(135deg, #66e0ff 0%, var(--secondary-color) 50%, #4adebc 100%);
+    background: linear-gradient(135deg, var(--primary-light) 0%, var(--secondary-color) 50%, var(--secondary-light) 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -132,7 +132,7 @@
     box-shadow: 0 6px 16px rgba(0, 212, 255, 0.4);
     border-color: var(--primary-color);
     background: linear-gradient(135deg, rgba(0, 212, 255, 0.25), rgba(74, 222, 128, 0.25));
-    color: #66e0ff;
+    color: var(--primary-light);
 }
 
 /* Active/Press State */

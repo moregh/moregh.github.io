@@ -122,7 +122,7 @@
 }
 
 .copyright a:hover {
-    color: #66e0ff;
+    color: var(--primary-light);
     background: rgba(0, 212, 255, 0.15);
     border-color: rgba(0, 212, 255, 0.3);
     transform: translateY(-1px);

@@ -25,6 +25,7 @@
   <meta name="application-name" content="EVE Target Intel">
   <title>EVE Target Intel</title>
   <link rel="stylesheet" href="styles/base.css">
+  <link rel="stylesheet" href="styles/components.css">
   <link rel="stylesheet" href="styles/animations.css">
   <link rel="stylesheet" href="styles/header.css">
   <link rel="stylesheet" href="styles/forms.css">
@@ -249,7 +250,7 @@
           <h3><span class="filter-icon">🔍</span>Filters</h3>
           <div class="filters-controls">
             <button class="filter-toggle-btn" id="filter-toggle" data-action="toggle-filters">
-              <span class="toggle-text">Show Filters</span>
+              <span class="toggle-text">Show</span>
               <span class="toggle-icon">▼</span>
             </button>
             <button class="filter-clear-btn" id="filter-clear" data-action="clear-filters">
@@ -266,16 +267,16 @@
               </div>
 
               <div class="filter-group">
-                <label class="filter-label" for="filter-corporation">Corporation</label>
-                <select id="filter-corporation" class="filter-select">
-                  <option value="">All Corporations</option>
+                <label class="filter-label" for="filter-alliance">Alliance</label>
+                <select id="filter-alliance" class="filter-select">
+                  <option value="">All Alliances</option>
                 </select>
               </div>
 
               <div class="filter-group">
-                <label class="filter-label" for="filter-alliance">Alliance</label>
-                <select id="filter-alliance" class="filter-select">
-                  <option value="">All Alliances</option>
+                <label class="filter-label" for="filter-corporation">Corporation</label>
+                <select id="filter-corporation" class="filter-select">
+                  <option value="">All Corporations</option>
                 </select>
               </div>
             </div>
