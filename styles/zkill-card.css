@@ -685,7 +685,6 @@ border-radius: 50%;
 border-top-color: var(--primary-color);
 animation: spin 1s linear infinite;
 }
-@keyframes spin { to { transform: rotate(360deg); } }
 .zkill-loading-text { color: var(--text-secondary); font-size: 1rem; }
 
 .zkill-error {
