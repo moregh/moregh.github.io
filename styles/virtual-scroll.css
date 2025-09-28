@@ -18,6 +18,13 @@
     padding: 1.8rem
 }
 
+/* Entity cards in virtual scroll containers */
+.virtual-scroll-content .entity-card {
+    animation: slideIn 0.45s ease forwards;
+    opacity: 0;
+    transform: translateY(18px);
+}
+
 .result-grid.list-view .virtual-content {
     grid-template-columns: 1fr !important
 }

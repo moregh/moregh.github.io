@@ -563,6 +563,89 @@ export function getFilteredResults() {
 }
 
 /**
+ * Get filtered alliance results
+ */
+export function getFilteredAlliances(allAlliances) {
+    if (!allAlliances || !allAlliances.length) return [];
+
+    return allAlliances.filter(alliance => {
+        // War eligibility filter
+        if (filterState.warEligibleOnly && !alliance.war_eligible) return false;
+
+        // Name search filter
+        if (filterState.nameSearch) {
+            const searchLower = filterState.nameSearch;
+            const nameMatch = alliance.name?.toLowerCase().includes(searchLower);
+            if (!nameMatch) return false;
+        }
+
+        // Alliance size filter
+        if (alliance.count < filterState.minAllianceSize || alliance.count > filterState.maxAllianceSize) return false;
+
+        // Specific alliance filter (if a specific alliance is selected, only show that one)
+        if (filterState.selectedAlliance && alliance.id.toString() !== filterState.selectedAlliance) {
+            return false;
+        }
+
+        // Corporation filter (if a corporation is selected, only show the alliance that corporation belongs to)
+        if (filterState.selectedCorporation) {
+            // Find the alliance ID for the selected corporation by checking character data
+            const corpMembers = allResults.filter(char => char.corporation_id.toString() === filterState.selectedCorporation);
+            const corpAllianceId = corpMembers.length > 0 ? corpMembers[0].alliance_id : null;
+
+            // If the corporation has no alliance, don't show any alliances
+            if (!corpAllianceId) return false;
+
+            // Only show the alliance that this corporation belongs to
+            if (alliance.id.toString() !== corpAllianceId.toString()) {
+                return false;
+            }
+        }
+
+        return true;
+    });
+}
+
+/**
+ * Get filtered corporation results
+ */
+export function getFilteredCorporations(allCorporations) {
+    if (!allCorporations || !allCorporations.length) return [];
+
+    return allCorporations.filter(corporation => {
+        // War eligibility filter
+        if (filterState.warEligibleOnly && !corporation.war_eligible) return false;
+
+        // Name search filter
+        if (filterState.nameSearch) {
+            const searchLower = filterState.nameSearch;
+            const nameMatch = corporation.name?.toLowerCase().includes(searchLower);
+            if (!nameMatch) return false;
+        }
+
+        // Corporation size filter
+        if (corporation.count < filterState.minCorpSize || corporation.count > filterState.maxCorpSize) return false;
+
+        // Specific corporation filter (if a specific corporation is selected, only show that one)
+        if (filterState.selectedCorporation && corporation.id.toString() !== filterState.selectedCorporation) {
+            return false;
+        }
+
+        // Alliance filter (if an alliance is selected, only show corporations from that alliance)
+        if (filterState.selectedAlliance) {
+            // Find the alliance ID for this corporation by checking character data
+            const corpMembers = allResults.filter(char => char.corporation_id === corporation.id);
+            const corpAllianceId = corpMembers.length > 0 ? corpMembers[0].alliance_id : null;
+            if (corpAllianceId?.toString() !== filterState.selectedAlliance) {
+                return false;
+            }
+        }
+
+        return true;
+    });
+}
+
+/**
  * Check if any filters are active
  */
 export function hasActiveFilters() {

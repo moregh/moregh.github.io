@@ -5,32 +5,25 @@
     Licensed under AGPL License.
 */
 
-/* Footer */
-.disclaimer,
-.copyright {
-    margin-top: 1rem;
-    padding: 1.5rem 2rem;
+/* Footer - Combined Section */
+.disclaimer-copyright {
+    margin-top: 2.5rem;
+    padding: 1.2rem 2rem 0.8rem;
     text-align: center;
     font-size: 0.8rem;
-    line-height: 1.5;
+    line-height: 1.4;
     position: relative;
-    overflow: visible
-}
-
-.disclaimer {
-    margin-top: 2.5rem
-}
-
-.disclaimer {
+    overflow: visible;
     background: linear-gradient(135deg, rgba(251, 191, 36, 0.08) 0%, rgba(251, 191, 36, 0.04) 50%, rgba(251, 191, 36, 0.08) 100%);
     border: 0.9px solid rgba(251, 191, 36, 0.2);
     border-radius: 13.5px;
     color: var(--text-secondary);
     backdrop-filter: blur(12px);
-    box-shadow: 0 4px 16px rgba(251, 191, 36, 0.1)
+    box-shadow: 0 4px 16px rgba(251, 191, 36, 0.1);
+    margin-bottom: 1rem;
 }
 
-.disclaimer::before {
+.disclaimer-copyright::before {
     content: '';
     position: absolute;
     top: 0;
@@ -41,7 +34,7 @@
     opacity: 0.6
 }
 
-.disclaimer::after {
+.disclaimer-copyright::after {
     content: 'ℹ️';
     position: absolute;
     top: -18px;
@@ -57,45 +50,15 @@
     animation: warningGlow 3s ease-in-out infinite;
 }
 
-.copyright {
-    background: linear-gradient(135deg, rgba(0, 212, 255, 0.06) 0%, rgba(74, 222, 128, 0.06) 100%);
-    border: 0.9px solid rgba(0, 212, 255, 0.15);
-    border-radius: 13.5px;
-    color: var(--text-muted);
-    backdrop-filter: blur(12px);
-    box-shadow: 0 4px 16px rgba(0, 212, 255, 0.08);
-    font-weight: 500;
-    letter-spacing: 0.025em;
-    margin-bottom: 1rem;
-    padding: 0.8rem 2rem
-}
 
-.copyright::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(0, 212, 255, 0.3), rgba(74, 222, 128, 0.3), transparent);
-    opacity: 0.4
-}
-
-.disclaimer:hover {
+.disclaimer-copyright:hover {
     border-color: rgba(251, 191, 36, 0.3);
     box-shadow: 0 6px 20px rgba(251, 191, 36, 0.15);
     transform: translateY(-1px);
     transition: all 0.3s ease
 }
 
-.copyright:hover {
-    border-color: rgba(0, 212, 255, 0.25);
-    box-shadow: 0 6px 20px rgba(0, 212, 255, 0.12);
-    transform: translateY(-1px);
-    transition: all 0.3s ease
-}
-
-.copyright a {
+.disclaimer-copyright a {
     color: var(--primary-color);
     text-decoration: none;
     font-weight: 600;
@@ -108,7 +71,7 @@
     border: 1px solid rgba(0, 212, 255, 0.15)
 }
 
-.copyright a::after {
+.disclaimer-copyright a::after {
     content: '';
     position: absolute;
     bottom: -2px;
@@ -121,7 +84,7 @@
     border-radius: 1px
 }
 
-.copyright a:hover {
+.disclaimer-copyright a:hover {
     color: var(--primary-light);
     background: rgba(0, 212, 255, 0.15);
     border-color: rgba(0, 212, 255, 0.3);
@@ -129,26 +92,22 @@
     box-shadow: 0 4px 12px rgba(0, 212, 255, 0.2)
 }
 
-.copyright a:hover::after {
+.disclaimer-copyright a:hover::after {
     width: calc(100% - 0.8rem)
 }
 
-.copyright a:focus {
+.disclaimer-copyright a:focus {
     outline: none;
     background: rgba(0, 212, 255, 0.2);
     border-color: var(--primary-color);
     box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.3)
 }
 
-.copyright a:active {
+.disclaimer-copyright a:active {
     transform: translateY(0);
     transition-duration: 0.1s
 }
 
-.container>.disclaimer {
+.container>.disclaimer-copyright {
     margin-top: 2.5rem
-}
-
-.container>.copyright {
-    margin-top: 1rem
 }

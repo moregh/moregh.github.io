@@ -268,10 +268,10 @@
 /* Result Card */
 .result-card {
     display: flex;
-    align-items: flex-start;
-    gap: 0.9rem;
-    padding: 1.35rem;
-    min-height: 4rem;
+    flex-direction: column;
+    gap: 0.6rem;
+    padding: 1rem 1.35rem;
+    min-height: 3.5rem;
     will-change: transform, opacity;
     transform: translateZ(0);
 }

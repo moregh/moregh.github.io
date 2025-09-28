@@ -133,6 +133,369 @@
     gap: 2rem
 }
 
+/* Tabbed Results Container */
+.tabbed-results-container {
+    padding: 0;
+    overflow: hidden;
+    position: relative;
+    z-index: 1;
+    min-width: 0;
+}
+
+/* Tabs Header */
+.tabs-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    padding: 0;
+    background: rgba(255, 255, 255, 0.02);
+    border-bottom: 2px solid var(--border-color);
+    position: relative;
+}
+
+.tabs-nav {
+    display: flex;
+    gap: 0;
+    margin-bottom: -2px;
+    flex: 1;
+}
+
+.tab-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 1rem 1.5rem 0.8rem 1.5rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 2px solid var(--border-color);
+    border-bottom: none;
+    border-radius: 0;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    margin-right: -1px;
+    z-index: 1;
+    flex: 1;
+}
+
+.tab-btn:first-child {
+    margin-left: 0;
+}
+
+.tab-btn:last-child {
+    margin-right: 0;
+}
+
+.tab-btn::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--border-color);
+    transition: background 0.3s ease;
+}
+
+.tab-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.3);
+    color: var(--text-primary);
+    transform: translateY(-2px);
+    z-index: 2;
+}
+
+.tab-btn:hover::after {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.tab-btn.active {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+    z-index: 3;
+    box-shadow: 0 0 20px rgba(64, 168, 255, 0.2);
+}
+
+.tab-btn.active::after {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.tab-btn.active:hover {
+    transform: translateY(-1px);
+    color: var(--primary-light);
+    border-color: var(--primary-light);
+    box-shadow: 0 0 25px rgba(64, 168, 255, 0.3);
+}
+
+.tab-icon {
+    font-size: 1.1rem;
+    filter: drop-shadow(0 0 4px currentColor);
+}
+
+.tab-label {
+    font-weight: 600;
+}
+
+.tab-count {
+    background: rgba(255, 255, 255, 0.2);
+    padding: 0.2rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    min-width: 1.5rem;
+    text-align: center;
+}
+
+.tab-btn.active .tab-count {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.tab-controls {
+    display: flex;
+    gap: 0.8rem;
+    align-items: center;
+    padding: 0 1.8rem 0.8rem 1.8rem;
+}
+
+/* Tab Content */
+.tab-content {
+    display: none;
+    animation: fadeIn 0.3s ease;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Alliance and Corporation specific grid styles - Override any conflicting summary styles */
+.tab-content .result-grid.alliance-grid,
+.tab-content .result-grid.corporation-grid,
+.result-grid.alliance-grid,
+.result-grid.corporation-grid {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)) !important;
+    gap: 1.35rem !important;
+    padding: 1.8rem;
+    flex-direction: unset !important;
+    align-items: unset !important;
+    /* Let the JavaScript handle height and overflow for scrolling */
+    contain: layout style paint;
+    overflow-anchor: none;
+}
+
+/* Entity Card Styles (for corporations and alliances) */
+.alliance-grid .entity-card,
+.corporation-grid .entity-card,
+.entity-card {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    justify-content: flex-start !important;
+    gap: 1rem;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 13.5px;
+    padding: 1.35rem;
+    border-left: 3.6px solid var(--secondary-color);
+    transition: all 0.27s ease;
+    animation: slideIn 0.45s ease forwards;
+    position: relative;
+    overflow: hidden;
+    min-height: 120px;
+    width: 100%;
+    box-sizing: border-box;
+    will-change: transform, opacity;
+    transform: translateZ(0);
+    contain: layout style paint;
+}
+
+.corporation-card {
+    border-left-color: var(--danger-color);
+}
+
+.alliance-card {
+    border-left-color: var(--warning-color);
+}
+
+.entity-card:hover {
+    transform: translateY(-4.5px) translateZ(0);
+    background: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 9px 27px rgba(0, 0, 0, 0.2);
+    contain: layout;
+    will-change: transform;
+}
+
+.entity-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+}
+
+.entity-logo {
+    width: 64px;
+    height: 64px;
+    border-radius: 10.8px;
+    object-fit: cover;
+    border: 1.8px solid rgba(255, 255, 255, 0.1);
+    background: linear-gradient(45deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+    transition: all 0.27s ease;
+    flex-shrink: 0;
+    contain: layout;
+    transform: translateZ(0);
+}
+
+.entity-card:hover .entity-logo {
+    border-color: rgba(255, 255, 255, 0.2);
+    transform: scale(1.05);
+}
+
+.entity-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.entity-name {
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1.2;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.entity-type-icon {
+    font-size: 1.1rem;
+    filter: drop-shadow(0 0 4px currentColor);
+    flex-shrink: 0;
+}
+
+.corporation-card .entity-name {
+    color: var(--danger-color);
+}
+
+.alliance-card .entity-name {
+    color: var(--warning-color);
+}
+
+.entity-name a {
+    color: var(--primary-color);
+    text-decoration: none;
+    transition: all 0.18s ease;
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    word-break: break-word;
+}
+
+.entity-name a::after {
+    content: '';
+    position: absolute;
+    bottom: -1.8px;
+    left: 0;
+    width: 0;
+    height: 1.8px;
+    background: var(--primary-color);
+    transition: width 0.27s ease;
+}
+
+.entity-name a:hover {
+    color: var(--primary-light);
+}
+
+.entity-name a:hover::after {
+    width: 100%;
+}
+
+.entity-details {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.entity-count {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.9rem;
+}
+
+.count-number {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--secondary-color);
+    background: rgba(74, 222, 128, 0.1);
+    padding: 0.2rem 0.5rem;
+    border-radius: 8px;
+    min-width: 2rem;
+    text-align: center;
+}
+
+.count-label {
+    color: var(--text-secondary);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 0.75rem;
+}
+
+/* Entity logo image loading states */
+.entity-logo:not([src]),
+.entity-logo:not([src*="https"]) {
+    opacity: 0.3;
+}
+
+.entity-logo[src*="https"] {
+    opacity: 1;
+}
+
+/* Backward compatibility for old summary items if still used elsewhere */
+.alliance-grid .summary-item,
+.corporation-grid .summary-item {
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 13.5px;
+    padding: 1.35rem;
+    border-left: 3.6px solid var(--secondary-color);
+    transition: all 0.27s ease;
+    animation: slideIn 0.45s ease forwards;
+    position: relative;
+    overflow: hidden;
+    min-height: 4rem;
+    will-change: transform, opacity;
+    transform: translateZ(0);
+    contain: layout style paint;
+}
+
+.corporation-grid .summary-item {
+    border-left-color: var(--danger-color);
+}
+
+.alliance-grid .summary-item:hover,
+.corporation-grid .summary-item:hover {
+    transform: translateY(-4.5px) translateZ(0);
+    background: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 9px 27px rgba(0, 0, 0, 0.2);
+    contain: layout;
+    will-change: transform;
+}
+
 .result-column {
     padding: 0;
     overflow: hidden;
@@ -323,17 +686,30 @@
     height: 43.2px
 }
 
+.character-header {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+}
+
 .character-content {
     flex: 1;
-    min-width: 0
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.3rem;
 }
 
 .character-name {
     font-size: 0.99rem;
     font-weight: 600;
-    margin-bottom: 0.45rem;
     line-height: 1.2;
     min-height: 1.2em;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
 }
 
 .eligible .character-name {
@@ -374,14 +750,13 @@
     font-size: 0.81rem;
     color: var(--text-secondary);
     line-height: 1.26;
-    flex: 1;
 }
 
 .corp-alliance-info {
     display: flex;
     flex-direction: column;
-    gap: 0.45rem;
-    min-height: 60px;
+    gap: 0.3rem;
+    min-height: auto;
 }
 
 .list-view .corp-alliance-info {
@@ -394,9 +769,9 @@
 .org-item {
     display: flex;
     align-items: center;
-    gap: 0.45rem;
-    padding: 0.27rem 0;
-    min-height: 28px;
+    gap: 0.4rem;
+    min-height: auto;
+    flex-shrink: 0;
 }
 
 .org-logo {
@@ -442,7 +817,8 @@
 /* Load More Button */
 .load-more-container {
     padding: 0.9rem 1.8rem 1.8rem;
-    text-align: center
+    display: flex;
+    justify-content: center
 }
 
 /* No Results States */

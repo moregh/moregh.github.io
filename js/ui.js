@@ -126,6 +126,11 @@ export function stopLoading() {
 
     setTimeout(() => {
         rs.classList.add("show");
+        // Show header stats after first query
+        const headerStats = document.getElementById('header-stats');
+        if (headerStats) {
+            headerStats.style.display = 'flex';
+        }
         // Re-enable hover behavior after loading is complete
         const inputSection = document.getElementById('input-section');
         inputSection.classList.remove('loading');

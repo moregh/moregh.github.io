@@ -10,14 +10,13 @@ import {
     INITIAL_CORP_ALLIANCE_COUNT,
     LOAD_MORE_COUNT,
     STATS_UPDATE_DELAY,
-    CHARACTER_COUNT_DEBOUNCE_MS,
-    USER_NOTIFICATION_DISPLAY_MS
+    CHARACTER_COUNT_DEBOUNCE_MS
 } from './config.js';
 import { initDB, clearExpiredCache } from './database.js';
 import { showCharacterStats, showCorporationStats, showAllianceStats } from './zkill-card.js';
 import { clientValidate } from './validation.js';
-import { validator, resetCounters } from './esi-api.js';
-import { initializeFilters, setResultsData, getFilteredResults } from './filters.js';
+import { validator } from './esi-api.js';
+import { initializeFilters, setResultsData, getFilteredResults, getFilteredAlliances, getFilteredCorporations } from './filters.js';
 import {
     startLoading,
     stopLoading,
@@ -25,28 +24,27 @@ import {
     updateStats,
     updatePerformanceStats,
     updateVersionDisplay,
-    collapseInputSection,
     expandInputSection
 } from './ui.js';
 import {
     renderGrid,
     buildEntityMaps,
     getObserverManager,
-    addScrollStateDetection,
-    setupVirtualScrolling
+    addScrollStateDetection
 } from './rendering.js';
 import { getZkillCardInstance } from './zkill-card.js'
 
 // Application state
 let currentView = 'grid'; // Fixed to grid view only
 let allResults = [];
-let displayedResults = 0;
-let expandedSection = false;
 
 // Summary data and display tracking
 let allSummaryData = { alliance: [], corporation: [] };
-let displayedSummaryResults = { alliance: 0, corporation: 0 };
-let expandedSummarySections = { alliance: false, corporation: false };
+
+// Tabbed interface state
+let currentTab = 'characters';
+let displayedTabResults = { characters: 0, alliances: 0, corporations: 0 };
+let expandedTabSections = { characters: false, alliances: false, corporations: false };
 
 // Store complete results
 let completeResults = [];
@@ -56,7 +54,6 @@ window.currentView = currentView;
 
 function setupCollapsedIndicatorClick() {
     const inputSection = document.getElementById('input-section');
-    const collapsedIndicator = inputSection.querySelector('.collapsed-indicator');
 
     // The click is already handled by event delegation, just add hover behavior
     let hoverTimeout;
@@ -98,29 +95,27 @@ document.addEventListener('click', function (event) {
         return;
     }
 
+    // Check for tab button clicks
+    const tabButton = event.target.closest('.tab-btn');
+    if (tabButton) {
+        const tabName = tabButton.dataset.tab;
+        switchTab(tabName);
+        return;
+    }
+
     // Existing logic for data-action elements
     const target = event.target.closest('[data-action]');
     if (!target) return;
 
     const action = target.dataset.action;
     const type = target.dataset.type;
-    const viewType = target.dataset.viewType;
 
     switch (action) {
         case 'toggle-expanded':
-            toggleExpanded();
+            toggleTabExpanded();
             break;
         case 'load-more':
-            loadMoreResults();
-            break;
-        case 'toggle-summary-expanded':
-            toggleSummaryExpanded(type);
-            break;
-        case 'load-more-summary':
-            loadMoreSummary(type);
-            break;
-        case 'toggle-summary':
-            toggleSummarySection();
+            loadMoreTabResults(type);
             break;
         case 'reload-page':
             event.preventDefault();
@@ -172,113 +167,179 @@ function summarizeEntities(results) {
 }
 
 
-function toggleExpanded() {
-    expandedSection = !expandedSection;
-    updateResultsDisplay();
+// Tab functionality
+function switchTab(tabName) {
+    // Update active tab
+    currentTab = tabName;
 
-    const filteredResults = getFilteredResults();
-    const button = document.getElementById('results-expand');
-    if (button) {
-        button.textContent = expandedSection
-            ? `Show Less (${filteredResults.length})`
-            : `Show All (${filteredResults.length})`;
-    }
+    // Update tab buttons
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+
+    // Update tab content
+    document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.remove('active');
+    });
+    document.getElementById(`${tabName}-tab`).classList.add('active');
+
+    // Update the expand button and count
+    updateTabControls();
+
+    // Update the display for the current tab
+    updateTabDisplay();
 }
 
-function toggleSummaryExpanded(type) {
-    expandedSummarySections[type] = !expandedSummarySections[type];
-    updateSummaryDisplay();
-
-    const button = document.getElementById(`${type}-expand`);
-    button.textContent = expandedSummarySections[type]
-        ? `Show Less (${allSummaryData[type].length})`
-        : `Show All (${allSummaryData[type].length})`;
+function toggleTabExpanded() {
+    expandedTabSections[currentTab] = !expandedTabSections[currentTab];
+    updateTabDisplay();
+    updateTabControls();
 }
 
-function toggleSummarySection() {
-    const summarySection = document.querySelector('.summary-section');
-    const toggleText = document.querySelector('.summary-toggle-btn .toggle-text');
+function loadMoreTabResults(type) {
+    const tabType = type || currentTab;
+    const currentCount = displayedTabResults[tabType];
+    let newCount;
 
-    if (!summarySection || !toggleText) return;
-
-    const isCollapsed = summarySection.classList.toggle('collapsed');
-    toggleText.textContent = isCollapsed ? 'Show Summary' : 'Hide Summary';
-}
-
-function loadMoreResults() {
-    const currentCount = displayedResults;
-    const filteredResults = getFilteredResults();
-    const newCount = Math.min(currentCount + LOAD_MORE_COUNT, filteredResults.length);
-    displayedResults = newCount;
-
-    updateResultsDisplay();
-}
-
-function loadMoreSummary(type) {
-    const currentCount = displayedSummaryResults[type];
-    const newCount = Math.min(currentCount + LOAD_MORE_COUNT, allSummaryData[type].length);
-    displayedSummaryResults[type] = newCount;
-
-    updateSummaryDisplay();
-}
-
-function updateResultsDisplay() {
-    // Clean up previous results first
-    getObserverManager().cleanupDeadElements();
-
-    // Get filtered results
-    const filteredResults = getFilteredResults();
-
-    const resultsToShow = expandedSection
-        ? filteredResults
-        : filteredResults.slice(0, displayedResults);
-
-    renderGrid("results-grid", resultsToShow, 'character');
-
-    updateLoadMoreButtons();
-}
-
-function updateSummaryDisplay() {
-    const alliancesToShow = expandedSummarySections.alliance
-        ? allSummaryData.alliance
-        : allSummaryData.alliance.slice(0, displayedSummaryResults.alliance);
-
-    const corporationsToShow = expandedSummarySections.corporation
-        ? allSummaryData.corporation
-        : allSummaryData.corporation.slice(0, displayedSummaryResults.corporation);
-
-    renderGrid("top-alliance-grid", alliancesToShow, 'alliance');
-    renderGrid("top-corp-grid", corporationsToShow, 'corporation');
-
-    // Update load more buttons for summaries
-    updateSummaryLoadMoreButtons();
-}
-
-function updateLoadMoreButtons() {
-    const loadMore = document.getElementById("results-load-more");
-
-    // Show/hide load more button
-    if (loadMore) {
+    if (tabType === 'characters') {
         const filteredResults = getFilteredResults();
-        loadMore.style.display =
-            !expandedSection && displayedResults < filteredResults.length
-                ? 'block' : 'none';
+        newCount = Math.min(currentCount + LOAD_MORE_COUNT, filteredResults.length);
+    } else if (tabType === 'alliances') {
+        const filteredAlliances = getFilteredAlliances(allSummaryData.alliance);
+        newCount = Math.min(currentCount + LOAD_MORE_COUNT, filteredAlliances.length);
+    } else if (tabType === 'corporations') {
+        const filteredCorporations = getFilteredCorporations(allSummaryData.corporation);
+        newCount = Math.min(currentCount + LOAD_MORE_COUNT, filteredCorporations.length);
+    }
+
+    displayedTabResults[tabType] = newCount;
+    updateTabDisplay();
+    updateTabControls();
+}
+
+function updateTabDisplay() {
+    if (currentTab === 'characters') {
+        // Clean up previous results first
+        getObserverManager().cleanupDeadElements();
+
+        const filteredResults = getFilteredResults();
+        const resultsToShow = expandedTabSections.characters
+            ? filteredResults
+            : filteredResults.slice(0, displayedTabResults.characters);
+
+        renderGrid("characters-grid", resultsToShow, 'character');
+
+    } else if (currentTab === 'alliances') {
+        const filteredAlliances = getFilteredAlliances(allSummaryData.alliance);
+        const alliancesToShow = expandedTabSections.alliances
+            ? filteredAlliances
+            : filteredAlliances.slice(0, displayedTabResults.alliances);
+
+        renderGrid("alliances-grid", alliancesToShow, 'alliance');
+
+    } else if (currentTab === 'corporations') {
+        const filteredCorporations = getFilteredCorporations(allSummaryData.corporation);
+        const corporationsToShow = expandedTabSections.corporations
+            ? filteredCorporations
+            : filteredCorporations.slice(0, displayedTabResults.corporations);
+
+        renderGrid("corporations-grid", corporationsToShow, 'corporation');
+    }
+
+    updateTabLoadMoreButtons();
+}
+
+function updateTabControls() {
+    const button = document.getElementById('tab-expand');
+    const totalSpan = document.getElementById('tab-total');
+
+    if (!button || !totalSpan) return;
+
+    let totalCount = 0;
+    let isExpanded = expandedTabSections[currentTab];
+
+    if (currentTab === 'characters') {
+        const filteredResults = getFilteredResults();
+        totalCount = filteredResults.length;
+    } else if (currentTab === 'alliances') {
+        const filteredAlliances = getFilteredAlliances(allSummaryData.alliance);
+        totalCount = filteredAlliances.length;
+    } else if (currentTab === 'corporations') {
+        const filteredCorporations = getFilteredCorporations(allSummaryData.corporation);
+        totalCount = filteredCorporations.length;
+    }
+
+    button.textContent = isExpanded
+        ? `Show Less (${totalCount})`
+        : `Show All (${totalCount})`;
+
+    totalSpan.textContent = totalCount;
+}
+
+function updateTabLoadMoreButtons() {
+    const loadMoreContainers = {
+        characters: document.getElementById("characters-load-more"),
+        alliances: document.getElementById("alliances-load-more"),
+        corporations: document.getElementById("corporations-load-more")
+    };
+
+    // Hide all load more buttons first
+    Object.values(loadMoreContainers).forEach(container => {
+        if (container) container.style.display = 'none';
+    });
+
+    // Show load more button for current tab if needed
+    const currentContainer = loadMoreContainers[currentTab];
+    if (!currentContainer) return;
+
+    let shouldShow = false;
+
+    if (currentTab === 'characters') {
+        const filteredResults = getFilteredResults();
+        shouldShow = !expandedTabSections.characters &&
+                    displayedTabResults.characters < filteredResults.length;
+    } else if (currentTab === 'alliances') {
+        const filteredAlliances = getFilteredAlliances(allSummaryData.alliance);
+        shouldShow = !expandedTabSections.alliances &&
+                    displayedTabResults.alliances < filteredAlliances.length;
+    } else if (currentTab === 'corporations') {
+        const filteredCorporations = getFilteredCorporations(allSummaryData.corporation);
+        shouldShow = !expandedTabSections.corporations &&
+                    displayedTabResults.corporations < filteredCorporations.length;
+    }
+
+    currentContainer.style.display = shouldShow ? 'flex' : 'none';
+}
+
+function updateTabCounts() {
+    const charactersCount = document.getElementById('characters-tab-count');
+    const alliancesCount = document.getElementById('alliances-tab-count');
+    const corporationsCount = document.getElementById('corporations-tab-count');
+
+    if (charactersCount) {
+        const filteredResults = getFilteredResults();
+        charactersCount.textContent = filteredResults.length;
+    }
+
+    if (alliancesCount) {
+        const filteredAlliances = getFilteredAlliances(allSummaryData.alliance);
+        alliancesCount.textContent = filteredAlliances.length;
+    }
+
+    if (corporationsCount) {
+        const filteredCorporations = getFilteredCorporations(allSummaryData.corporation);
+        corporationsCount.textContent = filteredCorporations.length;
     }
 }
 
-function updateSummaryLoadMoreButtons() {
-    const allianceLoadMore = document.getElementById("alliance-load-more");
-    const corporationLoadMore = document.getElementById("corporation-load-more");
 
-    // Show/hide load more buttons for summaries
-    allianceLoadMore.style.display =
-        !expandedSummarySections.alliance && displayedSummaryResults.alliance < allSummaryData.alliance.length
-            ? 'block' : 'none';
 
-    corporationLoadMore.style.display =
-        !expandedSummarySections.corporation && displayedSummaryResults.corporation < allSummaryData.corporation.length
-            ? 'block' : 'none';
-}
+
+
+
+
+
 
 
 let characterCountTimeout = null;
@@ -359,57 +420,31 @@ export async function validateNames() {
         // Update filters with new results data
         setResultsData(results);
 
-        // Reset display counters
-        const filteredResults = getFilteredResults();
-        displayedResults = Math.min(INITIAL_USER_RESULTS_COUNT, filteredResults.length);
-        expandedSection = false;
-
-        // Reset main result section button state
-        const resultsButton = document.getElementById('results-expand');
-        if (resultsButton) {
-            resultsButton.textContent = `Show All (${filteredResults.length})`;
-        }
-
-        // Update results total display
-        const resultsTotal = document.getElementById('results-total');
-        if (resultsTotal) {
-            resultsTotal.textContent = filteredResults.length;
-        }
-
         const { allCorps, allAlliances } = summarizeEntities(results);
 
         // Store all summary data
         allSummaryData.alliance = allAlliances;
         allSummaryData.corporation = allCorps;
 
-        // Reset summary display counters
-        displayedSummaryResults.alliance = Math.min(INITIAL_CORP_ALLIANCE_COUNT, allAlliances.length);
-        displayedSummaryResults.corporation = Math.min(INITIAL_CORP_ALLIANCE_COUNT, allCorps.length);
-        expandedSummarySections.alliance = false;
-        expandedSummarySections.corporation = false;
+        // Reset tab display counters
+        const filteredResults = getFilteredResults();
+        displayedTabResults.characters = Math.min(INITIAL_USER_RESULTS_COUNT, filteredResults.length);
+        displayedTabResults.alliances = Math.min(INITIAL_CORP_ALLIANCE_COUNT, allAlliances.length);
+        displayedTabResults.corporations = Math.min(INITIAL_CORP_ALLIANCE_COUNT, allCorps.length);
 
-        // Reset summary button states  
-        const allianceButton = document.getElementById('alliance-expand');
-        const corporationButton = document.getElementById('corporation-expand');
-        if (allianceButton) {
-            allianceButton.textContent = `Show All (${allAlliances.length})`;
-        }
-        if (corporationButton) {
-            corporationButton.textContent = `Show All (${allCorps.length})`;
-        }
+        // Reset expanded states
+        expandedTabSections.characters = false;
+        expandedTabSections.alliances = false;
+        expandedTabSections.corporations = false;
 
-        // Update summary totals in buttons - with null checks
-        const allianceTotal = document.getElementById("alliance-total");
-        const corporationTotal = document.getElementById("corporation-total");
-        if (allianceTotal) {
-            allianceTotal.textContent = allAlliances.length;
-        }
-        if (corporationTotal) {
-            corporationTotal.textContent = allCorps.length;
-        }
+        // Update tab counts
+        updateTabCounts();
 
-        updateResultsDisplay();
-        updateSummaryDisplay();
+        // Update tab controls
+        updateTabControls();
+
+        // Update the display for the current tab
+        updateTabDisplay();
 
         // Wait for results section to be shown before updating stats
         setTimeout(() => {
@@ -492,7 +527,11 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     // Initialize filters system
-    initializeFilters(updateResultsDisplay);
+    initializeFilters(() => {
+        updateTabCounts();
+        updateTabControls();
+        updateTabDisplay();
+    });
 
     const textarea = document.getElementById('names');
     textarea.addEventListener('input', debouncedUpdateCharacterCount);

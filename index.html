@@ -85,8 +85,54 @@
           </h1>
         </div>
       </a>
+      <div class="header-stats" id="header-stats" style="display: none;">
+        <div class="stats-grid compact">
+          <div class="stat-card total-stat">
+            <div class="stat-icon">👥</div>
+            <div class="stat-content">
+              <span id="total-count" class="stat-number">0</span>
+              <div class="stat-label">Characters</div>
+            </div>
+          </div>
+          <div class="stat-card alliance-stat">
+            <div class="stat-icon">🏛️</div>
+            <div class="stat-content">
+              <span id="alliance-count" class="stat-number">0</span>
+              <div class="stat-label">Alliances</div>
+            </div>
+          </div>
+          <div class="stat-card corporation-stat">
+            <div class="stat-icon">🏢</div>
+            <div class="stat-content">
+              <span id="corporation-count" class="stat-number">0</span>
+              <div class="stat-label">Corporations</div>
+            </div>
+          </div>
+          <div class="stat-card performance-stat">
+            <div class="stat-icon">⚡</div>
+            <div class="stat-content">
+              <span id="query-time" class="stat-number">0</span>
+              <div class="stat-label">Query (ms)</div>
+            </div>
+          </div>
+          <div class="stat-card api-stat">
+            <div class="stat-icon">🌐</div>
+            <div class="stat-content">
+              <span id="esi-lookups" class="stat-number">0</span>
+              <div class="stat-label">ESI Calls</div>
+            </div>
+          </div>
+          <div class="stat-card cache-stat">
+            <div class="stat-icon">💾</div>
+            <div class="stat-content">
+              <span id="cache-info" class="stat-number">0</span>
+              <div class="stat-label">Cache Hits</div>
+            </div>
+          </div>
+        </div>
+      </div>
       <div class="header-meta">
-        <span class="subtitle">EVE Online character, corporation and alliance intelligence</span>
+        <span class="subtitle">EVE Intel Tool</span>
         <a href="https://github.com/moregh/moregh.github.io/" target="_blank">
           <span class="version-badge" id="version-display">
             v0.0.0
@@ -143,107 +189,7 @@
     <div id="error-container"></div>
 
     <div id="results-section" class="results-section">
-      <div class="stats-dashboard glass-card">
-        <div class="stats-grid">
-          <div class="stat-card total-stat">
-            <div class="stat-icon">👥</div>
-            <div class="stat-content">
-              <span id="total-count" class="stat-number">0</span>
-              <div class="stat-label">Characters</div>
-            </div>
-          </div>
-          <div class="stat-card alliance-stat">
-            <div class="stat-icon">🏛️</div>
-            <div class="stat-content">
-              <span id="alliance-count" class="stat-number">0</span>
-              <div class="stat-label">Alliances</div>
-            </div>
-          </div>
-          <div class="stat-card corporation-stat">
-            <div class="stat-icon">🏢</div>
-            <div class="stat-content">
-              <span id="corporation-count" class="stat-number">0</span>
-              <div class="stat-label">Corporations</div>
-            </div>
-          </div>
-          <div class="stat-card performance-stat">
-            <div class="stat-icon">⚡</div>
-            <div class="stat-content">
-              <span id="query-time" class="stat-number">0</span>
-              <div class="stat-label">Query (ms)</div>
-            </div>
-          </div>
-          <div class="stat-card api-stat">
-            <div class="stat-icon">🌐</div>
-            <div class="stat-content">
-              <span id="esi-lookups" class="stat-number">0</span>
-              <div class="stat-label">ESI Calls</div>
-            </div>
-          </div>
-          <div class="stat-card cache-stat">
-            <div class="stat-icon">💾</div>
-            <div class="stat-content">
-              <span id="cache-info" class="stat-number">0</span>
-              <div class="stat-label">Cache Hits</div>
-              <div class="stat-sublabel" id="cache-size">Size: 0 MB</div>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      <div class="summary-section glass-card">
-        <div class="summary-header">
-          <h3><span class="entity-icon">📊</span>Summary</h3>
-          <div class="summary-controls">
-            <button class="summary-toggle-btn" id="summary-toggle" data-action="toggle-summary">
-              <span class="toggle-text">Hide Summary</span>
-              <span class="toggle-icon">▼</span>
-            </button>
-          </div>
-        </div>
-        <div class="summary-wrapper" id="summary-content">
-          <div class="summary-container">
-          <div class="summary-column" id="top-alliances">
-            <div class="summary-header">
-              <h4><span class="entity-icon">🏛️</span>Alliances</h4>
-              <div class="summary-controls">
-                <button class="summary-expand-btn" id="alliance-expand" data-action="toggle-summary-expanded"
-                  data-type="alliance">
-                  Show All (<span id="alliance-total">0</span>)
-                </button>
-              </div>
-            </div>
-            <div id="top-alliance-grid" class="summary-grid">
-              <div class="no-summary">No alliances found</div>
-            </div>
-            <div class="summary-load-more-container" id="alliance-load-more" style="display: none;">
-              <button class="summary-load-more-btn" data-action="load-more-summary" data-type="alliance">
-                Load More Alliances
-              </button>
-            </div>
-          </div>
-          <div class="summary-column" id="top-corporations">
-            <div class="summary-header">
-              <h4><span class="entity-icon">🏢</span>Corporations</h4>
-              <div class="summary-controls">
-                <button class="summary-expand-btn" id="corporation-expand" data-action="toggle-summary-expanded"
-                  data-type="corporation">
-                  Show All (<span id="corporation-total">0</span>)
-                </button>
-              </div>
-            </div>
-            <div id="top-corp-grid" class="summary-grid">
-              <div class="no-summary">No corporations found</div>
-            </div>
-            <div class="summary-load-more-container" id="corporation-load-more" style="display: none;">
-              <button class="summary-load-more-btn" data-action="load-more-summary" data-type="corporation">
-                Load More Corporations
-              </button>
-            </div>
-          </div>
-          </div>
-        </div>
-      </div>
 
       <div class="filters-section glass-card" id="filters-section">
         <div class="filters-header">
@@ -334,34 +280,68 @@
         </div>
       </div>
 
-      <div class="results-container">
-        <div class="result-column full-width glass-card">
-          <div class="column-header">
-            <h3><span class="status-icon">👥</span>All Characters</h3>
-            <div class="column-controls">
-              <button class="expand-btn" id="results-expand" data-action="toggle-expanded">
-                Show All (<span id="results-total">0</span>)
-              </button>
-            </div>
+      <div class="tabbed-results-container glass-card">
+        <div class="tabs-header">
+          <div class="tabs-nav">
+            <button class="tab-btn active" data-tab="characters">
+              <span class="tab-icon">👥</span>
+              <span class="tab-label">Characters</span>
+              <span class="tab-count" id="characters-tab-count">0</span>
+            </button>
+            <button class="tab-btn" data-tab="alliances">
+              <span class="tab-icon">🏛️</span>
+              <span class="tab-label">Alliances</span>
+              <span class="tab-count" id="alliances-tab-count">0</span>
+            </button>
+            <button class="tab-btn" data-tab="corporations">
+              <span class="tab-icon">🏢</span>
+              <span class="tab-label">Corporations</span>
+              <span class="tab-count" id="corporations-tab-count">0</span>
+            </button>
           </div>
-          <div id="results-grid" class="result-grid">
+          <div class="tab-controls">
+            <button class="expand-btn" id="tab-expand" data-action="toggle-expanded">
+              Show All (<span id="tab-total">0</span>)
+            </button>
+          </div>
+        </div>
+
+        <div class="tab-content active" id="characters-tab">
+          <div id="characters-grid" class="result-grid">
             <div class="no-results">No data yet</div>
           </div>
-          <div class="load-more-container" id="results-load-more" style="display: none;">
-            <button class="load-more-btn" data-action="load-more">
-              Load More Results
+          <div class="load-more-container" id="characters-load-more" style="display: none;">
+            <button class="load-more-btn" data-action="load-more" data-type="characters">
+              Load More Characters
+            </button>
+          </div>
+        </div>
+
+        <div class="tab-content" id="alliances-tab">
+          <div id="alliances-grid" class="result-grid alliance-grid">
+            <div class="no-results">No alliances found</div>
+          </div>
+          <div class="load-more-container" id="alliances-load-more" style="display: none;">
+            <button class="load-more-btn" data-action="load-more" data-type="alliances">
+              Load More Alliances
+            </button>
+          </div>
+        </div>
+
+        <div class="tab-content" id="corporations-tab">
+          <div id="corporations-grid" class="result-grid corporation-grid">
+            <div class="no-results">No corporations found</div>
+          </div>
+          <div class="load-more-container" id="corporations-load-more" style="display: none;">
+            <button class="load-more-btn" data-action="load-more" data-type="corporations">
+              Load More Corporations
             </button>
           </div>
         </div>
       </div>
     </div>
-    <div class="disclaimer">
-      Disclaimer: This application is not affiliated with or endorsed by CCP Games. EVE Online and all related
-      characters, names, marks, and logos are intellectual property of CCP hf.
-    </div>
-    <div class="copyright">
-      <a href="https://github.com/moregh/moregh.github.io/" target="_blank">EVE Target Intel</a> © 2025 <a
-        href="https://github.com/moregh/" target="_blank">moregh</a>. Licensed under AGPL License.
+    <div class="disclaimer-copyright">
+      Not affiliated with or endorsed by CCP Games. EVE Online and all related characters, names, marks, and logos are intellectual property of CCP hf. • <a href="https://github.com/moregh/moregh.github.io/" target="_blank">EVE Target Intel</a> © 2025 <a href="https://github.com/moregh/" target="_blank">moregh</a>.
     </div>
   </div>
 </body>
