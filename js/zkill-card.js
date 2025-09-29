@@ -1114,7 +1114,7 @@ class ZKillStatsCard {
                     </div>
                 </div>
                 <div class="zkill-favorite-ships">
-                    <h4 class="zkill-prefs-subtitle">Favorite Ships</h4>
+                    <h4 class="zkill-prefs-subtitle">Favourite Ships</h4>
                     <div class="zkill-fav-ships-list">
                         ${topShipsHTML}
                     </div>
