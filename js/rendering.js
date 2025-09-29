@@ -1,5 +1,5 @@
 /*
-    War Target Finder - DOM Rendering and Virtual Scrolling
+    EVE Target Intel - DOM Rendering and Virtual Scrolling
     
     Copyright (C) 2025 moregh (https://github.com/moregh/)
     Licensed under AGPL License.

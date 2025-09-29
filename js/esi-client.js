@@ -1,5 +1,5 @@
 /*
-    War Target Finder - ESI Client
+    EVE Target Intel - ESI Client
     
     Copyright (C) 2025 moregh (https://github.com/moregh/)
     Licensed under AGPL License.

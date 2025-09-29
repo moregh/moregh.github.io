@@ -1,5 +1,5 @@
 /*
-    War Target Finder - Configuration Constants
+    EVE Target Intel - Configuration Constants
     
     Copyright (C) 2025 moregh (https://github.com/moregh/)
     Licensed under AGPL License.
@@ -15,7 +15,7 @@ export const CHUNK_DELAY = 25;
 export const STATS_UPDATE_DELAY = 100;
 export const DB_NAME = 'EVEWarTargetCache';
 export const DB_VERSION = 1;
-export const VERSION = "0.7.0";
+export const VERSION = "0.7.1";
 
 // Time and throttling
 export const PROGRESS_UPDATE_THROTTLE_MS = 50;

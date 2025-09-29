@@ -1,5 +1,5 @@
 /*
-    War Target Finder - Main Application Logic
+    EVE Target Intel - Main Application Logic
     
     Copyright (C) 2025 moregh (https://github.com/moregh/)
     Licensed under AGPL License.

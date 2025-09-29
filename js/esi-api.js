@@ -1,5 +1,5 @@
 /*
-    War Target Finder - EVE ESI API Integration
+    EVE Target Intel - EVE ESI API Integration
     
     Copyright (C) 2025 moregh (https://github.com/moregh/)
     Licensed under AGPL License.

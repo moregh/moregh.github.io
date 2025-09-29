@@ -1,5 +1,5 @@
 /*
-    War Target Finder - IndexedDB Management
+    EVE Target Intel - IndexedDB Management
     
     Copyright (C) 2025 moregh (https://github.com/moregh/)
     Licensed under AGPL License.

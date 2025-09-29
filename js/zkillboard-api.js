@@ -1,5 +1,5 @@
 /*
-    War Target Finder - zKillboard API Integration
+    EVE Target Intel - zKillboard API Integration
     
     Copyright (C) 2025 moregh (https://github.com/moregh/)
     Licensed under AGPL License.
@@ -406,6 +406,11 @@ class ZKillboardClient {
             gangRatio: this.calculateGangRatio(rawData),
             recentActivity: this.extractRecentActivity(rawData),
             topLocations: this.extractTopLocations(rawData),
+            topShips: this.extractTopShips(rawData),
+            shipAnalysis: this.analyzeShipUsage(rawData),
+            combatStyle: this.analyzeCombatStyle(rawData),
+            activityInsights: this.analyzeActivityInsights(rawData),
+            securityPreference: this.analyzeSecurityPreference(rawData),
             activePeriods: this.extractActivePeriods(rawData),
             activityData: this.extractActivityData(rawData),
             lastUpdated: Date.now()
@@ -431,12 +436,25 @@ class ZKillboardClient {
             dangerRatio: 0,
             gangRatio: 0,
             recentActivity: {
+                activePvPData: {
+                    ships: 0,
+                    systems: 0,
+                    regions: 0,
+                    totalKills: 0,
+                    characters: 1
+                },
                 last7Days: { kills: 0, losses: 0 },
                 last30Days: { kills: 0, losses: 0 },
                 last90Days: { kills: 0, losses: 0 }
             },
             topLocations: [],
+            topShips: [],
+            shipAnalysis: null,
+            combatStyle: null,
+            activityInsights: null,
+            securityPreference: null,
             activePeriods: [],
+            activityData: { hourlyData: [], dailyData: [], hasData: false },
             lastUpdated: Date.now()
         };
     }
@@ -548,6 +566,386 @@ class ZKillboardClient {
                 ? parseFloat(system.solarSystemSecurity)
                 : null
         }));
+    }
+
+    /**
+     * Extract and analyze ship usage data
+     */
+    extractTopShips(data) {
+        // Look for ship data in topLists array
+        const topLists = data.topLists || [];
+        const shipList = topLists.find(list => list.type === 'shipType');
+
+        if (!shipList || !shipList.values) {
+            return [];
+        }
+
+        // Get ship data with enhanced classification
+        const ships = shipList.values.map(ship => {
+            const shipData = {
+                shipTypeID: ship.shipTypeID || ship.id,
+                shipName: ship.shipName || ship.name || 'Unknown Ship',
+                kills: ship.kills || 0,
+                pip: ship.pip || 'pip_tech1.png',
+                groupID: ship.groupID,
+                groupName: ship.groupName || 'Unknown'
+            };
+
+            // Add ship classification
+            shipData.classification = this.classifyShip(shipData);
+
+            return shipData;
+        });
+
+        return ships;
+    }
+
+    /**
+     * Classify ship by size, tech level, and role
+     */
+    classifyShip(ship) {
+        const shipName = ship.shipName.toLowerCase();
+        const groupName = ship.groupName.toLowerCase();
+
+        // Determine tech level from pip or name
+        let techLevel = 'T1';
+        if (ship.pip && ship.pip.includes('tech2')) techLevel = 'T2';
+        else if (ship.pip && ship.pip.includes('faction')) techLevel = 'Faction';
+        else if (ship.pip && ship.pip.includes('tech3')) techLevel = 'T3';
+
+        // Determine ship size using comprehensive EVE ship classification
+        let size = 'Unknown';
+
+        // Small ships (Frigates, Destroyers, and their variants)
+        if (groupName.includes('frigate') || groupName.includes('destroyer') ||
+            groupName.includes('interceptor') || groupName.includes('assault frigate') ||
+            groupName.includes('covert ops') || groupName.includes('electronic attack ship') ||
+            groupName.includes('stealth bomber') || groupName.includes('expedition frigate') ||
+            groupName.includes('tactical destroyer')) {
+            size = 'Small';
+        }
+        // Medium ships (Cruisers, Battlecruisers, and their variants)
+        else if (groupName.includes('cruiser') || groupName.includes('battlecruiser') ||
+                 groupName.includes('heavy assault cruiser') || groupName.includes('heavy interdiction cruiser') ||
+                 groupName.includes('logistics cruiser') || groupName.includes('recon ship') ||
+                 groupName.includes('command ship') || groupName.includes('strategic cruiser') ||
+                 groupName.includes('combat recon ship') || groupName.includes('force recon ship')) {
+            size = 'Medium';
+        }
+        // Large ships (Battleships and their variants)
+        else if (groupName.includes('battleship') || groupName.includes('black ops') ||
+                 groupName.includes('marauder') || groupName.includes('attack battlecruiser')) {
+            size = 'Large';
+        }
+        // Capital ships
+        else if (groupName.includes('dreadnought') || groupName.includes('carrier') ||
+                 groupName.includes('supercarrier') || groupName.includes('titan') ||
+                 groupName.includes('capital') || groupName.includes('force auxiliary') ||
+                 groupName.includes('mothership')) {
+            size = 'Capital';
+        }
+        // Industrial and Support
+        else if (groupName.includes('industrial') || groupName.includes('hauler') ||
+                 groupName.includes('transport') || groupName.includes('mining') ||
+                 groupName.includes('exhumer') || groupName.includes('venture')) {
+            size = 'Industrial';
+        }
+        // Special cases
+        else if (groupName.includes('capsule') || groupName.includes('pod')) {
+            size = 'Pod';
+        }
+
+        // Determine role
+        let role = 'Combat';
+        if (groupName.includes('logistics') || groupName.includes('support')) role = 'Support';
+        else if (groupName.includes('interceptor') || groupName.includes('covert')) role = 'Specialist';
+        else if (groupName.includes('hauler') || groupName.includes('transport')) role = 'Industrial';
+
+        return { techLevel, size, role };
+    }
+
+    /**
+     * Analyze ship usage patterns and preferences
+     */
+    analyzeShipUsage(data) {
+        const ships = this.extractTopShips(data);
+        if (!ships.length) return null;
+
+        const totalKills = ships.reduce((sum, ship) => sum + ship.kills, 0);
+
+        // Calculate diversity index (Shannon entropy)
+        const diversity = this.calculateShipDiversity(ships);
+
+        // Analyze by size, tech level, and role
+        const sizeBreakdown = this.analyzeByCategory(ships, 'size');
+        const techBreakdown = this.analyzeByCategory(ships, 'techLevel');
+        const roleBreakdown = this.analyzeByCategory(ships, 'role');
+
+        // Find specialization
+        const specialization = this.findSpecialization(ships, totalKills);
+
+        return {
+            diversity,
+            sizeBreakdown,
+            techBreakdown,
+            roleBreakdown,
+            specialization,
+            totalShipTypes: ships.length,
+            topShips: ships.slice(0, 8) // Limit to top 8 for display
+        };
+    }
+
+    /**
+     * Calculate Shannon diversity index for ship usage
+     */
+    calculateShipDiversity(ships) {
+        const totalKills = ships.reduce((sum, ship) => sum + ship.kills, 0);
+        if (totalKills === 0) return 0;
+
+        let entropy = 0;
+        for (const ship of ships) {
+            if (ship.kills > 0) {
+                const probability = ship.kills / totalKills;
+                entropy -= probability * Math.log2(probability);
+            }
+        }
+
+        // Normalize to 0-100 scale
+        const maxPossibleEntropy = Math.log2(ships.length);
+        return maxPossibleEntropy > 0 ? (entropy / maxPossibleEntropy) * 100 : 0;
+    }
+
+    /**
+     * Analyze ships by a specific category
+     */
+    analyzeByCategory(ships, category) {
+        const categoryMap = new Map();
+        const totalKills = ships.reduce((sum, ship) => sum + ship.kills, 0);
+
+        ships.forEach(ship => {
+            const value = ship.classification[category];
+            if (!categoryMap.has(value)) {
+                categoryMap.set(value, { count: 0, kills: 0, ships: [] });
+            }
+            const data = categoryMap.get(value);
+            data.count++;
+            data.kills += ship.kills;
+            data.ships.push(ship.shipName);
+        });
+
+        return Array.from(categoryMap.entries()).map(([category, data]) => ({
+            category,
+            count: data.count,
+            kills: data.kills,
+            percentage: totalKills > 0 ? Math.round((data.kills / totalKills) * 100) : 0,
+            ships: data.ships
+        })).sort((a, b) => b.kills - a.kills);
+    }
+
+    /**
+     * Find pilot's ship specialization
+     */
+    findSpecialization(ships, totalKills) {
+        if (!ships.length || totalKills === 0) return null;
+
+        // Check if they heavily favor one ship
+        const topShip = ships[0];
+        const topShipPercentage = Math.round((topShip.kills / totalKills) * 100);
+
+        if (topShipPercentage >= 40) {
+            return {
+                type: 'Ship Specialist',
+                focus: topShip.shipName,
+                percentage: topShipPercentage,
+                description: `Heavily specializes in ${topShip.shipName}`
+            };
+        }
+
+        // Check for size specialization
+        const sizeData = this.analyzeByCategory(ships, 'size');
+        const topSize = sizeData[0];
+        if (topSize && topSize.percentage >= 60) {
+            return {
+                type: 'Size Specialist',
+                focus: topSize.category,
+                percentage: topSize.percentage,
+                description: `Prefers ${topSize.category.toLowerCase()} ships`
+            };
+        }
+
+        // Check for role specialization
+        const roleData = this.analyzeByCategory(ships, 'role');
+        const topRole = roleData[0];
+        if (topRole && topRole.percentage >= 70) {
+            return {
+                type: 'Role Specialist',
+                focus: topRole.category,
+                percentage: topRole.percentage,
+                description: `Focuses on ${topRole.category.toLowerCase()} roles`
+            };
+        }
+
+        return {
+            type: 'Generalist',
+            focus: 'Diverse',
+            percentage: Math.round(100 - this.calculateShipDiversity(ships)),
+            description: 'Uses a variety of different ships'
+        };
+    }
+
+    /**
+     * Analyze combat style based on ships and locations
+     */
+    analyzeCombatStyle(data) {
+        const ships = this.extractTopShips(data);
+        const groups = data.groups || {};
+
+        if (!ships.length) return null;
+
+        // Analyze engagement range preference
+        let longRangeShips = 0;
+        let brawlingShips = 0;
+        let totalKills = 0;
+
+        ships.forEach(ship => {
+            const groupName = ship.groupName.toLowerCase();
+            totalKills += ship.kills;
+
+            // Categorize by typical engagement range
+            if (groupName.includes('interceptor') || groupName.includes('assault') ||
+                groupName.includes('destroyer') || groupName.includes('covert')) {
+                brawlingShips += ship.kills;
+            } else if (groupName.includes('cruiser') || groupName.includes('battleship') ||
+                      groupName.includes('battlecruiser')) {
+                longRangeShips += ship.kills;
+            }
+        });
+
+        const engagementStyle = brawlingShips > longRangeShips ? 'Close-range Brawler' :
+                              longRangeShips > brawlingShips ? 'Long-range Kiter' : 'Versatile';
+
+        // Analyze fleet preference
+        const soloKills = this.safeGet(data, 'soloKills', 0);
+        const totalKillsData = this.safeGet(data, 'shipsDestroyed', 0);
+        const gangPreference = totalKillsData > 0 ?
+            Math.round(((totalKillsData - soloKills) / totalKillsData) * 100) : 0;
+
+        const fleetRole = gangPreference > 70 ? 'Fleet Fighter' :
+                         gangPreference < 30 ? 'Solo Hunter' : 'Flexible';
+
+        // Risk assessment based on ship values and security space
+        const avgGangSize = this.safeGet(data, 'avgGangSize', 1);
+        const riskTolerance = avgGangSize > 5 ? 'Conservative' :
+                             avgGangSize < 3 ? 'High Risk' : 'Moderate';
+
+        return {
+            engagementStyle,
+            fleetRole,
+            riskTolerance,
+            gangPreference,
+            avgGangSize: Math.round(avgGangSize * 10) / 10
+        };
+    }
+
+    /**
+     * Analyze activity patterns and insights
+     */
+    analyzeActivityInsights(data) {
+        const months = data.months || {};
+        const activity = data.activity || {};
+
+        // Calculate activity trend
+        const monthEntries = Object.entries(months)
+            .filter(([, monthData]) => (monthData.shipsDestroyed || 0) > 0)
+            .sort(([a], [b]) => b.localeCompare(a))
+            .slice(0, 6);
+
+        let trend = 'Stable';
+        if (monthEntries.length >= 3) {
+            const recent = monthEntries.slice(0, 3).reduce((sum, [, data]) => sum + (data.shipsDestroyed || 0), 0);
+            const older = monthEntries.slice(3, 6).reduce((sum, [, data]) => sum + (data.shipsDestroyed || 0), 0);
+
+            if (recent > older * 1.5) trend = 'Increasing';
+            else if (recent < older * 0.5) trend = 'Decreasing';
+        }
+
+        // Analyze activity consistency
+        const activeMonths = monthEntries.length;
+        const consistency = activeMonths >= 6 ? 'Very Consistent' :
+                           activeMonths >= 3 ? 'Moderately Active' :
+                           activeMonths >= 1 ? 'Sporadic' : 'Inactive';
+
+        // Find prime time
+        let primeTime = 'Unknown';
+        if (activity.max) {
+            // Find the hour with most activity across all days
+            const hourlyTotals = new Array(24).fill(0);
+            for (let day = 0; day < 7; day++) {
+                const dayData = activity[day.toString()];
+                if (dayData && typeof dayData === 'object') {
+                    for (let hour = 0; hour < 24; hour++) {
+                        hourlyTotals[hour] += dayData[hour.toString()] || 0;
+                    }
+                }
+            }
+
+            const maxHour = hourlyTotals.indexOf(Math.max(...hourlyTotals));
+            primeTime = `${maxHour.toString().padStart(2, '0')}:00 EVE Time`;
+        }
+
+        return {
+            trend,
+            consistency,
+            primeTime,
+            activeMonths,
+            recentActivity: monthEntries.slice(0, 3).reduce((sum, [, data]) => sum + (data.shipsDestroyed || 0), 0)
+        };
+    }
+
+    /**
+     * Analyze security space preferences
+     */
+    analyzeSecurityPreference(data) {
+        const labels = data.labels || {};
+
+        const highsec = labels['loc:highsec'] || {};
+        const lowsec = labels['loc:lowsec'] || {};
+        const nullsec = labels['loc:nullsec'] || {};
+        const wspace = labels['loc:w-space'] || {};
+
+        const highsecKills = this.safeGet(highsec, 'shipsDestroyed', 0);
+        const lowsecKills = this.safeGet(lowsec, 'shipsDestroyed', 0);
+        const nullsecKills = this.safeGet(nullsec, 'shipsDestroyed', 0);
+        const wspaceKills = this.safeGet(wspace, 'shipsDestroyed', 0);
+
+        const total = highsecKills + lowsecKills + nullsecKills + wspaceKills;
+
+        if (total === 0) {
+            return {
+                primary: 'Unknown',
+                breakdown: [],
+                riskProfile: 'Unknown'
+            };
+        }
+
+        const breakdown = [
+            { space: 'Highsec', kills: highsecKills, percentage: Math.round((highsecKills / total) * 100) },
+            { space: 'Lowsec', kills: lowsecKills, percentage: Math.round((lowsecKills / total) * 100) },
+            { space: 'Nullsec', kills: nullsecKills, percentage: Math.round((nullsecKills / total) * 100) },
+            { space: 'W-Space', kills: wspaceKills, percentage: Math.round((wspaceKills / total) * 100) }
+        ].filter(item => item.kills > 0).sort((a, b) => b.kills - a.kills);
+
+        const primary = breakdown[0]?.space || 'Unknown';
+
+        let riskProfile = 'Moderate';
+        if (highsecKills > total * 0.6) riskProfile = 'Risk Averse';
+        else if (nullsecKills > total * 0.5 || wspaceKills > total * 0.3) riskProfile = 'High Risk';
+
+        return {
+            primary,
+            breakdown,
+            riskProfile
+        };
     }
 
     /**

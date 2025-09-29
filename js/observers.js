@@ -1,5 +1,5 @@
 /*
-    War Target Finder - Intersection Observer Management
+    EVE Target Intel - Intersection Observer Management
     
     Copyright (C) 2025 moregh (https://github.com/moregh/)
     Licensed under AGPL License.

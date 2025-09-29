@@ -1,5 +1,5 @@
 /*
-    War Target Finder - User Interface Components
+    EVE Target Intel - User Interface Components
     
     Copyright (C) 2025 moregh (https://github.com/moregh/)
     Licensed under AGPL License.
@@ -109,7 +109,7 @@ function updateTimer() {
 }
 
 export function updateTitle(count, total) {
-    document.title = `${count}/${total} targets - War Target Finder`;
+    document.title = `${count}/${total} targets - EVE Target Intel`;
 }
 
 export function startLoading() {

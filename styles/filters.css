@@ -377,7 +377,8 @@
 
 /* Collapse Animation */
 .filters-section.collapsed {
-    margin-bottom: 1rem
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.2rem;
 }
 
 .filters-section.collapsed .filters-content {

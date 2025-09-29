@@ -1,5 +1,5 @@
 /*
-    War Target Finder - zKillboard Stats Card Component
+    EVE Target Intel - zKillboard Stats Card Component
     
     Copyright (C) 2025 moregh (https://github.com/moregh/)
     Licensed under AGPL License.
@@ -458,7 +458,7 @@ class ZKillStatsCard {
 
     createActivityChartsHTML(activityData) {
         if (!activityData || !activityData.hasData) {
-            return '';
+            return '<div class="zkill-charts-empty"><div class="zkill-empty-text">No activity data available</div></div>';
         }
 
         const hourlyChart = this.createBarChart(
@@ -474,16 +474,11 @@ class ZKillStatsCard {
         );
 
         return `
-        <div class="zkill-section">
-            <h3 class="zkill-section-title">
-                Activity Patterns
-            </h3>
             <div class="zkill-charts-grid">
                 ${hourlyChart}
                 ${dailyChart}
             </div>
-        </div>
-    `;
+        `;
     }
 
     /**
@@ -816,53 +811,24 @@ class ZKillStatsCard {
         return `
         <!-- Members Dropdown -->
         ${this.createMembersDropdownHTML(entityType, entityId)}
-        <!-- Main Stats Grid -->
-        <div class="zkill-stats-grid">
-            <div class="zkill-stat-item kills">
-                <span class="zkill-stat-value">${this.formatNumber(stats.totalKills)}</span>
-                <div class="zkill-stat-label">Total Kills</div>
-            </div>
-            <div class="zkill-stat-item kills">
-                <span class="zkill-stat-value">${this.formatISK(stats.iskDestroyed)}</span>
-                <div class="zkill-stat-label">ISK Destroyed</div>
-            </div>
-            <div class="zkill-stat-item kills">
-                <span class="zkill-stat-value">${this.formatNumber(stats.soloKills)}</span>
-                <div class="zkill-stat-label">Solo Kills</div>
-            </div>
-            
-            
-            <div class="zkill-stat-item losses">
-                <span class="zkill-stat-value">${this.formatNumber(stats.totalLosses)}</span>
-                <div class="zkill-stat-label">Total Losses</div>
-            </div>
-            <div class="zkill-stat-item losses">
-                    <span class="zkill-stat-value">${this.formatISK(stats.iskLost)}</span>
-                    <div class="zkill-stat-label">ISK Lost</div>
-                </div>
-            <div class="zkill-stat-item losses">
-                <span class="zkill-stat-value">${this.formatNumber(stats.soloLosses)}</span>
-                <div class="zkill-stat-label">Solo Losses</div>
-            </div>
-            <div class="zkill-stat-item">
-                <span class="zkill-stat-value">${this.formatDangerRatio(stats.dangerRatio)}</span>
-                <div class="zkill-stat-label">Kill/Death Ratio</div>
-            </div>                    
-                <div class="zkill-stat-item efficiency">
-                    <span class="zkill-stat-value">${stats.efficiency.toFixed(2)}%</span>
-                <div class="zkill-stat-label">ISK Efficiency</div>
-            </div>
-            <div class="zkill-stat-item">
-                <span class="zkill-stat-value">${stats.gangRatio}%</span>
-                <div class="zkill-stat-label">Gang Activity</div>
-            </div>
-            </div>
-        </div>
-        ${this.createActivityChartsHTML(stats.activityData)}
-        <!-- Recent Activity - Using activepvp data -->
-        ${this.createRecentActivityHtml(stats.recentActivity.activePvPData)}
-        <!-- Top Locations -->
-        ${this.createTopLocationsHTML(stats.topLocations)}
+
+        <!-- TACTICAL OVERVIEW - Critical at-a-glance intel -->
+        ${this.createTacticalOverviewHTML(stats)}
+
+        <!-- THREAT ASSESSMENT - Risk profile and combat style -->
+        ${this.createThreatAssessmentHTML(stats.securityPreference, stats.combatStyle, stats.activityInsights)}
+
+        <!-- SHIP PREFERENCES - What they fly and where -->
+        ${this.createShipPreferencesHTML(stats.shipAnalysis, stats.topLocations)}
+
+        <!-- ACTIVITY PATTERNS - When and how they operate -->
+        ${this.createActivityPatternsHTML(stats.activityInsights, stats.recentActivity.activePvPData, stats.activityData)}
+
+        <!-- DETAILED STATISTICS - Full breakdown for analysis -->
+        ${this.createDetailedStatsHTML(stats)}
+
+        <!-- TOP SHIPS - Specific ship usage -->
+        ${this.createTopShipsHTML(stats.topShips)}
 
         <!-- Footer -->
         <div style="text-align: center; padding: 1rem; border-top: 1px solid rgba(255, 255, 255, 0.1); margin-top: 1rem;">
@@ -920,6 +886,49 @@ class ZKillStatsCard {
     }
 
     /**
+     * Create top ships HTML
+     */
+    createTopShipsHTML(ships) {
+        if (!ships || ships.length === 0) {
+            return '';
+        }
+
+        const shipsHTML = ships.map(ship => `
+        <div class="zkill-ship-card">
+            <div class="zkill-ship-info">
+                <img src="https://images.evetech.net/types/${sanitizeId(ship.shipTypeID)}/icon?size=32"
+                     alt="${sanitizeAttribute(ship.shipName)}"
+                     class="zkill-ship-icon"
+                     loading="lazy">
+                <div class="zkill-ship-details">
+                    <div class="zkill-ship-name">
+                        <a href="https://zkillboard.com/ship/${sanitizeId(ship.shipTypeID)}/"
+                           target="_blank"
+                           style="color: var(--primary-color); text-decoration: none; font-weight: 600;">
+                            ${escapeHtml(ship.shipName)}
+                        </a>
+                    </div>
+                    <div class="zkill-ship-group">${escapeHtml(ship.groupName)}</div>
+                </div>
+            </div>
+            <div class="zkill-ship-kills">${ship.kills} kill${ship.kills !== 1 ? 's' : ''}</div>
+        </div>
+    `).join('');
+
+        return `
+        <div class="zkill-section">
+            <h3 class="zkill-section-title">
+                <span class="zkill-section-icon">🚀</span>
+                Most Used Ships
+            </h3>
+            <div class="zkill-ships-grid">
+                ${shipsHTML}
+            </div>
+        </div>
+    `;
+    }
+
+    /**
      * Create top locations HTML
      */
     createTopLocationsHTML(locations) {
@@ -956,6 +965,445 @@ class ZKillStatsCard {
             </div>
         </div>
     `;
+    }
+
+    /**
+     * Create tactical overview - critical at-a-glance intel
+     */
+    createTacticalOverviewHTML(stats) {
+        // Key tactical metrics in a compact format
+        return `
+        <div class="zkill-section zkill-tactical-overview">
+            <h3 class="zkill-section-title">
+                <span class="zkill-section-icon">🎯</span>
+                Tactical Overview
+            </h3>
+            <div class="zkill-tactical-grid">
+                <div class="zkill-tactical-stat ${stats.dangerRatio > 2 ? 'dangerous' : stats.dangerRatio > 1 ? 'moderate' : 'safe'}">
+                    <div class="zkill-tactical-icon">⚔️</div>
+                    <div class="zkill-tactical-value">${this.formatDangerRatio(stats.dangerRatio)}</div>
+                    <div class="zkill-tactical-label">K/D Ratio</div>
+                </div>
+                <div class="zkill-tactical-stat ${stats.efficiency > 80 ? 'high' : stats.efficiency > 50 ? 'moderate' : 'low'}">
+                    <div class="zkill-tactical-icon">💰</div>
+                    <div class="zkill-tactical-value">${stats.efficiency.toFixed(0)}%</div>
+                    <div class="zkill-tactical-label">ISK Efficiency</div>
+                </div>
+                <div class="zkill-tactical-stat ${stats.gangRatio > 70 ? 'fleet' : stats.gangRatio < 30 ? 'solo' : 'mixed'}">
+                    <div class="zkill-tactical-icon">👥</div>
+                    <div class="zkill-tactical-value">${stats.gangRatio}%</div>
+                    <div class="zkill-tactical-label">Gang Activity</div>
+                </div>
+                <div class="zkill-tactical-stat">
+                    <div class="zkill-tactical-icon">📊</div>
+                    <div class="zkill-tactical-value">${this.formatNumber(stats.totalKills)}</div>
+                    <div class="zkill-tactical-label">Total Kills</div>
+                </div>
+            </div>
+        </div>
+        `;
+    }
+
+    /**
+     * Create threat assessment - risk profile and combat style
+     */
+    createThreatAssessmentHTML(securityPreference, combatStyle, activityInsights) {
+        if (!securityPreference || !combatStyle) return '';
+
+        const riskLevel = securityPreference.riskProfile === 'High Risk' ? 'high' :
+                         securityPreference.riskProfile === 'Risk Averse' ? 'low' : 'moderate';
+
+        return `
+        <div class="zkill-section zkill-threat-assessment">
+            <h3 class="zkill-section-title">
+                <span class="zkill-section-icon">🛡️</span>
+                Threat Assessment
+            </h3>
+            <div class="zkill-threat-grid">
+                <div class="zkill-threat-primary">
+                    <div class="zkill-risk-indicator ${riskLevel}">
+                        <div class="zkill-risk-icon">${securityPreference.riskProfile === 'High Risk' ? '🔥' : securityPreference.riskProfile === 'Risk Averse' ? '🛡️' : '⚠️'}</div>
+                        <div class="zkill-risk-level">${securityPreference.riskProfile}</div>
+                        <div class="zkill-risk-space">Primarily ${securityPreference.primary}</div>
+                    </div>
+                </div>
+                <div class="zkill-threat-details">
+                    <div class="zkill-threat-item">
+                        <span class="zkill-threat-label">Combat Style:</span>
+                        <span class="zkill-threat-value">${combatStyle.engagementStyle}</span>
+                    </div>
+                    <div class="zkill-threat-item">
+                        <span class="zkill-threat-label">Fleet Role:</span>
+                        <span class="zkill-threat-value">${combatStyle.fleetRole}</span>
+                    </div>
+                    <div class="zkill-threat-item">
+                        <span class="zkill-threat-label">Activity Trend:</span>
+                        <span class="zkill-threat-value ${activityInsights?.trend?.toLowerCase()}">${activityInsights?.trend || 'Unknown'}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        `;
+    }
+
+    /**
+     * Create ship preferences - what they fly and where
+     */
+    createShipPreferencesHTML(shipAnalysis, topLocations) {
+        if (!shipAnalysis) return '';
+
+        const { specialization, sizeBreakdown, topShips } = shipAnalysis;
+
+        const sizeHTML = sizeBreakdown.slice(0, 4).map(item => `
+            <div class="zkill-pref-item">
+                <div class="zkill-pref-bar">
+                    <div class="zkill-pref-fill size-${item.category.toLowerCase()}" style="width: ${item.percentage}%"></div>
+                </div>
+                <div class="zkill-pref-info">
+                    <span class="zkill-pref-category">${item.category}</span>
+                    <span class="zkill-pref-percent">${item.percentage}%</span>
+                </div>
+            </div>
+        `).join('');
+
+        const topShipsHTML = topShips.slice(0, 3).map(ship => `
+            <div class="zkill-fav-ship">
+                <img src="https://images.evetech.net/types/${ship.shipTypeID}/icon?size=32"
+                     alt="${ship.shipName}" class="zkill-fav-ship-icon" loading="lazy">
+                <div class="zkill-fav-ship-info">
+                    <div class="zkill-fav-ship-name">${ship.shipName}</div>
+                    <div class="zkill-fav-ship-kills">${ship.kills} kills</div>
+                </div>
+            </div>
+        `).join('');
+
+        const topLocsHTML = topLocations.slice(0, 3).map(loc => {
+            const securityFormatted = this.formatSecurity(loc.securityStatus, loc.systemName);
+            const securityClass = securityFormatted === 'WH' ? 'wormhole' : this.getSecurityClass(loc.securityStatus);
+
+            return `
+            <div class="zkill-hot-zone">
+                <div class="zkill-hot-zone-icon">
+                    <div class="zkill-system-sec ${securityClass}">
+                        ${securityFormatted}
+                    </div>
+                </div>
+                <div class="zkill-hot-zone-info">
+                    <div class="zkill-hot-zone-name">${loc.systemName}</div>
+                    <div class="zkill-hot-zone-kills">${loc.kills} kills</div>
+                </div>
+            </div>
+        `;
+        }).join('');
+
+        return `
+        <div class="zkill-section zkill-ship-prefs">
+            <h3 class="zkill-section-title">
+                <span class="zkill-section-icon">🚀</span>
+                Ship & Location Preferences
+            </h3>
+            <div class="zkill-prefs-layout">
+                <div class="zkill-ship-sizes">
+                    <h4 class="zkill-prefs-subtitle">Ship Size Preference</h4>
+                    <div class="zkill-specialization-badge">
+                        <span class="zkill-spec-icon">${specialization.type === 'Generalist' ? '🔄' : '🎯'}</span>
+                        <span class="zkill-spec-text">${specialization.description}</span>
+                    </div>
+                    <div class="zkill-size-breakdown">
+                        ${sizeHTML}
+                    </div>
+                </div>
+                <div class="zkill-favorite-ships">
+                    <h4 class="zkill-prefs-subtitle">Favorite Ships</h4>
+                    <div class="zkill-fav-ships-list">
+                        ${topShipsHTML}
+                    </div>
+                </div>
+                <div class="zkill-hot-zones">
+                    <h4 class="zkill-prefs-subtitle">Hot Zones</h4>
+                    <div class="zkill-hot-zones-list">
+                        ${topLocsHTML}
+                    </div>
+                </div>
+            </div>
+        </div>
+        `;
+    }
+
+    /**
+     * Create activity patterns section
+     */
+    createActivityPatternsHTML(activityInsights, activePvPData, activityData) {
+        if (!activityInsights) return '';
+
+        return `
+        <div class="zkill-section zkill-activity-patterns">
+            <h3 class="zkill-section-title">
+                <span class="zkill-section-icon">📈</span>
+                Activity Patterns
+            </h3>
+            <div class="zkill-patterns-layout">
+                <div class="zkill-pattern-summary">
+                    <div class="zkill-pattern-item">
+                        <div class="zkill-pattern-icon">⏰</div>
+                        <div class="zkill-pattern-info">
+                            <div class="zkill-pattern-value">${activityInsights.primeTime}</div>
+                            <div class="zkill-pattern-label">Prime Time</div>
+                        </div>
+                    </div>
+                    <div class="zkill-pattern-item">
+                        <div class="zkill-pattern-icon">📅</div>
+                        <div class="zkill-pattern-info">
+                            <div class="zkill-pattern-value">${activityInsights.consistency}</div>
+                            <div class="zkill-pattern-label">Consistency</div>
+                        </div>
+                    </div>
+                    <div class="zkill-pattern-item">
+                        <div class="zkill-pattern-icon trend-${activityInsights.trend.toLowerCase()}">
+                            ${activityInsights.trend === 'Increasing' ? '📈' : activityInsights.trend === 'Decreasing' ? '📉' : '📊'}
+                        </div>
+                        <div class="zkill-pattern-info">
+                            <div class="zkill-pattern-value">${activityInsights.trend}</div>
+                            <div class="zkill-pattern-label">Trend</div>
+                        </div>
+                    </div>
+                </div>
+                ${this.createActivityChartsHTML(activityData)}
+            </div>
+        </div>
+        `;
+    }
+
+    /**
+     * Create detailed statistics section (compact)
+     */
+    createDetailedStatsHTML(stats) {
+        return `
+        <div class="zkill-section zkill-detailed-stats">
+            <h3 class="zkill-section-title">
+                <span class="zkill-section-icon">📊</span>
+                Detailed Statistics
+            </h3>
+            <div class="zkill-details-grid">
+                <div class="zkill-detail-group kills">
+                    <div class="zkill-detail-header">Kills</div>
+                    <div class="zkill-detail-item">
+                        <span class="zkill-detail-label">Total</span>
+                        <span class="zkill-detail-value">${this.formatNumber(stats.totalKills)}</span>
+                    </div>
+                    <div class="zkill-detail-item">
+                        <span class="zkill-detail-label">Solo</span>
+                        <span class="zkill-detail-value">${this.formatNumber(stats.soloKills)}</span>
+                    </div>
+                    <div class="zkill-detail-item">
+                        <span class="zkill-detail-label">ISK</span>
+                        <span class="zkill-detail-value">${this.formatISK(stats.iskDestroyed)}</span>
+                    </div>
+                </div>
+                <div class="zkill-detail-group losses">
+                    <div class="zkill-detail-header">Losses</div>
+                    <div class="zkill-detail-item">
+                        <span class="zkill-detail-label">Total</span>
+                        <span class="zkill-detail-value">${this.formatNumber(stats.totalLosses)}</span>
+                    </div>
+                    <div class="zkill-detail-item">
+                        <span class="zkill-detail-label">Solo</span>
+                        <span class="zkill-detail-value">${this.formatNumber(stats.soloLosses)}</span>
+                    </div>
+                    <div class="zkill-detail-item">
+                        <span class="zkill-detail-label">ISK</span>
+                        <span class="zkill-detail-value">${this.formatISK(stats.iskLost)}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        `;
+    }
+
+    /**
+     * Create enhanced ship analysis HTML
+     */
+    createShipAnalysisHTML(shipAnalysis) {
+        if (!shipAnalysis || !shipAnalysis.topShips.length) return '';
+
+        const { specialization, sizeBreakdown, techBreakdown, roleBreakdown, diversity, totalShipTypes } = shipAnalysis;
+
+        const sizeHTML = sizeBreakdown.map(item => `
+            <div class="zkill-breakdown-item">
+                <div class="zkill-breakdown-label">${item.category}</div>
+                <div class="zkill-breakdown-bar">
+                    <div class="zkill-breakdown-fill" style="width: ${item.percentage}%"></div>
+                </div>
+                <div class="zkill-breakdown-value">${item.percentage}%</div>
+            </div>
+        `).join('');
+
+        const techHTML = techBreakdown.map(item => `
+            <div class="zkill-breakdown-item">
+                <div class="zkill-breakdown-label">${item.category}</div>
+                <div class="zkill-breakdown-bar">
+                    <div class="zkill-breakdown-fill tech-${item.category.toLowerCase()}" style="width: ${item.percentage}%"></div>
+                </div>
+                <div class="zkill-breakdown-value">${item.percentage}%</div>
+            </div>
+        `).join('');
+
+        return `
+        <div class="zkill-section">
+            <h3 class="zkill-section-title">
+                <span class="zkill-section-icon">🛸</span>
+                Ship Usage Analysis
+            </h3>
+            <div class="zkill-analysis-grid">
+                <div class="zkill-analysis-card">
+                    <div class="zkill-analysis-header">
+                        <div class="zkill-analysis-title">Specialization</div>
+                        <div class="zkill-analysis-icon">${specialization.type === 'Generalist' ? '🔄' : '🎯'}</div>
+                    </div>
+                    <div class="zkill-specialization">
+                        <div class="zkill-spec-type">${specialization.type}</div>
+                        <div class="zkill-spec-focus">${specialization.focus}</div>
+                        <div class="zkill-spec-description">${specialization.description}</div>
+                    </div>
+                </div>
+                <div class="zkill-analysis-card">
+                    <div class="zkill-analysis-header">
+                        <div class="zkill-analysis-title">Diversity Index</div>
+                        <div class="zkill-analysis-icon">📊</div>
+                    </div>
+                    <div class="zkill-diversity">
+                        <div class="zkill-diversity-score">${Math.round(diversity)}%</div>
+                        <div class="zkill-diversity-label">Ship Variety</div>
+                        <div class="zkill-diversity-info">${totalShipTypes} different ships</div>
+                    </div>
+                </div>
+            </div>
+            <div class="zkill-breakdowns">
+                <div class="zkill-breakdown-section">
+                    <h4 class="zkill-breakdown-title">Ship Size Preference</h4>
+                    ${sizeHTML}
+                </div>
+                <div class="zkill-breakdown-section">
+                    <h4 class="zkill-breakdown-title">Tech Level Usage</h4>
+                    ${techHTML}
+                </div>
+            </div>
+        </div>
+        `;
+    }
+
+    /**
+     * Create combat style analysis HTML
+     */
+    createCombatStyleHTML(combatStyle) {
+        if (!combatStyle) return '';
+
+        return `
+        <div class="zkill-section">
+            <h3 class="zkill-section-title">
+                <span class="zkill-section-icon">⚔️</span>
+                Combat Style Profile
+            </h3>
+            <div class="zkill-combat-grid">
+                <div class="zkill-combat-card">
+                    <div class="zkill-combat-icon">🎯</div>
+                    <div class="zkill-combat-label">Engagement Style</div>
+                    <div class="zkill-combat-value">${combatStyle.engagementStyle}</div>
+                </div>
+                <div class="zkill-combat-card">
+                    <div class="zkill-combat-icon">👥</div>
+                    <div class="zkill-combat-label">Fleet Preference</div>
+                    <div class="zkill-combat-value">${combatStyle.fleetRole}</div>
+                </div>
+                <div class="zkill-combat-card">
+                    <div class="zkill-combat-icon">⚠️</div>
+                    <div class="zkill-combat-label">Risk Tolerance</div>
+                    <div class="zkill-combat-value">${combatStyle.riskTolerance}</div>
+                </div>
+                <div class="zkill-combat-card">
+                    <div class="zkill-combat-icon">📊</div>
+                    <div class="zkill-combat-label">Gang Activity</div>
+                    <div class="zkill-combat-value">${combatStyle.gangPreference}%</div>
+                </div>
+            </div>
+        </div>
+        `;
+    }
+
+    /**
+     * Create activity insights HTML
+     */
+    createActivityInsightsHTML(activityInsights) {
+        if (!activityInsights) return '';
+
+        return `
+        <div class="zkill-section">
+            <h3 class="zkill-section-title">
+                <span class="zkill-section-icon">📈</span>
+                Activity Insights
+            </h3>
+            <div class="zkill-insights-grid">
+                <div class="zkill-insight-card">
+                    <div class="zkill-insight-icon trend-${activityInsights.trend.toLowerCase()}">
+                        ${activityInsights.trend === 'Increasing' ? '📈' : activityInsights.trend === 'Decreasing' ? '📉' : '📊'}
+                    </div>
+                    <div class="zkill-insight-label">Activity Trend</div>
+                    <div class="zkill-insight-value">${activityInsights.trend}</div>
+                </div>
+                <div class="zkill-insight-card">
+                    <div class="zkill-insight-icon">⏰</div>
+                    <div class="zkill-insight-label">Prime Time</div>
+                    <div class="zkill-insight-value">${activityInsights.primeTime}</div>
+                </div>
+                <div class="zkill-insight-card">
+                    <div class="zkill-insight-icon">📅</div>
+                    <div class="zkill-insight-label">Consistency</div>
+                    <div class="zkill-insight-value">${activityInsights.consistency}</div>
+                </div>
+                <div class="zkill-insight-card">
+                    <div class="zkill-insight-icon">🎯</div>
+                    <div class="zkill-insight-label">Recent Activity</div>
+                    <div class="zkill-insight-value">${activityInsights.recentActivity} kills</div>
+                </div>
+            </div>
+        </div>
+        `;
+    }
+
+    /**
+     * Create security preference HTML
+     */
+    createSecurityPreferenceHTML(securityPreference) {
+        if (!securityPreference || !securityPreference.breakdown.length) return '';
+
+        const breakdownHTML = securityPreference.breakdown.map(item => `
+            <div class="zkill-security-item">
+                <div class="zkill-security-space ${item.space.toLowerCase()}">${item.space}</div>
+                <div class="zkill-security-bar">
+                    <div class="zkill-security-fill ${item.space.toLowerCase()}" style="width: ${item.percentage}%"></div>
+                </div>
+                <div class="zkill-security-percentage">${item.percentage}%</div>
+                <div class="zkill-security-kills">${item.kills} kills</div>
+            </div>
+        `).join('');
+
+        return `
+        <div class="zkill-section">
+            <h3 class="zkill-section-title">
+                <span class="zkill-section-icon">🛡️</span>
+                Security Space Preference
+            </h3>
+            <div class="zkill-security-profile">
+                <div class="zkill-security-summary">
+                    <div class="zkill-security-primary">Primary: <strong>${securityPreference.primary}</strong></div>
+                    <div class="zkill-security-risk">Risk Profile: <strong>${securityPreference.riskProfile}</strong></div>
+                </div>
+                <div class="zkill-security-breakdown">
+                    ${breakdownHTML}
+                </div>
+            </div>
+        </div>
+        `;
     }
 
     /**

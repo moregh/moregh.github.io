@@ -1,5 +1,5 @@
 /*
-    War Target Finder - Character Name Validation
+    EVE Target Intel - Character Name Validation
     
     Copyright (C) 2025 moregh (https://github.com/moregh/)
     Licensed under AGPL License.

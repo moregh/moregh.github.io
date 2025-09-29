@@ -1,5 +1,5 @@
 /*
-    War Target Finder - Input Forms and Buttons
+    EVE Target Intel - Input Forms and Buttons
     
     Copyright (C) 2025 moregh (https://github.com/moregh/)
     Licensed under AGPL License.
@@ -16,8 +16,8 @@
 
 .input-section.collapsed {
     max-height: 60px;
-    padding-top: 1rem;
-    padding-bottom: 1rem
+    padding-top: 0.6rem;
+    padding-bottom: 0.6rem
 }
 
 .input-section.collapsed .input-content {

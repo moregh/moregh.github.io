@@ -444,6 +444,76 @@ font-weight: 500;
 }
 
 /* ============================
+Ships (compact grid)
+============================ */
+.zkill-ships-grid {
+display: grid;
+grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+gap: 0.8rem;
+margin-bottom: 1rem;
+}
+.zkill-ship-card {
+background: rgba(255, 255, 255, 0.03);
+border: 1px solid rgba(255, 255, 255, 0.1);
+border-radius: var(--radius-medium);
+padding: 0.8rem;
+border-left: 3px solid var(--primary-color);
+transition: all 0.2s ease;
+min-height: 60px;
+display: flex;
+align-items: center;
+justify-content: space-between;
+gap: 0.8rem;
+}
+.zkill-ship-card:hover {
+background: rgba(255, 255, 255, 0.06);
+transform: translateY(-1px);
+border-left-color: var(--secondary-color);
+}
+.zkill-ship-info {
+display: flex;
+align-items: center;
+gap: 0.6rem;
+flex: 1;
+min-width: 0;
+}
+.zkill-ship-icon {
+width: 32px;
+height: 32px;
+border-radius: var(--radius-small);
+object-fit: cover;
+border: 1px solid rgba(255, 255, 255, 0.1);
+background: var(--gradient-highlight);
+transition: opacity 0.3s ease;
+flex-shrink: 0;
+}
+.zkill-ship-details {
+display: flex;
+flex-direction: column;
+min-width: 0;
+}
+.zkill-ship-name {
+font-weight: 600;
+color: var(--text-primary);
+font-size: 0.9rem;
+margin-bottom: 0.2rem;
+line-height: 1.2;
+}
+.zkill-ship-group {
+font-size: 0.75rem;
+color: var(--text-secondary);
+text-transform: uppercase;
+letter-spacing: 0.05em;
+}
+.zkill-ship-kills {
+color: var(--secondary-color);
+font-size: 0.8rem;
+font-weight: 600;
+flex-shrink: 0;
+text-align: right;
+}
+
+/* ============================
 Locations (compact grid + hidden legacy list)
 ============================ */
 .zkill-locations-grid {
@@ -512,7 +582,7 @@ Charts
 display: grid;
 grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
 gap: 1.5rem;
-margin-bottom: 1rem;
+margin-bottom: 0;
 }
 .zkill-chart-container {
 background: rgba(255, 255, 255, 0.03);
@@ -521,6 +591,7 @@ border-radius: var(--radius-large);
 padding: 1rem;
 position: relative;
 overflow: hidden;
+text-align: center;
 }
 .zkill-chart-container::before {
 content: '';
@@ -543,6 +614,7 @@ text-align: center;
 width: 100%;
 height: auto;
 display: block;
+margin: 0 auto;
 }
 .zkill-chart-bar {
 transition: all 0.2s ease;
@@ -738,9 +810,11 @@ margin: 1rem;
 .zkill-affiliation-logo { width: 28px; height: 28px; }
 .zkill-affiliation-link { font-size: 0.8rem; }
 
-/* Activity & locations */
+/* Activity, ships & locations */
 .zkill-activity-timeline { flex-direction: column; gap: 0.8rem; }
 .zkill-activity-grid { grid-template-columns: repeat(2, 1fr); gap: 0.8rem; }
+.zkill-ships-grid { grid-template-columns: 1fr; gap: 0.6rem; }
+.zkill-ship-card { padding: 0.8rem; }
 .zkill-location-card { padding: 0.8rem; }
 .zkill-locations-grid { grid-template-columns: 1fr; gap: 0.6rem; }
 .zkill-location-bottom { justify-content: center; }
@@ -759,6 +833,933 @@ margin: 1rem;
 /* Header controls adjust */
 .zkill-header-controls { top: -8px; right: -8px; gap: 6px; }
 }
+/* ============================
+REORGANIZED LAYOUT - Tactical Intelligence First
+============================ */
+
+/* Tactical Overview - Critical at-a-glance info */
+.zkill-tactical-overview {
+    margin-bottom: 1.5rem;
+}
+
+.zkill-tactical-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 1rem;
+}
+
+.zkill-tactical-stat {
+    background: rgba(255, 255, 255, 0.05);
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-large);
+    padding: 1rem;
+    text-align: center;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.zkill-tactical-stat.dangerous {
+    border-color: rgba(248, 113, 113, 0.6);
+    background: rgba(248, 113, 113, 0.1);
+}
+
+.zkill-tactical-stat.safe {
+    border-color: rgba(74, 222, 128, 0.6);
+    background: rgba(74, 222, 128, 0.1);
+}
+
+.zkill-tactical-stat.moderate {
+    border-color: rgba(251, 191, 36, 0.6);
+    background: rgba(251, 191, 36, 0.1);
+}
+
+.zkill-tactical-stat.high {
+    border-color: rgba(74, 222, 128, 0.6);
+    background: rgba(74, 222, 128, 0.1);
+}
+
+.zkill-tactical-stat.low {
+    border-color: rgba(248, 113, 113, 0.6);
+    background: rgba(248, 113, 113, 0.1);
+}
+
+.zkill-tactical-stat.fleet {
+    border-color: rgba(139, 92, 246, 0.6);
+    background: rgba(139, 92, 246, 0.1);
+}
+
+.zkill-tactical-stat.solo {
+    border-color: rgba(255, 71, 87, 0.6);
+    background: rgba(255, 71, 87, 0.1);
+}
+
+.zkill-tactical-stat.mixed {
+    border-color: rgba(0, 212, 255, 0.6);
+    background: rgba(0, 212, 255, 0.1);
+}
+
+.zkill-tactical-icon {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+    opacity: 0.9;
+}
+
+.zkill-tactical-value {
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
+}
+
+.zkill-tactical-label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 500;
+}
+
+/* Threat Assessment - Risk profile prominence */
+.zkill-threat-assessment {
+    margin-bottom: 1.5rem;
+}
+
+.zkill-threat-grid {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 1.5rem;
+    align-items: center;
+}
+
+.zkill-risk-indicator {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 1.5rem;
+    border-radius: var(--radius-large);
+    background: rgba(255, 255, 255, 0.05);
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    min-width: 140px;
+}
+
+.zkill-risk-indicator.high {
+    border-color: rgba(248, 113, 113, 0.8);
+    background: rgba(248, 113, 113, 0.15);
+    box-shadow: 0 0 20px rgba(248, 113, 113, 0.3);
+}
+
+.zkill-risk-indicator.low {
+    border-color: rgba(74, 222, 128, 0.8);
+    background: rgba(74, 222, 128, 0.15);
+    box-shadow: 0 0 20px rgba(74, 222, 128, 0.3);
+}
+
+.zkill-risk-indicator.moderate {
+    border-color: rgba(251, 191, 36, 0.8);
+    background: rgba(251, 191, 36, 0.15);
+    box-shadow: 0 0 20px rgba(251, 191, 36, 0.3);
+}
+
+.zkill-risk-icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+}
+
+.zkill-risk-level {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
+}
+
+.zkill-risk-space {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.zkill-threat-details {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.zkill-threat-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: var(--radius-medium);
+}
+
+.zkill-threat-label {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+}
+
+.zkill-threat-value {
+    color: var(--text-primary);
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.zkill-threat-value.increasing { color: var(--secondary-color); }
+.zkill-threat-value.decreasing { color: var(--danger-color); }
+.zkill-threat-value.stable { color: var(--warning-color); }
+
+/* Ship & Location Preferences */
+.zkill-ship-prefs {
+    margin-bottom: 1.5rem;
+}
+
+.zkill-prefs-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1.5rem;
+}
+
+.zkill-prefs-subtitle {
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    margin-bottom: 1rem;
+    font-weight: 600;
+    text-align: center;
+}
+
+.zkill-specialization-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: rgba(0, 212, 255, 0.1);
+    border: 1px solid rgba(0, 212, 255, 0.3);
+    border-radius: var(--radius-medium);
+    margin-bottom: 1rem;
+}
+
+.zkill-spec-icon {
+    font-size: 1rem;
+}
+
+.zkill-spec-text {
+    font-size: 0.8rem;
+    color: var(--primary-color);
+    font-weight: 500;
+    text-align: center;
+}
+
+.zkill-size-breakdown {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.zkill-pref-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.zkill-pref-bar {
+    flex: 1;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.zkill-pref-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+.zkill-pref-fill.size-small { background: linear-gradient(90deg, #10b981, #059669); }
+.zkill-pref-fill.size-medium { background: linear-gradient(90deg, #3b82f6, #2563eb); }
+.zkill-pref-fill.size-large { background: linear-gradient(90deg, #f59e0b, #d97706); }
+.zkill-pref-fill.size-capital { background: linear-gradient(90deg, #ef4444, #dc2626); }
+.zkill-pref-fill.size-industrial { background: linear-gradient(90deg, #6b7280, #4b5563); }
+.zkill-pref-fill.size-pod { background: linear-gradient(90deg, #8b5cf6, #7c3aed); }
+
+.zkill-pref-info {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    min-width: 50px;
+}
+
+.zkill-pref-category {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.zkill-pref-percent {
+    font-size: 0.8rem;
+    color: var(--primary-color);
+    font-weight: 600;
+}
+
+.zkill-fav-ships-list, .zkill-hot-zones-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.zkill-fav-ship {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: var(--radius-medium);
+    transition: all 0.2s ease;
+}
+
+.zkill-fav-ship:hover {
+    background: rgba(255, 255, 255, 0.06);
+    transform: translateY(-1px);
+}
+
+.zkill-fav-ship-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-small);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.zkill-fav-ship-info {
+    flex: 1;
+}
+
+.zkill-fav-ship-name {
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    font-weight: 500;
+    margin-bottom: 0.1rem;
+}
+
+.zkill-fav-ship-kills {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.zkill-hot-zone {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: var(--radius-medium);
+    transition: all 0.2s ease;
+}
+
+.zkill-hot-zone:hover {
+    background: rgba(255, 255, 255, 0.06);
+    transform: translateY(-1px);
+}
+
+.zkill-hot-zone-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+}
+
+.zkill-system-sec {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    position: relative;
+    overflow: hidden;
+}
+
+.zkill-system-sec::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border-radius: 50%;
+    opacity: 0.1;
+    background: radial-gradient(circle at center, rgba(255, 255, 255, 0.3), transparent);
+}
+
+.zkill-system-sec.highsec {
+    background: linear-gradient(135deg, #10b981, #065f46);
+    color: white;
+    border-color: rgba(16, 185, 129, 0.4);
+    box-shadow: 0 0 12px rgba(16, 185, 129, 0.3);
+}
+
+.zkill-system-sec.lowsec {
+    background: linear-gradient(135deg, #f59e0b, #92400e);
+    color: white;
+    border-color: rgba(245, 158, 11, 0.4);
+    box-shadow: 0 0 12px rgba(245, 158, 11, 0.3);
+}
+
+.zkill-system-sec.nullsec {
+    background: linear-gradient(135deg, #ef4444, #991b1b);
+    color: white;
+    border-color: rgba(239, 68, 68, 0.4);
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.3);
+}
+
+.zkill-system-sec.unknown {
+    background: linear-gradient(135deg, #6b7280, #374151);
+    color: white;
+    border-color: rgba(107, 114, 128, 0.4);
+    box-shadow: 0 0 12px rgba(107, 114, 128, 0.3);
+}
+
+/* Wormhole space styling */
+.zkill-system-sec.wormhole {
+    background: linear-gradient(135deg, #8b5cf6, #5b21b6);
+    color: white;
+    border-color: rgba(139, 92, 246, 0.4);
+    box-shadow: 0 0 12px rgba(139, 92, 246, 0.3);
+}
+
+.zkill-hot-zone-info {
+    flex: 1;
+}
+
+.zkill-hot-zone-name {
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    font-weight: 500;
+    margin-bottom: 0.1rem;
+}
+
+.zkill-hot-zone-kills {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+/* Activity Patterns */
+.zkill-activity-patterns {
+    margin-bottom: 1rem;
+}
+
+.zkill-patterns-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.zkill-pattern-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1rem;
+}
+
+.zkill-pattern-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-large);
+    transition: all 0.2s ease;
+}
+
+.zkill-pattern-item:hover {
+    background: rgba(255, 255, 255, 0.06);
+    transform: translateY(-1px);
+}
+
+.zkill-pattern-icon {
+    font-size: 1.5rem;
+    opacity: 0.8;
+}
+
+.zkill-pattern-icon.trend-increasing { color: var(--secondary-color); }
+.zkill-pattern-icon.trend-decreasing { color: var(--danger-color); }
+.zkill-pattern-icon.trend-stable { color: var(--warning-color); }
+
+.zkill-pattern-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.zkill-pattern-value {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.1rem;
+}
+
+.zkill-pattern-label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* Detailed Statistics - Compact version */
+.zkill-detailed-stats {
+    margin-bottom: 1.5rem;
+}
+
+.zkill-details-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+}
+
+.zkill-detail-group {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-large);
+    padding: 1.2rem;
+    position: relative;
+    overflow: hidden;
+}
+
+.zkill-detail-group::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    opacity: 0.6;
+}
+
+.zkill-detail-group.kills::before {
+    background: var(--gradient-secondary);
+}
+
+.zkill-detail-group.losses::before {
+    background: var(--gradient-danger);
+}
+
+.zkill-detail-header {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 1rem;
+    text-align: center;
+}
+
+.zkill-detail-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.zkill-detail-item:last-child {
+    border-bottom: none;
+}
+
+.zkill-detail-label {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.zkill-detail-value {
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+/* ============================
+Enhanced Analysis Sections
+============================ */
+/* Ship Analysis */
+.zkill-analysis-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.zkill-analysis-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-large);
+    padding: 1.2rem;
+    position: relative;
+    overflow: hidden;
+}
+
+.zkill-analysis-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--gradient-primary);
+    opacity: 0.6;
+}
+
+.zkill-analysis-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.zkill-analysis-title {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+}
+
+.zkill-analysis-icon {
+    font-size: 1.2rem;
+    opacity: 0.8;
+}
+
+.zkill-specialization .zkill-spec-type {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--primary-color);
+    margin-bottom: 0.25rem;
+}
+
+.zkill-specialization .zkill-spec-focus {
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+}
+
+.zkill-specialization .zkill-spec-description {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+.zkill-diversity-score {
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--secondary-color);
+    margin-bottom: 0.25rem;
+}
+
+.zkill-diversity-label {
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
+}
+
+.zkill-diversity-info {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+/* Breakdowns */
+.zkill-breakdowns {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin-top: 1.5rem;
+}
+
+.zkill-breakdown-section {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-medium);
+    padding: 1rem;
+}
+
+.zkill-breakdown-title {
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    margin-bottom: 1rem;
+    text-align: center;
+    font-weight: 600;
+}
+
+.zkill-breakdown-item {
+    display: grid;
+    grid-template-columns: 1fr 2fr auto;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.zkill-breakdown-item:last-child {
+    margin-bottom: 0;
+}
+
+.zkill-breakdown-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.zkill-breakdown-bar {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    height: 8px;
+    overflow: hidden;
+}
+
+.zkill-breakdown-fill {
+    height: 100%;
+    background: var(--gradient-primary);
+    border-radius: 10px;
+    transition: width 0.3s ease;
+}
+
+.zkill-breakdown-fill.tech-t1 { background: linear-gradient(90deg, #4ade80, #22c55e); }
+.zkill-breakdown-fill.tech-t2 { background: linear-gradient(90deg, #f59e0b, #d97706); }
+.zkill-breakdown-fill.tech-faction { background: linear-gradient(90deg, #8b5cf6, #7c3aed); }
+.zkill-breakdown-fill.tech-t3 { background: linear-gradient(90deg, #ef4444, #dc2626); }
+
+/* Ship size specific colors */
+.zkill-breakdown-fill[style*="width"]:not([class*="tech-"]) { background: var(--gradient-primary); }
+.zkill-breakdown-item:has(.zkill-breakdown-label:contains("Small")) .zkill-breakdown-fill { background: linear-gradient(90deg, #10b981, #059669); }
+.zkill-breakdown-item:has(.zkill-breakdown-label:contains("Medium")) .zkill-breakdown-fill { background: linear-gradient(90deg, #3b82f6, #2563eb); }
+.zkill-breakdown-item:has(.zkill-breakdown-label:contains("Large")) .zkill-breakdown-fill { background: linear-gradient(90deg, #f59e0b, #d97706); }
+.zkill-breakdown-item:has(.zkill-breakdown-label:contains("Capital")) .zkill-breakdown-fill { background: linear-gradient(90deg, #ef4444, #dc2626); }
+.zkill-breakdown-item:has(.zkill-breakdown-label:contains("Industrial")) .zkill-breakdown-fill { background: linear-gradient(90deg, #6b7280, #4b5563); }
+.zkill-breakdown-item:has(.zkill-breakdown-label:contains("Pod")) .zkill-breakdown-fill { background: linear-gradient(90deg, #8b5cf6, #7c3aed); }
+
+.zkill-breakdown-value {
+    font-size: 0.8rem;
+    color: var(--primary-color);
+    font-weight: 600;
+    text-align: right;
+}
+
+/* Combat Style */
+.zkill-combat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1rem;
+}
+
+.zkill-combat-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-large);
+    padding: 1rem;
+    text-align: center;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.zkill-combat-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--gradient-secondary);
+    opacity: 0.6;
+}
+
+.zkill-combat-card:hover {
+    transform: translateY(-2px);
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(74, 222, 128, 0.3);
+}
+
+.zkill-combat-icon {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+    opacity: 0.8;
+}
+
+.zkill-combat-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+}
+
+.zkill-combat-value {
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+/* Activity Insights */
+.zkill-insights-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1rem;
+}
+
+.zkill-insight-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-large);
+    padding: 1rem;
+    text-align: center;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.zkill-insight-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--gradient-warning);
+    opacity: 0.6;
+}
+
+.zkill-insight-card:hover {
+    transform: translateY(-2px);
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(251, 191, 36, 0.3);
+}
+
+.zkill-insight-icon {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+    opacity: 0.8;
+}
+
+.zkill-insight-icon.trend-increasing { color: var(--secondary-color); }
+.zkill-insight-icon.trend-decreasing { color: var(--danger-color); }
+.zkill-insight-icon.trend-stable { color: var(--warning-color); }
+
+.zkill-insight-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+}
+
+.zkill-insight-value {
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+/* Security Preference */
+.zkill-security-profile {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-large);
+    padding: 1.2rem;
+}
+
+.zkill-security-summary {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.zkill-security-primary, .zkill-security-risk {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.zkill-security-primary strong, .zkill-security-risk strong {
+    color: var(--primary-color);
+}
+
+.zkill-security-breakdown {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.zkill-security-item {
+    display: grid;
+    grid-template-columns: auto 1fr auto auto;
+    align-items: center;
+    gap: 1rem;
+}
+
+.zkill-security-space {
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 0.25rem 0.6rem;
+    border-radius: var(--radius-small);
+    min-width: 70px;
+    text-align: center;
+}
+
+.zkill-security-space.highsec {
+    background: rgba(74, 222, 128, 0.2);
+    color: var(--secondary-color);
+}
+
+.zkill-security-space.lowsec {
+    background: rgba(251, 191, 36, 0.2);
+    color: var(--warning-color);
+}
+
+.zkill-security-space.nullsec {
+    background: rgba(248, 113, 113, 0.2);
+    color: var(--danger-color);
+}
+
+.zkill-security-space.w-space {
+    background: rgba(139, 92, 246, 0.2);
+    color: #8b5cf6;
+}
+
+.zkill-security-bar {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    height: 8px;
+    overflow: hidden;
+    flex: 1;
+}
+
+.zkill-security-fill {
+    height: 100%;
+    border-radius: 10px;
+    transition: width 0.3s ease;
+}
+
+.zkill-security-fill.highsec { background: linear-gradient(90deg, #4ade80, #22c55e); }
+.zkill-security-fill.lowsec { background: linear-gradient(90deg, #fbbf24, #f59e0b); }
+.zkill-security-fill.nullsec { background: linear-gradient(90deg, #f87171, #ef4444); }
+.zkill-security-fill.w-space { background: linear-gradient(90deg, #8b5cf6, #7c3aed); }
+
+.zkill-security-percentage {
+    font-size: 0.8rem;
+    color: var(--primary-color);
+    font-weight: 600;
+    min-width: 35px;
+    text-align: right;
+}
+
+.zkill-security-kills {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    min-width: 60px;
+    text-align: right;
+}
+
 /* Small screens */
 @media (max-width: 480px) {
 .zkill-modal-backdrop { padding: 0.5rem; }
@@ -775,6 +1776,10 @@ margin: 1rem;
 .zkill-activity-number { font-size: 1.2rem; }
 .zkill-activity-icon { font-size: 1.3rem; }
 
+.zkill-ship-card { padding: 0.6rem; min-height: 50px; }
+.zkill-ship-name { font-size: 0.85rem; }
+.zkill-ship-group { font-size: 0.7rem; }
+.zkill-ship-icon { width: 28px; height: 28px; }
 .zkill-location-card { padding: 0.6rem; min-height: 50px; }
 .zkill-location-name { font-size: 0.9rem; }
 .zkill-location-security { padding: 0.15rem 0.4rem; font-size: 0.7rem; border-radius: 10px; }
@@ -786,4 +1791,29 @@ margin: 1rem;
 
 .zkill-chart { width: 100%; height: 150px; }
 .zkill-chart-container { padding: 0.6rem; }
+
+/* Reorganized layout mobile */
+.zkill-tactical-grid { grid-template-columns: repeat(2, 1fr); gap: 0.8rem; }
+.zkill-tactical-stat { padding: 0.8rem; }
+.zkill-tactical-value { font-size: 1.2rem; }
+
+.zkill-threat-grid { grid-template-columns: 1fr; gap: 1rem; text-align: center; }
+.zkill-risk-indicator { min-width: auto; padding: 1rem; }
+
+.zkill-prefs-layout { grid-template-columns: 1fr; gap: 1rem; }
+.zkill-pattern-summary { grid-template-columns: 1fr; gap: 0.8rem; }
+.zkill-pattern-item { padding: 0.8rem; }
+
+.zkill-details-grid { grid-template-columns: 1fr; gap: 1rem; }
+.zkill-detail-group { padding: 1rem; }
+
+/* Enhanced sections mobile */
+.zkill-analysis-grid { grid-template-columns: 1fr; gap: 0.8rem; }
+.zkill-analysis-card { padding: 1rem; }
+.zkill-breakdowns { grid-template-columns: 1fr; gap: 1rem; }
+.zkill-combat-grid { grid-template-columns: repeat(2, 1fr); gap: 0.8rem; }
+.zkill-insights-grid { grid-template-columns: repeat(2, 1fr); gap: 0.8rem; }
+.zkill-security-summary { flex-direction: column; gap: 0.5rem; }
+.zkill-security-item { grid-template-columns: auto 1fr auto; gap: 0.5rem; }
+.zkill-security-kills { display: none; }
 }
