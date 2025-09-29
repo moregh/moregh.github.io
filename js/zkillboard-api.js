@@ -7,6 +7,7 @@
 
 import { USER_AGENT } from './config.js';
 import { showWarning } from './ui.js';
+import { getShipClassification, SHIP_GROUP_CLASSIFICATIONS, SHIP_TYPE_TO_GROUP } from './eve-ship-data.js';
 
 /**
  * zKillboard API Configuration
@@ -601,67 +602,37 @@ class ZKillboardClient {
     }
 
     /**
-     * Classify ship by size, tech level, and role
+     * Classify ship using EVE Static Data Export mappings
      */
     classifyShip(ship) {
-        const shipName = ship.shipName.toLowerCase();
-        const groupName = ship.groupName.toLowerCase();
-
         // Determine tech level from pip or name
         let techLevel = 'T1';
         if (ship.pip && ship.pip.includes('tech2')) techLevel = 'T2';
         else if (ship.pip && ship.pip.includes('faction')) techLevel = 'Faction';
         else if (ship.pip && ship.pip.includes('tech3')) techLevel = 'T3';
 
-        // Determine ship size using comprehensive EVE ship classification
-        let size = 'Unknown';
+        // Use comprehensive ship type to group ID mapping for accurate classification
+        let groupID = ship.groupID;
 
-        // Small ships (Frigates, Destroyers, and their variants)
-        if (groupName.includes('frigate') || groupName.includes('destroyer') ||
-            groupName.includes('interceptor') || groupName.includes('assault frigate') ||
-            groupName.includes('covert ops') || groupName.includes('electronic attack ship') ||
-            groupName.includes('stealth bomber') || groupName.includes('expedition frigate') ||
-            groupName.includes('tactical destroyer')) {
-            size = 'Small';
-        }
-        // Medium ships (Cruisers, Battlecruisers, and their variants)
-        else if (groupName.includes('cruiser') || groupName.includes('battlecruiser') ||
-                 groupName.includes('heavy assault cruiser') || groupName.includes('heavy interdiction cruiser') ||
-                 groupName.includes('logistics cruiser') || groupName.includes('recon ship') ||
-                 groupName.includes('command ship') || groupName.includes('strategic cruiser') ||
-                 groupName.includes('combat recon ship') || groupName.includes('force recon ship')) {
-            size = 'Medium';
-        }
-        // Large ships (Battleships and their variants)
-        else if (groupName.includes('battleship') || groupName.includes('black ops') ||
-                 groupName.includes('marauder') || groupName.includes('attack battlecruiser')) {
-            size = 'Large';
-        }
-        // Capital ships
-        else if (groupName.includes('dreadnought') || groupName.includes('carrier') ||
-                 groupName.includes('supercarrier') || groupName.includes('titan') ||
-                 groupName.includes('capital') || groupName.includes('force auxiliary') ||
-                 groupName.includes('mothership')) {
-            size = 'Capital';
-        }
-        // Industrial and Support
-        else if (groupName.includes('industrial') || groupName.includes('hauler') ||
-                 groupName.includes('transport') || groupName.includes('mining') ||
-                 groupName.includes('exhumer') || groupName.includes('venture')) {
-            size = 'Industrial';
-        }
-        // Special cases
-        else if (groupName.includes('capsule') || groupName.includes('pod')) {
-            size = 'Pod';
+        // If we don't have groupID from the API, look it up using ship type ID
+        if (!groupID && ship.shipTypeID && SHIP_TYPE_TO_GROUP[ship.shipTypeID]) {
+            groupID = SHIP_TYPE_TO_GROUP[ship.shipTypeID];
         }
 
-        // Determine role
-        let role = 'Combat';
-        if (groupName.includes('logistics') || groupName.includes('support')) role = 'Support';
-        else if (groupName.includes('interceptor') || groupName.includes('covert')) role = 'Specialist';
-        else if (groupName.includes('hauler') || groupName.includes('transport')) role = 'Industrial';
+        // Get ship classification using the comprehensive mapping
+        const classification = getShipClassification(
+            ship.shipTypeID,
+            groupID,
+            ship.shipName,
+            ship.groupName
+        );
 
-        return { techLevel, size, role };
+        return {
+            techLevel,
+            size: classification.size,
+            role: classification.role,
+            category: classification.category
+        };
     }
 
     /**
