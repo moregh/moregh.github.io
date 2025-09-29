@@ -5,7 +5,6 @@
     Licensed under AGPL License.
 */
 
-/* Results Section */
 .results-section {
     opacity: 0;
     transform: translateY(27px);
@@ -21,7 +20,6 @@
     display: block
 }
 
-/* Stats Dashboard */
 .stats-dashboard {
     padding: 0.8rem 2rem;
     margin-bottom: 1rem
@@ -38,7 +36,7 @@
     align-items: center;
     gap: 0.5rem;
     padding: 0.6rem 1rem;
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--white-02);
     border-radius: 13.5px;
     border-left: 3.6px solid;
     transition: all 0.27s ease
@@ -46,7 +44,7 @@
 
 .stat-card:hover {
     transform: translateY(-2px);
-    background: rgba(255, 255, 255, 0.05)
+    background: var(--white-05)
 }
 
 .stat-icon {
@@ -126,14 +124,12 @@
 }
 
 
-/* Results Container */
 .results-container {
     display: flex;
     flex-direction: column;
     gap: 2rem
 }
 
-/* Tabbed Results Container */
 .tabbed-results-container {
     padding: 0;
     overflow: hidden;
@@ -142,12 +138,11 @@
     min-width: 0;
 }
 
-/* Tabs Header */
 .tabs-header {
     display: flex;
     align-items: flex-end;
     padding: 0;
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--white-02);
     border-bottom: 2px solid var(--border-color);
     position: relative;
 }
@@ -164,7 +159,7 @@
     justify-content: center;
     gap: 0.5rem;
     padding: 1rem 1.5rem 0.8rem 1.5rem;
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--white-03);
     border: 2px solid var(--border-color);
     border-bottom: none;
     border-radius: 0;
@@ -202,14 +197,14 @@
 
 .tab-btn:hover {
     background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(255, 255, 255, 0.3);
+    border-color: var(--white-3);
     color: var(--text-primary);
     transform: translateY(-2px);
     z-index: 2;
 }
 
 .tab-btn:hover::after {
-    background: rgba(255, 255, 255, 0.3);
+    background: var(--white-3);
 }
 
 .tab-btn.active {
@@ -251,12 +246,11 @@
 }
 
 .tab-btn.active .tab-count {
-    background: rgba(255, 255, 255, 0.3);
+    background: var(--white-3);
 }
 
 
 
-/* Tab Content */
 .tab-content {
     display: none;
     animation: fadeIn 0.3s ease;
@@ -302,7 +296,7 @@
     align-items: flex-start !important;
     justify-content: flex-start !important;
     gap: 1rem;
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--white-03);
     border-radius: 13.5px;
     padding: 1.35rem;
     border-left: 3.6px solid var(--secondary-color);
@@ -345,7 +339,7 @@
     height: 64px;
     border-radius: 10.8px;
     object-fit: cover;
-    border: 1.8px solid rgba(255, 255, 255, 0.1);
+    border: 1.8px solid var(--white-1);
     background: var(--gradient-highlight);
     transition: all 0.27s ease;
     flex-shrink: 0;
@@ -464,7 +458,7 @@
 /* Backward compatibility for old summary items if still used elsewhere */
 .alliance-grid .summary-item,
 .corporation-grid .summary-item {
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--white-03);
     border-radius: 13.5px;
     padding: 1.35rem;
     border-left: 3.6px solid var(--secondary-color);
@@ -545,7 +539,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background: rgba(255, 255, 255, 0.02)
+    background: var(--white-02)
 }
 
 .column-header h3 {
@@ -575,7 +569,6 @@
     gap: 0.8rem
 }
 
-/* Result Grid and Items */
 .result-grid {
     padding: 1.8rem;
     display: grid;
@@ -599,7 +592,7 @@
     display: flex;
     align-items: flex-start;
     gap: 0.9rem;
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--white-03);
     border-radius: 13.5px;
     padding: 1.35rem;
     border-left: 3.6px solid;
@@ -663,7 +656,7 @@
     height: 57.6px;
     border-radius: 10.8px;
     object-fit: cover;
-    border: 1.8px solid rgba(255, 255, 255, 0.1);
+    border: 1.8px solid var(--white-1);
     transition: all 0.27s ease;
     background: var(--gradient-highlight);
     contain: layout;
@@ -774,7 +767,7 @@
     height: 21.6px;
     border-radius: 3.6px;
     object-fit: cover;
-    border: 0.9px solid rgba(255, 255, 255, 0.1);
+    border: 0.9px solid var(--white-1);
     background: var(--gradient-highlight);
     transition: opacity 0.3s ease;
     flex-shrink: 0;
@@ -810,7 +803,6 @@
 }
 
 
-/* No Results States */
 .no-results {
     display: flex;
     flex-direction: column;

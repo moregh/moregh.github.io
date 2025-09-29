@@ -95,8 +95,8 @@ export const SHIP_GROUP_CLASSIFICATIONS = {
     // Battleships
     27: { size: 'Large', role: 'Combat', category: 'Battleship' },
 
-    // Elite Battleships (Special Faction/Pirate)
-    381: { size: 'Large', role: 'Combat', category: 'Elite Battleship' },
+    // Faction Battleships (Special Faction/Pirate)
+    381: { size: 'Large', role: 'Combat', category: 'Faction Battleship' },
 
     // Marauders
     900: { size: 'Large', role: 'Combat', category: 'Marauder' },
@@ -165,71 +165,11 @@ export const SHIP_GROUP_CLASSIFICATIONS = {
     2001: { size: 'Special', role: 'Special', category: 'Citizen Ships' }
 };
 
-/**
- * Ship Type ID to Group ID Mapping
- */
-
-/**
- * Get ship classification by ship type ID
- */
 export function getShipClassification(shipTypeID, groupID, shipName = '', groupName = '') {
     // Try direct group ID lookup first (most accurate)
     if (groupID && SHIP_GROUP_CLASSIFICATIONS[groupID]) {
         return SHIP_GROUP_CLASSIFICATIONS[groupID];
     }
-
-    // Fallback to enhanced pattern matching for unknown groups
-    return getClassificationByName(shipName, groupName);
-}
-
-/**
- * Enhanced name-based classification (fallback)
- */
-function getClassificationByName(shipName, groupName) {
-    const name = (shipName + ' ' + groupName).toLowerCase();
-
-    // Small ships
-    if (name.includes('frigate') || name.includes('destroyer') ||
-        name.includes('interceptor') || name.includes('assault frigate') ||
-        name.includes('covert ops') || name.includes('electronic attack') ||
-        name.includes('stealth bomber') || name.includes('expedition frigate') ||
-        name.includes('tactical destroyer')) {
-        return { size: 'Small', role: 'Combat', category: 'Small Ship' };
-    }
-
-    // Medium ships
-    if (name.includes('cruiser') || name.includes('battlecruiser') ||
-        name.includes('heavy assault cruiser') || name.includes('heavy interdiction') ||
-        name.includes('logistics cruiser') || name.includes('recon ship') ||
-        name.includes('command ship') || name.includes('strategic cruiser')) {
-        return { size: 'Medium', role: 'Combat', category: 'Medium Ship' };
-    }
-
-    // Large ships
-    if (name.includes('battleship') || name.includes('black ops') || name.includes('marauder')) {
-        return { size: 'Large', role: 'Combat', category: 'Large Ship' };
-    }
-
-    // Capital ships
-    if (name.includes('dreadnought') || name.includes('carrier') ||
-        name.includes('supercarrier') || name.includes('titan') ||
-        name.includes('force auxiliary') || name.includes('mothership')) {
-        return { size: 'Capital', role: 'Combat', category: 'Capital Ship' };
-    }
-
-    // Industrial
-    if (name.includes('industrial') || name.includes('hauler') ||
-        name.includes('transport') || name.includes('mining') ||
-        name.includes('exhumer') || name.includes('freighter')) {
-        return { size: 'Industrial', role: 'Industrial', category: 'Industrial Ship' };
-    }
-
-    // Special cases
-    if (name.includes('capsule') || name.includes('pod')) {
-        return { size: 'Pod', role: 'Special', category: 'Capsule' };
-    }
-
-    // Default fallback
     return { size: 'Unknown', role: 'Combat', category: 'Unknown Ship' };
 }
 

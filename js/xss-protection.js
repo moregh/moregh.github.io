@@ -42,20 +42,33 @@ export function escapeHtml(str) {
 }
 
 /**
+ * Generic function to sanitize entity names from ESI API
+ * @param {string} name - Entity name from ESI
+ * @param {string} entityType - Type of entity (character, corporation, alliance)
+ * @param {number} maxLength - Maximum length for the name
+ * @returns {string} - Sanitized entity name
+ */
+function sanitizeEntityName(name, entityType, maxLength) {
+    if (!name || typeof name !== 'string') {
+        const defaults = {
+            character: 'Unknown Character',
+            corporation: 'Unknown Corporation',
+            alliance: 'Unknown Alliance'
+        };
+        return defaults[entityType] || 'Unknown Entity';
+    }
+
+    const trimmed = name.trim().substring(0, maxLength);
+    return escapeHtml(trimmed);
+}
+
+/**
  * Sanitizes a character name from ESI API
  * @param {string} name - Character name from ESI
  * @returns {string} - Sanitized character name
  */
 export function sanitizeCharacterName(name) {
-    if (!name || typeof name !== 'string') {
-        return 'Unknown Character';
-    }
-
-    // Trim whitespace and limit length
-    const trimmed = name.trim().substring(0, 37); // EVE character name max length
-
-    // Escape HTML entities
-    return escapeHtml(trimmed);
+    return sanitizeEntityName(name, 'character', 37);
 }
 
 /**
@@ -64,15 +77,7 @@ export function sanitizeCharacterName(name) {
  * @returns {string} - Sanitized corporation name
  */
 export function sanitizeCorporationName(name) {
-    if (!name || typeof name !== 'string') {
-        return 'Unknown Corporation';
-    }
-
-    // Trim whitespace and limit length
-    const trimmed = name.trim().substring(0, 50); // EVE corp name max length
-
-    // Escape HTML entities
-    return escapeHtml(trimmed);
+    return sanitizeEntityName(name, 'corporation', 50);
 }
 
 /**
@@ -81,15 +86,7 @@ export function sanitizeCorporationName(name) {
  * @returns {string} - Sanitized alliance name
  */
 export function sanitizeAllianceName(name) {
-    if (!name || typeof name !== 'string') {
-        return 'Unknown Alliance';
-    }
-
-    // Trim whitespace and limit length
-    const trimmed = name.trim().substring(0, 50); // EVE alliance name max length
-
-    // Escape HTML entities
-    return escapeHtml(trimmed);
+    return sanitizeEntityName(name, 'alliance', 50);
 }
 
 /**
@@ -181,7 +178,6 @@ export function sanitizeAllianceData(alliance) {
         war_eligible: Boolean(alliance.war_eligible)
     };
 }
-
 
 /**
  * Sanitizes URL parameters for zkillboard links

@@ -30,25 +30,27 @@ export async function initDB() {
         request.onupgradeneeded = (event) => {
             const db = event.target.result;
 
-            // Character name to ID mapping table
             if (!db.objectStoreNames.contains('character_names')) {
                 const nameStore = db.createObjectStore('character_names', { keyPath: 'name_lower' });
                 nameStore.createIndex('timestamp', 'timestamp');
             }
 
-            // Character affiliations table
+            if (!db.objectStoreNames.contains('entity_names')) {
+                const entityStore = db.createObjectStore('entity_names', { keyPath: 'name_lower' });
+                entityStore.createIndex('timestamp', 'timestamp');
+                entityStore.createIndex('entity_type', 'entity_type');
+            }
+
             if (!db.objectStoreNames.contains('character_affiliations')) {
                 const affiliationStore = db.createObjectStore('character_affiliations', { keyPath: 'character_id' });
                 affiliationStore.createIndex('timestamp', 'timestamp');
             }
 
-            // Corporation info table
             if (!db.objectStoreNames.contains('corporations')) {
                 const corpStore = db.createObjectStore('corporations', { keyPath: 'corporation_id' });
                 corpStore.createIndex('timestamp', 'timestamp');
             }
 
-            // Alliance info table
             if (!db.objectStoreNames.contains('alliances')) {
                 const allianceStore = db.createObjectStore('alliances', { keyPath: 'alliance_id' });
                 allianceStore.createIndex('timestamp', 'timestamp');
@@ -57,21 +59,20 @@ export async function initDB() {
     });
 }
 
-// Helper function to check if data is expired
 export function isExpired(timestamp) {
     const now = Date.now();
     const expiryTime = timestamp + (CACHE_EXPIRY_HOURS * 60 * 60 * 1000);
     return now > expiryTime;
 }
 
-export async function getCachedNameToId(name) {
+async function getCachedData(storeName, key, processResult) {
     try {
         const db = await initDB();
-        const transaction = db.transaction(['character_names'], 'readonly');
-        const store = transaction.objectStore('character_names');
+        const transaction = db.transaction([storeName], 'readonly');
+        const store = transaction.objectStore(storeName);
 
         return new Promise((resolve) => {
-            const request = store.get(name.toLowerCase());
+            const request = store.get(key);
 
             request.onsuccess = () => {
                 const result = request.result;
@@ -79,205 +80,113 @@ export async function getCachedNameToId(name) {
                     resolve(null);
                     return;
                 }
-
-                resolve({
-                    id: result.character_id,
-                    name: result.character_name
-                });
+                resolve(processResult ? processResult(result) : result);
             };
 
             request.onerror = () => {
-                console.warn(`Error reading name cache for ${name}:`, request.error);
+                console.warn(`Error reading ${storeName} cache for ${key}:`, request.error);
                 resolve(null);
             };
         });
     } catch (e) {
-        console.warn(`Error accessing name cache for ${name}:`, e);
+        console.warn(`Error accessing ${storeName} cache for ${key}:`, e);
         return null;
     }
+}
+
+async function setCachedData(storeName, cacheData) {
+    try {
+        const db = await initDB();
+        const transaction = db.transaction([storeName], 'readwrite');
+        const store = transaction.objectStore(storeName);
+        store.put({ ...cacheData, timestamp: Date.now() });
+    } catch (e) {
+        console.warn(`Error writing ${storeName} cache:`, e);
+    }
+}
+
+export async function getCachedNameToId(name) {
+    return getCachedData('character_names', name.toLowerCase(), result => ({
+        id: result.character_id,
+        name: result.character_name
+    }));
 }
 
 export async function getCachedAffiliation(characterId) {
-    try {
-        const db = await initDB();
-        const transaction = db.transaction(['character_affiliations'], 'readonly');
-        const store = transaction.objectStore('character_affiliations');
-
-        return new Promise((resolve) => {
-            const request = store.get(characterId);
-
-            request.onsuccess = () => {
-                const result = request.result;
-                if (!result || isExpired(result.timestamp)) {
-                    resolve(null);
-                    return;
-                }
-
-                resolve({
-                    character_id: result.character_id,
-                    corporation_id: result.corporation_id,
-                    alliance_id: result.alliance_id
-                });
-            };
-
-            request.onerror = () => {
-                console.warn(`Error reading affiliation cache for ${characterId}:`, request.error);
-                resolve(null);
-            };
-        });
-    } catch (e) {
-        console.warn(`Error accessing affiliation cache for ${characterId}:`, e);
-        return null;
-    }
+    return getCachedData('character_affiliations', characterId, result => ({
+        character_id: result.character_id,
+        corporation_id: result.corporation_id,
+        alliance_id: result.alliance_id
+    }));
 }
 
 export async function setCachedNameToId(name, characterData) {
-    try {
-        const db = await initDB();
-        const transaction = db.transaction(['character_names'], 'readwrite');
-        const store = transaction.objectStore('character_names');
-
-        const cacheData = {
-            name_lower: name.toLowerCase(),
-            character_id: characterData.id,
-            character_name: characterData.name,
-            timestamp: Date.now()
-        };
-
-        store.put(cacheData);
-    } catch (e) {
-        console.warn(`Error writing name cache for ${name}:`, e);
-    }
+    return setCachedData('character_names', {
+        name_lower: name.toLowerCase(),
+        character_id: characterData.id,
+        character_name: characterData.name
+    });
 }
 
 export async function setCachedAffiliation(characterId, affiliationData) {
-    try {
-        const db = await initDB();
-        const transaction = db.transaction(['character_affiliations'], 'readwrite');
-        const store = transaction.objectStore('character_affiliations');
-
-        const cacheData = {
-            character_id: characterId,
-            corporation_id: affiliationData.corporation_id,
-            alliance_id: affiliationData.alliance_id || null,
-            timestamp: Date.now()
-        };
-
-        store.put(cacheData);
-    } catch (e) {
-        console.warn(`Error writing affiliation cache for ${characterId}:`, e);
-    }
+    return setCachedData('character_affiliations', {
+        character_id: characterId,
+        corporation_id: affiliationData.corporation_id,
+        alliance_id: affiliationData.alliance_id || null
+    });
 }
 
 export async function getCachedCorporationInfo(corporationId) {
-    try {
-        const db = await initDB();
-        const transaction = db.transaction(['corporations'], 'readonly');
-        const store = transaction.objectStore('corporations');
-
-        return new Promise((resolve) => {
-            const request = store.get(corporationId);
-
-            request.onsuccess = () => {
-                const result = request.result;
-                if (!result || isExpired(result.timestamp)) {
-                    resolve(null);
-                    return;
-                }
-
-                resolve({
-                    name: result.name,
-                    war_eligible: result.war_eligible
-                });
-            };
-
-            request.onerror = () => {
-                console.warn(`Error reading corporation cache for ${corporationId}:`, request.error);
-                resolve(null);
-            };
-        });
-    } catch (e) {
-        console.warn(`Error accessing corporation cache for ${corporationId}:`, e);
-        return null;
-    }
+    return getCachedData('corporations', corporationId, result => ({
+        name: result.name,
+        war_eligible: result.war_eligible
+    }));
 }
 
 export async function setCachedCorporationInfo(corporationId, corporationData) {
-    try {
-        const db = await initDB();
-        const transaction = db.transaction(['corporations'], 'readwrite');
-        const store = transaction.objectStore('corporations');
-
-        const cacheData = {
-            corporation_id: corporationId,
-            name: corporationData.name,
-            war_eligible: corporationData.war_eligible,
-            timestamp: Date.now()
-        };
-
-        store.put(cacheData);
-    } catch (e) {
-        console.warn(`Error writing corporation cache for ${corporationId}:`, e);
-    }
+    return setCachedData('corporations', {
+        corporation_id: corporationId,
+        name: corporationData.name,
+        war_eligible: corporationData.war_eligible
+    });
 }
 
 export async function getCachedAllianceInfo(allianceId) {
-    try {
-        const db = await initDB();
-        const transaction = db.transaction(['alliances'], 'readonly');
-        const store = transaction.objectStore('alliances');
-
-        return new Promise((resolve) => {
-            const request = store.get(allianceId);
-
-            request.onsuccess = () => {
-                const result = request.result;
-                if (!result || isExpired(result.timestamp)) {
-                    resolve(null);
-                    return;
-                }
-
-                resolve({
-                    name: result.name
-                });
-            };
-
-            request.onerror = () => {
-                console.warn(`Error reading alliance cache for ${allianceId}:`, request.error);
-                resolve(null);
-            };
-        });
-    } catch (e) {
-        console.warn(`Error accessing alliance cache for ${allianceId}:`, e);
-        return null;
-    }
+    return getCachedData('alliances', allianceId, result => ({
+        name: result.name
+    }));
 }
 
 export async function setCachedAllianceInfo(allianceId, allianceData) {
-    try {
-        const db = await initDB();
-        const transaction = db.transaction(['alliances'], 'readwrite');
-        const store = transaction.objectStore('alliances');
+    return setCachedData('alliances', {
+        alliance_id: allianceId,
+        name: allianceData.name
+    });
+}
 
-        const cacheData = {
-            alliance_id: allianceId,
-            name: allianceData.name,
-            timestamp: Date.now()
-        };
+export async function getCachedEntityName(name) {
+    return getCachedData('entity_names', name.toLowerCase(), result => ({
+        id: result.entity_id,
+        name: result.entity_name,
+        type: result.entity_type
+    }));
+}
 
-        store.put(cacheData);
-    } catch (e) {
-        console.warn(`Error writing alliance cache for ${allianceId}:`, e);
-    }
+export async function setCachedEntityName(name, entityData) {
+    return setCachedData('entity_names', {
+        name_lower: name.toLowerCase(),
+        entity_id: entityData.id,
+        entity_name: entityData.name,
+        entity_type: entityData.type
+    });
 }
 
 export async function getCacheRecordCount() {
     try {
         const db = await initDB();
-        const stores = ['character_names', 'character_affiliations', 'corporations', 'alliances'];
+        const stores = ['character_names', 'entity_names', 'character_affiliations', 'corporations', 'alliances'];
         let totalCount = 0;
 
-        // Use Promise.all to count all stores concurrently for better performance
         const countPromises = stores.map(storeName => {
             return new Promise((resolve) => {
                 const transaction = db.transaction([storeName], 'readonly');
@@ -317,7 +226,6 @@ export async function clearExpiredCache() {
         const shortExpiryMs = CACHE_EXPIRY_HOURS * 60 * 60 * 1000;
         const longExpiryMs = LONG_CACHE_EXPIRY_HOURS * 60 * 60 * 1000;
 
-        // Clear expired affiliations (short-term)
         try {
             const affiliationTransaction = db.transaction(['character_affiliations'], 'readwrite');
             const affiliationStore = affiliationTransaction.objectStore('character_affiliations');
@@ -341,7 +249,6 @@ export async function clearExpiredCache() {
             console.warn('Error setting up affiliation cleanup:', e);
         }
 
-        // Clear expired names (long-term)
         try {
             const nameTransaction = db.transaction(['character_names'], 'readwrite');
             const nameStore = nameTransaction.objectStore('character_names');
@@ -365,7 +272,6 @@ export async function clearExpiredCache() {
             console.warn('Error setting up name cleanup:', e);
         }
 
-        // Clear expired alliances (long-term)
         try {
             const allianceTransaction = db.transaction(['alliances'], 'readwrite');
             const allianceStore = allianceTransaction.objectStore('alliances');
@@ -389,7 +295,6 @@ export async function clearExpiredCache() {
             console.warn('Error setting up alliance cleanup:', e);
         }
 
-        // Handle corporations with dual timestamps (more complex)
         try {
             const corpTransaction = db.transaction(['corporations'], 'readwrite');
             const corpStore = corpTransaction.objectStore('corporations');
@@ -403,11 +308,9 @@ export async function clearExpiredCache() {
                     const warExpired = isExpired(record.war_eligible_timestamp || record.timestamp, false);
 
                     if (nameExpired) {
-                        // If name is expired, delete entire record
-                        cursor.delete();
+                            cursor.delete();
                     } else if (warExpired && record.war_eligible_timestamp) {
-                        // If only war eligibility is expired, update record to remove war_eligible
-                        const updatedRecord = { ...record };
+                            const updatedRecord = { ...record };
                         delete updatedRecord.war_eligible;
                         delete updatedRecord.war_eligible_timestamp;
                         cursor.update(updatedRecord);

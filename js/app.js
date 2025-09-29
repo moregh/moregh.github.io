@@ -11,8 +11,8 @@ import {
 } from './config.js';
 import { initDB, clearExpiredCache } from './database.js';
 import { showCharacterStats, showCorporationStats, showAllianceStats } from './zkill-card.js';
-import { clientValidate } from './validation.js';
-import { validator } from './esi-api.js';
+import { clientValidate, validateEntityName } from './validation.js';
+import { mixedValidator } from './esi-api.js';
 import { initializeFilters, setResultsData, getFilteredResults, getFilteredAlliances, getFilteredCorporations } from './filters.js';
 import {
     startLoading,
@@ -105,12 +105,6 @@ document.addEventListener('click', function (event) {
     const action = target.dataset.action;
 
     switch (action) {
-        case 'toggle-expanded':
-            // No longer needed - always show all
-            break;
-        case 'load-more':
-            // No longer needed - always show all
-            break;
         case 'reload-page':
             event.preventDefault();
             window.location.reload(true);
@@ -130,37 +124,71 @@ function summarizeEntities(results) {
     const allianceCounts = new Map();
 
     results.forEach(result => {
-        if (result.corporation_id) {
-            const existing = corpCounts.get(result.corporation_id);
+        // Handle direct corporation entities from mixed search
+        if (result.corporation_name && !result.character_name) {
             corpCounts.set(result.corporation_id, {
                 id: result.corporation_id,
                 name: result.corporation_name,
-                count: (existing?.count || 0) + 1,
+                count: 1, // Direct corporations always have count of 1
                 type: 'corporation',
-                war_eligible: existing?.war_eligible || result.war_eligible
+                war_eligible: result.war_eligible,
+                isDirect: true // Flag to indicate this was searched directly
             });
         }
-        if (result.alliance_id) {
-            const existing = allianceCounts.get(result.alliance_id);
+        // Handle direct alliance entities from mixed search
+        else if (result.alliance_name && !result.character_name) {
             allianceCounts.set(result.alliance_id, {
                 id: result.alliance_id,
                 name: result.alliance_name,
-                count: (existing?.count || 0) + 1,
+                count: 1, // Direct alliances always have count of 1
                 type: 'alliance',
-                war_eligible: existing?.war_eligible || result.war_eligible
+                war_eligible: result.war_eligible,
+                isDirect: true // Flag to indicate this was searched directly
             });
+        }
+        // Handle character affiliations (existing logic)
+        else if (result.character_name) {
+            if (result.corporation_id) {
+                const existing = corpCounts.get(result.corporation_id);
+                corpCounts.set(result.corporation_id, {
+                    id: result.corporation_id,
+                    name: result.corporation_name,
+                    count: (existing?.count || 0) + 1,
+                    type: 'corporation',
+                    war_eligible: existing?.war_eligible || result.war_eligible,
+                    isDirect: existing?.isDirect || false
+                });
+            }
+            if (result.alliance_id) {
+                const existing = allianceCounts.get(result.alliance_id);
+                allianceCounts.set(result.alliance_id, {
+                    id: result.alliance_id,
+                    name: result.alliance_name,
+                    count: (existing?.count || 0) + 1,
+                    type: 'alliance',
+                    war_eligible: existing?.war_eligible || result.war_eligible,
+                    isDirect: existing?.isDirect || false
+                });
+            }
         }
     });
 
+    // Sort with direct entities first, then by count
     const allCorps = Array.from(corpCounts.values())
-        .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+        .sort((a, b) => {
+            if (a.isDirect && !b.isDirect) return -1;
+            if (!a.isDirect && b.isDirect) return 1;
+            return b.count - a.count || a.name.localeCompare(b.name);
+        });
     const allAlliances = Array.from(allianceCounts.values())
-        .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+        .sort((a, b) => {
+            if (a.isDirect && !b.isDirect) return -1;
+            if (!a.isDirect && b.isDirect) return 1;
+            return b.count - a.count || a.name.localeCompare(b.name);
+        });
 
     return { allCorps, allAlliances };
 }
-
-
 // Tab functionality
 function switchTab(tabName) {
     // Update active tab
@@ -184,8 +212,6 @@ function switchTab(tabName) {
     // Update the display for the current tab
     updateTabDisplay();
 }
-
-// Load more functionality removed - always show all results
 
 function updateTabDisplay() {
     if (currentTab === 'characters') {
@@ -226,15 +252,6 @@ function updateTabCounts() {
     }
 }
 
-
-
-
-
-
-
-
-
-
 let characterCountTimeout = null;
 
 function debouncedUpdateCharacterCount() {
@@ -251,7 +268,7 @@ function updateCharacterCount() {
     const textarea = document.getElementById('names');
     const names = textarea.value.split('\n')
         .map(n => n.trim())
-        .filter(n => n && clientValidate(n));
+        .filter(n => n && (clientValidate(n) || validateEntityName(n)));
 
     // Deduplicate
     const uniqueNames = [...new Set(names.map(n => n.toLowerCase()))];
@@ -259,27 +276,27 @@ function updateCharacterCount() {
 
     const countElement = document.getElementById('character-count');
     if (count === 0) {
-        countElement.textContent = "0 characters entered";
+        countElement.textContent = "0 entities entered";
     } else if (count === 1) {
-        countElement.textContent = "1 character entered";
+        countElement.textContent = "1 entity entered";
     } else {
-        countElement.textContent = `${count} characters entered`;
+        countElement.textContent = `${count} entities entered`;
     }
 
     // Update button text
     const button = document.getElementById('checkButton');
     const buttonText = button.querySelector('.button-text');
     if (count > 0) {
-        buttonText.textContent = `Analyze ${count} Character${count !== 1 ? 's' : ''}`;
+        buttonText.textContent = `Analyze ${count} Entit${count !== 1 ? 'ies' : 'y'}`;
     } else {
-        buttonText.textContent = 'Analyze Characters';
+        buttonText.textContent = 'Analyze Entities';
     }
 }
 
 export async function validateNames() {
     const rawNames = document.getElementById("names").value.split("\n")
         .map(n => n.trim())
-        .filter(n => n && clientValidate(n));
+        .filter(n => n && (clientValidate(n) || validateEntityName(n)));
 
     // Deduplicate names (case-insensitive)
     const seenNames = new Set();
@@ -293,20 +310,25 @@ export async function validateNames() {
     });
 
     if (names.length === 0) {
-        showError("No valid names entered. Please check the format of your character names.");
+        showError("No valid names entered. Please check the format of your entity names.");
         return;
     }
 
     startLoading();
 
     try {
-        const results = await validator(names);
+        const results = await mixedValidator(names);
 
         // Store complete results and build entity maps
         completeResults = results;
         buildEntityMaps(results);
 
-        results.sort((a, b) => (a.character_name || '').localeCompare(b.character_name || ''));
+        results.sort((a, b) => {
+            // Sort by entity name (character, corp, or alliance name)
+            const nameA = a.character_name || a.corporation_name || a.alliance_name || '';
+            const nameB = b.character_name || b.corporation_name || b.alliance_name || '';
+            return nameA.localeCompare(nameB);
+        });
 
         allResults = results;
 
@@ -409,6 +431,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Initialize filters system
     initializeFilters(() => {
+            updateTabCounts();
             updateTabDisplay();
         });
 

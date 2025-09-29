@@ -9,7 +9,6 @@
    Button Components
    ============================ */
 
-/* Base Button Styles */
 .btn {
     display: flex;
     align-items: center;
@@ -36,8 +35,8 @@
     text-decoration: none;
     user-select: none;
     transition: all 0.2s ease;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--white-05);
+    border: 1px solid var(--white-1);
     border-radius: var(--radius-medium);
     padding: 0.4rem 0.8rem;
     color: var(--text-primary);
@@ -156,9 +155,8 @@
    Card Components
    ============================ */
 
-/* Base Card Styles */
 .card {
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--white-03);
     border-radius: 13.5px;
     border-left: 3.6px solid;
     transition: all 0.27s ease;
@@ -192,7 +190,6 @@
     opacity: 1;
 }
 
-/* Result Card */
 .result-card {
     display: flex;
     flex-direction: column;
@@ -203,7 +200,6 @@
     transform: translateZ(0);
 }
 
-/* Summary Card */
 .summary-card {
     display: flex;
     align-items: center;

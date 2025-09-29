@@ -30,7 +30,6 @@ export class ManagedObservers {
                             this.imageObserver.unobserve(img);
                             this.observedImages.delete(img);
 
-                            // Throttle processing to avoid overwhelming the browser
                             this.scheduleImageProcessing();
                         }
                     }
@@ -70,7 +69,6 @@ export class ManagedObservers {
         return this.animationObserver;
     }
 
-    // Batch observe operations for better performance
     observeImage(img) {
         if (!img || this.observedImages.has(img) || !document.contains(img)) return;
 
@@ -95,7 +93,6 @@ export class ManagedObservers {
     }
 
     processBatches() {
-        // Process image observations in batches
         const imageBatches = this.chunkArray(this.pendingImageObservations, PERFORMANCE_CONFIG.BATCH_SIZE);
         imageBatches.forEach(batch => {
             batch.forEach(img => {
@@ -110,7 +107,6 @@ export class ManagedObservers {
             });
         });
 
-        // Process animation observations in batches
         const animationBatches = this.chunkArray(this.pendingAnimationObservations, PERFORMANCE_CONFIG.BATCH_SIZE);
         animationBatches.forEach(batch => {
             batch.forEach(element => {
@@ -125,7 +121,6 @@ export class ManagedObservers {
             });
         });
 
-        // Clear pending arrays
         this.pendingImageObservations = [];
         this.pendingAnimationObservations = [];
     }
@@ -149,11 +144,9 @@ export class ManagedObservers {
             this.imageProcessingTimeout = null;
         }
 
-        // Clear pending operations
         this.pendingImageObservations = [];
         this.pendingAnimationObservations = [];
 
-        // Existing cleanup code...
         this.observedImages.forEach(img => {
             try { this.imageObserver?.unobserve(img); } catch (e) { }
         });
@@ -169,7 +162,6 @@ export class ManagedObservers {
         this.observedImages.clear();
         this.observedAnimations.clear();
 
-        // Clear image queues
         imageLoadQueue = [];
         priorityImageQueue = [];
     }
@@ -190,7 +182,6 @@ export class ManagedObservers {
     }
 }
 
-// Image loading queue management with priority
 let imageLoadQueue = [];
 let priorityImageQueue = []; // For above-the-fold images
 let currentlyLoading = 0;
@@ -201,7 +192,6 @@ export function processImageQueue() {
     const now = Date.now();
     const isScrolling = (now - lastScrollTime) < 150; // Check if user was scrolling recently
 
-    // Process priority queue first (above-the-fold images)
     while (priorityImageQueue.length > 0 && currentlyLoading < MAX_CONCURRENT_IMAGES && imageObserverEnabled) {
         const img = priorityImageQueue.shift();
         if (img && img.dataset.src && document.contains(img) && !img.src.startsWith('https://')) {
@@ -209,10 +199,8 @@ export function processImageQueue() {
         }
     }
 
-    // Reduce concurrent loading during scrolling for better performance
     const maxConcurrent = isScrolling ? Math.max(1, MAX_CONCURRENT_IMAGES / 2) : MAX_CONCURRENT_IMAGES;
 
-    // Process regular queue
     while (imageLoadQueue.length > 0 && currentlyLoading < maxConcurrent && imageObserverEnabled) {
         const img = imageLoadQueue.shift();
         if (img && img.dataset.src && document.contains(img) && !img.src.startsWith('https://')) {
@@ -221,12 +209,10 @@ export function processImageQueue() {
     }
 }
 
-// Track scroll state for image loading optimization
 function trackScrollState() {
     lastScrollTime = Date.now();
 }
 
-// Set up scroll tracking for image loading optimization
 if (typeof window !== 'undefined') {
     window.addEventListener('scroll', trackScrollState, { passive: true });
 }
@@ -245,7 +231,6 @@ function loadSingleImage(img) {
         img.removeEventListener('error', onError);
         delete img.dataset.loading;
 
-        // Process next in queue
         requestAnimationFrame(() => processImageQueue());
     };
 
@@ -256,7 +241,6 @@ function loadSingleImage(img) {
         img.removeEventListener('error', onError);
         delete img.dataset.loading;
 
-        // Process next in queue
         requestAnimationFrame(() => processImageQueue());
     };
 

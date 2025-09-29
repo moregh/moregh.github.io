@@ -5,7 +5,6 @@
     Licensed under AGPL License.
 */
 
-/* Background Effects */
 .background-effects {
     position: fixed;
     top: 0;
@@ -65,7 +64,6 @@
     background: radial-gradient(circle, var(--danger-color), transparent)
 }
 
-/* Keyframe Animations */
 @keyframes gridMove {
     0% {
         transform: translate3d(0, 0, 0)
@@ -150,7 +148,6 @@
     }
 }
 
-/* Animation Classes */
 .animate-ready {
     opacity: 0;
     transform: translateY(20px);
@@ -162,7 +159,6 @@
     transform: translateY(0) !important
 }
 
-/* Staggered Animation Delays */
 .result-item:nth-child(1),
 .summary-item:nth-child(1) {
     animation-delay: 0.09s

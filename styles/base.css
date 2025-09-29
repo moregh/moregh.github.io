@@ -30,14 +30,18 @@
     --border-color: rgba(255, 255, 255, 0.1);
     --border-glow: rgba(0, 212, 255, 0.3);
 
-    /* Gradient Variables */
+    --white-02: rgba(255, 255, 255, 0.02);
+    --white-03: rgba(255, 255, 255, 0.03);
+    --white-05: rgba(255, 255, 255, 0.05);
+    --white-1: rgba(255, 255, 255, 0.1);
+    --white-3: rgba(255, 255, 255, 0.3);
+
     --gradient-highlight: linear-gradient(45deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
     --gradient-war: linear-gradient(135deg, var(--war-color), var(--war-color-dark));
     --gradient-primary: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
     --gradient-war-subtle: linear-gradient(135deg, rgba(255, 71, 87, 0.03), rgba(255, 71, 87, 0.08));
     --gradient-transparent: linear-gradient(135deg, transparent, rgba(255, 255, 255, 0.02), transparent);
 
-    /* Border Radius Variables */
     --radius-small: 6px;
     --radius-medium: 8px;
     --radius-large: 12px;
@@ -54,7 +58,6 @@ body {
     position: relative
 }
 
-/* Layout Components */
 .container {
     max-width: 1280px;
     margin: 0 auto;

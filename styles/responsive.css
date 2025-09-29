@@ -5,7 +5,6 @@
     Licensed under AGPL License.
 */
 
-/* Large Screen Optimizations */
 @media (min-width: 1400px) {
 
     .results-container,
@@ -20,7 +19,6 @@
     }
 }
 
-/* Tablet and Mobile Responsiveness */
 @media (max-width: 768px) {
     .container {
         padding: 0.9rem
@@ -150,11 +148,9 @@
 
     .version-badge:hover {
         transform: translateY(-1px);
-        /* Reduced hover lift on mobile */
     }
 }
 
-/* Small Mobile Devices */
 @media (max-width: 480px) {
     .container {
         padding: 0.45rem
@@ -238,7 +234,6 @@
     }
 }
 
-/* High Contrast Support */
 @media (prefers-contrast: high) {
     :root {
         --border-color: rgba(255, 255, 255, 0.3);
@@ -247,7 +242,6 @@
     }
 }
 
-/* Reduced Motion Support */
 @media (prefers-reduced-motion: reduce) {
 
     *,

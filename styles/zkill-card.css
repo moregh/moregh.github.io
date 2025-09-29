@@ -63,7 +63,7 @@ border: 2px solid rgba(0, 212, 255, 0.3);
 border-radius: 20px;
 box-shadow:
 0 25px 80px rgba(0, 0, 0, 0.5),
-0 0 0 1px rgba(255, 255, 255, 0.1),
+0 0 0 1px var(--white-1),
 inset 0 1px 0 rgba(255, 255, 255, 0.2);
 max-width: 900px;
 width: 100%;
@@ -82,7 +82,7 @@ Header
 ============================ */
 .zkill-card-header {
 padding: 1.5rem 2rem;
-border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+border-bottom: 1px solid var(--white-1);
 display: flex;
 align-items: center;
 justify-content: flex-start;
@@ -173,8 +173,8 @@ display: flex;
 align-items: center;
 gap: 0.5rem;
 padding: 0.5rem 0.75rem;
-background: rgba(255, 255, 255, 0.03);
-border: 1px solid rgba(255, 255, 255, 0.1);
+background: var(--white-03);
+border: 1px solid var(--white-1);
 border-radius: var(--radius-medium);
 transition: all 0.2s ease;
 white-space: nowrap;
@@ -190,7 +190,7 @@ width: 32px;
 height: 32px;
 border-radius: var(--radius-small);
 object-fit: cover;
-border: 1px solid rgba(255, 255, 255, 0.1);
+border: 1px solid var(--white-1);
 background: var(--gradient-highlight);
 transition: opacity 0.3s ease;
 flex-shrink: 0;
@@ -297,7 +297,7 @@ display: flex;
 align-items: center;
 gap: 0.5rem;
 padding-bottom: 0.5rem;
-border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+border-bottom: 1px solid var(--white-1);
 }
 .zkill-section-icon {
 font-size: 1.1rem;
@@ -315,8 +315,8 @@ margin-bottom: 2rem;
 }
 
 .zkill-stat-item {
-background: rgba(255, 255, 255, 0.03);
-border: 1px solid rgba(255, 255, 255, 0.1);
+background: var(--white-03);
+border: 1px solid var(--white-1);
 border-radius: var(--radius-large);
 padding: 1.2rem;
 text-align: center;
@@ -367,7 +367,7 @@ margin-bottom: 1rem;
 }
 .zkill-activity-period {
 flex: 1;
-background: rgba(255, 255, 255, 0.03);
+background: var(--white-03);
 border-radius: var(--radius-medium);
 padding: 1rem;
 text-align: center;
@@ -400,8 +400,8 @@ gap: 1rem;
 margin-bottom: 1rem;
 }
 .zkill-activity-card {
-background: rgba(255, 255, 255, 0.03);
-border: 1px solid rgba(255, 255, 255, 0.1);
+background: var(--white-03);
+border: 1px solid var(--white-1);
 border-radius: var(--radius-large);
 padding: 1rem;
 text-align: center;
@@ -453,8 +453,8 @@ gap: 0.8rem;
 margin-bottom: 1rem;
 }
 .zkill-ship-card {
-background: rgba(255, 255, 255, 0.03);
-border: 1px solid rgba(255, 255, 255, 0.1);
+background: var(--white-03);
+border: 1px solid var(--white-1);
 border-radius: var(--radius-medium);
 padding: 0.8rem;
 border-left: 3px solid var(--primary-color);
@@ -482,7 +482,7 @@ width: 32px;
 height: 32px;
 border-radius: var(--radius-small);
 object-fit: cover;
-border: 1px solid rgba(255, 255, 255, 0.1);
+border: 1px solid var(--white-1);
 background: var(--gradient-highlight);
 transition: opacity 0.3s ease;
 flex-shrink: 0;
@@ -523,8 +523,8 @@ gap: 0.8rem;
 margin-bottom: 1rem;
 }
 .zkill-location-card {
-background: rgba(255, 255, 255, 0.03);
-border: 1px solid rgba(255, 255, 255, 0.1);
+background: var(--white-03);
+border: 1px solid var(--white-1);
 border-radius: var(--radius-medium);
 padding: 0.8rem;
 border-left: 3px solid var(--secondary-color);
@@ -585,8 +585,8 @@ gap: 1.5rem;
 margin-bottom: 0;
 }
 .zkill-chart-container {
-background: rgba(255, 255, 255, 0.03);
-border: 1px solid rgba(255, 255, 255, 0.1);
+background: var(--white-03);
+border: 1px solid var(--white-1);
 border-radius: var(--radius-large);
 padding: 1rem;
 position: relative;
@@ -643,8 +643,8 @@ margin-top: -2rem;
 margin-bottom: 1rem;
 }
 .zkill-members-dropdown {
-background: rgba(255, 255, 255, 0.03);
-border: 1px solid rgba(255, 255, 255, 0.1);
+background: var(--white-03);
+border: 1px solid var(--white-1);
 border-radius: var(--radius-large);
 overflow: hidden;
 margin-top: 1rem;
@@ -654,10 +654,10 @@ display: flex;
 align-items: center;
 justify-content: space-between;
 padding: 1rem 1.2rem;
-background: rgba(255, 255, 255, 0.05);
+background: var(--white-05);
 cursor: pointer;
 transition: all 0.2s ease;
-border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+border-bottom: 1px solid var(--white-1);
 }
 .zkill-members-header:hover { background: rgba(255, 255, 255, 0.08); }
 
@@ -700,11 +700,11 @@ display: flex;
 align-items: center;
 gap: 0.8rem;
 padding: 0.8rem 1.2rem;
-border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+border-bottom: 1px solid var(--white-05);
 cursor: pointer;
 transition: all 0.2s ease;
 }
-.zkill-member-item:hover { background: rgba(255, 255, 255, 0.05); padding-left: 1.5rem; }
+.zkill-member-item:hover { background: var(--white-05); padding-left: 1.5rem; }
 .zkill-member-item:last-child { border-bottom: none; }
 
 .zkill-member-avatar {
@@ -712,7 +712,7 @@ width: 32px;
 height: 32px;
 border-radius: var(--radius-small);
 object-fit: cover;
-border: 1px solid rgba(255, 255, 255, 0.1);
+border: 1px solid var(--white-1);
 background: var(--gradient-highlight);
 transition: opacity 0.3s ease;
 flex-shrink: 0;
@@ -849,8 +849,8 @@ REORGANIZED LAYOUT - Tactical Intelligence First
 }
 
 .zkill-tactical-stat {
-    background: rgba(255, 255, 255, 0.05);
-    border: 2px solid rgba(255, 255, 255, 0.1);
+    background: var(--white-05);
+    border: 2px solid var(--white-1);
     border-radius: var(--radius-large);
     padding: 1rem;
     text-align: center;
@@ -938,8 +938,8 @@ REORGANIZED LAYOUT - Tactical Intelligence First
     text-align: center;
     padding: 1.5rem;
     border-radius: var(--radius-large);
-    background: rgba(255, 255, 255, 0.05);
-    border: 2px solid rgba(255, 255, 255, 0.1);
+    background: var(--white-05);
+    border: 2px solid var(--white-1);
     min-width: 140px;
 }
 
@@ -989,7 +989,7 @@ REORGANIZED LAYOUT - Tactical Intelligence First
     justify-content: space-between;
     align-items: center;
     padding: 0.5rem;
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--white-03);
     border-radius: var(--radius-medium);
 }
 
@@ -1065,7 +1065,7 @@ REORGANIZED LAYOUT - Tactical Intelligence First
 .zkill-pref-bar {
     flex: 1;
     height: 6px;
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--white-1);
     border-radius: 3px;
     overflow: hidden;
 }
@@ -1113,7 +1113,7 @@ REORGANIZED LAYOUT - Tactical Intelligence First
     align-items: center;
     gap: 0.75rem;
     padding: 0.5rem;
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--white-03);
     border-radius: var(--radius-medium);
     transition: all 0.2s ease;
 }
@@ -1127,7 +1127,7 @@ REORGANIZED LAYOUT - Tactical Intelligence First
     width: 32px;
     height: 32px;
     border-radius: var(--radius-small);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--white-1);
 }
 
 .zkill-fav-ship-info {
@@ -1151,7 +1151,7 @@ REORGANIZED LAYOUT - Tactical Intelligence First
     align-items: center;
     gap: 0.75rem;
     padding: 0.5rem;
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--white-03);
     border-radius: var(--radius-medium);
     transition: all 0.2s ease;
 }
@@ -1194,7 +1194,7 @@ REORGANIZED LAYOUT - Tactical Intelligence First
     bottom: 0;
     border-radius: 50%;
     opacity: 0.1;
-    background: radial-gradient(circle at center, rgba(255, 255, 255, 0.3), transparent);
+    background: radial-gradient(circle at center, var(--white-3), transparent);
 }
 
 .zkill-system-sec.highsec {
@@ -1271,8 +1271,8 @@ REORGANIZED LAYOUT - Tactical Intelligence First
     align-items: center;
     gap: 0.75rem;
     padding: 1rem;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--white-03);
+    border: 1px solid var(--white-1);
     border-radius: var(--radius-large);
     transition: all 0.2s ease;
 }
@@ -1322,8 +1322,8 @@ REORGANIZED LAYOUT - Tactical Intelligence First
 }
 
 .zkill-detail-group {
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--white-03);
+    border: 1px solid var(--white-1);
     border-radius: var(--radius-large);
     padding: 1.2rem;
     position: relative;
@@ -1361,7 +1361,7 @@ REORGANIZED LAYOUT - Tactical Intelligence First
     justify-content: space-between;
     align-items: center;
     padding: 0.4rem 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid var(--white-05);
 }
 
 .zkill-detail-item:last-child {
@@ -1391,8 +1391,8 @@ Enhanced Analysis Sections
 }
 
 .zkill-analysis-card {
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--white-03);
+    border: 1px solid var(--white-1);
     border-radius: var(--radius-large);
     padding: 1.2rem;
     position: relative;
@@ -1476,8 +1476,8 @@ Enhanced Analysis Sections
 }
 
 .zkill-breakdown-section {
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--white-03);
+    border: 1px solid var(--white-1);
     border-radius: var(--radius-medium);
     padding: 1rem;
 }
@@ -1509,7 +1509,7 @@ Enhanced Analysis Sections
 }
 
 .zkill-breakdown-bar {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--white-1);
     border-radius: 10px;
     height: 8px;
     overflow: hidden;
@@ -1551,8 +1551,8 @@ Enhanced Analysis Sections
 }
 
 .zkill-combat-card {
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--white-03);
+    border: 1px solid var(--white-1);
     border-radius: var(--radius-large);
     padding: 1rem;
     text-align: center;
@@ -1607,8 +1607,8 @@ Enhanced Analysis Sections
 }
 
 .zkill-insight-card {
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--white-03);
+    border: 1px solid var(--white-1);
     border-radius: var(--radius-large);
     padding: 1rem;
     text-align: center;
@@ -1661,8 +1661,8 @@ Enhanced Analysis Sections
 
 /* Security Preference */
 .zkill-security-profile {
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--white-03);
+    border: 1px solid var(--white-1);
     border-radius: var(--radius-large);
     padding: 1.2rem;
 }
@@ -1672,7 +1672,7 @@ Enhanced Analysis Sections
     justify-content: space-between;
     margin-bottom: 1.5rem;
     padding-bottom: 1rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    border-bottom: 1px solid var(--white-1);
 }
 
 .zkill-security-primary, .zkill-security-risk {
@@ -1727,7 +1727,7 @@ Enhanced Analysis Sections
 }
 
 .zkill-security-bar {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--white-1);
     border-radius: 10px;
     height: 8px;
     overflow: hidden;

@@ -5,7 +5,6 @@
     Licensed under AGPL License.
 */
 
-/* Virtual Scrolling */
 .result-grid {
     display: block !important;
     padding: 0 !important
@@ -18,7 +17,6 @@
     padding: 1.8rem
 }
 
-/* Entity cards in virtual scroll containers */
 .virtual-scroll-content .entity-card {
     animation: slideIn 0.45s ease forwards;
     opacity: 0;
@@ -74,23 +72,19 @@
     height: auto !important;
 }
 
-/* Fix virtual scrolling layout issues */
 .virtual-scroll-content:not(.list-view) {
     align-content: start !important;
     justify-items: stretch !important;
 }
 
-/* Disable problematic animations during scroll */
 .virtual-scroll-container .result-item {
     animation: none !important;
 }
 
-/* Re-enable animations when not scrolling */
 .virtual-scroll-container:not(.scrolling) .result-item {
     animation: slideIn 0.45s ease forwards;
 }
 
-/* Ensure cards maintain proper dimensions in virtual scroll */
 .virtual-scroll-content .result-item {
     min-height: 160px;
     height: auto;
@@ -107,7 +101,6 @@
     align-items: center;
 }
 
-/* Performance optimizations for virtual scrolling */
 .virtual-scroll-container .result-item {
     contain: layout style paint;
     will-change: auto;

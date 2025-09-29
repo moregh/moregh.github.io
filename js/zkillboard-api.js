@@ -9,9 +9,6 @@ import { USER_AGENT } from './config.js';
 import { showWarning } from './ui.js';
 import { getShipClassification, SHIP_GROUP_CLASSIFICATIONS, SHIP_TYPE_TO_GROUP } from './eve-ship-data.js';
 
-/**
- * zKillboard API Configuration
- */
 const ZKILL_CONFIG = {
     // PROXY_URLS: [
     //     'https://zkillproxy.zkillproxy.workers.dev/',
@@ -31,9 +28,6 @@ const ZKILL_CONFIG = {
     BATCH_DELAY_MS: 2500
 };
 
-/**
- * zKillboard Error types for better error handling
- */
 class ZKillError extends Error {
     constructor(message, status, entityType, entityId) {
         super(message);
@@ -44,9 +38,6 @@ class ZKillError extends Error {
     }
 }
 
-/**
- * Rate limiting and request queue management
- */
 class ZKillRateLimiter {
     constructor() {
         this.lastRequestTime = 0;
@@ -77,7 +68,6 @@ class ZKillRateLimiter {
 
                 if (timeSinceLastRequest < ZKILL_CONFIG.REQUEST_INTERVAL_MS) {
                     const delayNeeded = ZKILL_CONFIG.REQUEST_INTERVAL_MS - timeSinceLastRequest;
-                    console.log(`Rate limiting: waiting ${delayNeeded}ms`);
                     await this.sleep(delayNeeded);
                 }
 
@@ -98,9 +88,6 @@ class ZKillRateLimiter {
     }
 }
 
-/**
- * In-memory cache for zKillboard stats
- */
 class ZKillStatsCache {
     constructor() {
         this.cache = new Map();
@@ -116,7 +103,6 @@ class ZKillStatsCache {
 
         if (!cached) return null;
 
-        // Check if cache is expired
         if (Date.now() - cached.timestamp > ZKILL_CONFIG.CACHE_DURATION_MS) {
             this.cache.delete(key);
             return null;
@@ -154,9 +140,6 @@ class ZKillStatsCache {
     }
 }
 
-/**
- * Main zKillboard API Client
- */
 class ZKillboardClient {
     constructor() {
         this.rateLimiter = new ZKillRateLimiter();
@@ -164,15 +147,6 @@ class ZKillboardClient {
         this.requestCount = 0;
     }
 
-    /**
-     * Execute HTTP request with timeout and retry logic
-     */
-    /**
-     * Execute HTTP request with CORS proxy and retry logic
-     */
-    /**
-     * Compute proof-of-work for the proxy authentication
-     */
     async computePoW(id, difficulty = ZKILL_CONFIG.POW_DIFFICULTY) {
         const ts = Math.floor(Date.now() / 1000);
         let nonce = 0;
@@ -190,24 +164,17 @@ class ZKillboardClient {
             }
             nonce++;
 
-            // Prevent infinite loops - if we haven't found a solution after 1M attempts, something's wrong
+            // Prevent infinite loops
             if (nonce > 1000000) {
                 throw new ZKillError('Proof-of-work computation failed - too many iterations', 500);
             }
         }
     }
-    /**
- * Execute HTTP request using custom proxy with proof-of-work
- */
-    /**
-     * Execute HTTP request using custom proxy with proof-of-work
-     */
     async executeRequest(entityType, entityId, retryCount = 0) {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), ZKILL_CONFIG.REQUEST_TIMEOUT_MS);
 
         try {
-            // Map entity types to proxy parameters
             const entityTypeMap = {
                 'characterID': 'character',
                 'corporationID': 'corporation',
@@ -219,14 +186,8 @@ class ZKillboardClient {
                 throw new ZKillError(`Unsupported entity type: ${entityType}`, 400);
             }
 
-            // Compute proof-of-work
-            // console.log(`Computing proof-of-work for ${entityType} ${entityId}...`);
-            // const powStart = performance.now();
             const { nonce, ts, hash } = await this.computePoW(entityId);
-            // const powTime = Math.round(performance.now() - powStart);
-            // console.log(`Proof-of-work computed in ${powTime}ms: nonce=${nonce}, hash=${hash.substring(0, 8)}...`);
 
-            // Build proxy URL
             const proxyUrl = `${ZKILL_CONFIG.PROXY_BASE_URL}?${proxyParam}=${entityId}&nonce=${nonce}&ts=${ts}&hash=${hash}`;
 
             this.requestCount++;
@@ -243,7 +204,6 @@ class ZKillboardClient {
 
             if (!response.ok) {
                 if (response.status === 404) {
-                    // Entity not found or no data
                     return null;
                 } else if (response.status === 429 || response.status === 420) {
                     throw new ZKillError('Rate limited by proxy. Please try again later.', 429);
@@ -273,7 +233,6 @@ class ZKillboardClient {
                 throw new ZKillError('Request timed out. Please try again.', 408);
             }
 
-            // Retry logic for certain errors
             if (retryCount < ZKILL_CONFIG.MAX_RETRIES &&
                 (error.status >= 500 || error.status === 408 || error.status === 429)) {
 
@@ -288,28 +247,19 @@ class ZKillboardClient {
         }
     }
 
-    /**
-     * Build proxy URL for CORS bypass
-     */
     buildProxyUrl(originalUrl) {
         const currentProxy = ZKILL_CONFIG.CORS_PROXIES[ZKILL_CONFIG.CURRENT_PROXY_INDEX];
         return currentProxy + encodeURIComponent(originalUrl);
     }
 
-    /**
-     * Switch to next available CORS proxy
-     */
     switchToNextProxy() {
         ZKILL_CONFIG.CURRENT_PROXY_INDEX =
             (ZKILL_CONFIG.CURRENT_PROXY_INDEX + 1) % ZKILL_CONFIG.CORS_PROXIES.length;
 
         const newProxy = ZKILL_CONFIG.CORS_PROXIES[ZKILL_CONFIG.CURRENT_PROXY_INDEX];
-        console.log(`Switching to CORS proxy: ${newProxy}`);
+        
     }
 
-    /**
-     * Get current proxy info for debugging
-     */
     getCurrentProxyInfo() {
         return {
             currentIndex: ZKILL_CONFIG.CURRENT_PROXY_INDEX,
@@ -317,13 +267,7 @@ class ZKillboardClient {
             availableProxies: ZKILL_CONFIG.CORS_PROXIES.length
         };
     }
-    /**
-    * Get performance statistics
-     */
-    /**
- * Get performance statistics
- */
-    getStats() {
+        getStats() {
         return {
             requests: this.requestCount,
             cache: this.cache.getStats(),
@@ -332,9 +276,6 @@ class ZKillboardClient {
         };
     }
 
-    /**
-     * Get stats for any entity type
-     */
     async getEntityStats(entityType, entityId) {
         // Validate inputs
         if (!entityType || !['characterID', 'corporationID', 'allianceID'].includes(entityType)) {
@@ -347,29 +288,24 @@ class ZKillboardClient {
 
         entityId = parseInt(entityId);
 
-        // Check cache first
         const cached = this.cache.get(entityType, entityId);
         if (cached) {
             return cached;
         }
 
         try {
-            // Use rate limiter to ensure proper spacing between requests
             const rawData = await this.rateLimiter.scheduleRequest(() =>
                 this.executeRequest(entityType, entityId)
             );
 
-            // Handle case where entity has no data
             if (!rawData) {
                 const emptyResult = this.createEmptyStats(entityType, entityId);
                 this.cache.set(entityType, entityId, emptyResult);
                 return emptyResult;
             }
 
-            // Process and normalize the data
             const processedData = this.processStatsData(rawData, entityType, entityId);
 
-            // Cache the result
             this.cache.set(entityType, entityId, processedData);
 
             return processedData;
@@ -379,7 +315,6 @@ class ZKillboardClient {
                 throw error;
             }
 
-            // Wrap unexpected errors
             throw new ZKillError(
                 `Failed to fetch zKillboard stats for ${entityType} ${entityId}: ${error.message}`,
                 500,
@@ -389,9 +324,6 @@ class ZKillboardClient {
         }
     }
 
-    /**
-     * Process raw zKillboard data into normalized format
-     */
     processStatsData(rawData, entityType, entityId) {
         const stats = {
             entityType: entityType,
@@ -420,9 +352,6 @@ class ZKillboardClient {
         return stats;
     }
 
-    /**
-     * Create empty stats object for entities with no data
-     */
     createEmptyStats(entityType, entityId) {
         return {
             entityType: entityType,
@@ -460,9 +389,6 @@ class ZKillboardClient {
         };
     }
 
-    /**
-     * Safe getter with default values
-     */
     safeGet(obj, path, defaultValue = 0) {
         try {
             return obj[path] !== undefined ? obj[path] : defaultValue;
@@ -471,9 +397,6 @@ class ZKillboardClient {
         }
     }
 
-    /**
-     * Calculate ISK efficiency percentage
-     */
     calculateEfficiency(data) {
         const destroyed = this.safeGet(data, 'iskDestroyed', 0);
         const lost = this.safeGet(data, 'iskLost', 0);
@@ -485,23 +408,15 @@ class ZKillboardClient {
         return Math.round(efficiency * 100) / 100; // 2 decimal places
     }
 
-    /**
-     * Calculate danger ratio (losses per kill)
-     */
     calculateDangerRatio(data) {
         const kills = this.safeGet(data, 'shipsDestroyed', 0);
         const losses = this.safeGet(data, 'shipsLost', 0);
 
-        // Avoid division by zero
         const ratio = losses === 0 ? kills : kills / losses;
 
-        // Round to 2 decimal places
         return parseFloat(ratio.toFixed(2));
     }
 
-    /**
-     * Calculate gang ratio (group kills vs solo kills)
-     */
     calculateGangRatio(data) {
         const totalKills = this.safeGet(data, 'shipsDestroyed', 0);
         const soloKills = this.safeGet(data, 'soloKills', 0);
@@ -510,23 +425,15 @@ class ZKillboardClient {
         return Math.round(((totalKills - soloKills) / totalKills) * 100);
     }
 
-    /**
-     * Extract recent activity data from months array
-     */
-    /**
-     * Extract recent activity data from months array
-     */
     extractRecentActivity(data) {
         const activepvp = data.activepvp || {};
 
-        // Extract data from activepvp section
         const characters = activepvp.characters?.count || 1;  // default to 1 in case it's a character lookup
         const ships = activepvp.ships?.count || 0;
         const systems = activepvp.systems?.count || 0;
         const regions = activepvp.regions?.count || 0;
         const totalKills = activepvp.kills?.count || 0;
 
-        // Since activepvp only gives us recent activity totals, we'll display this differently
         return {
             activePvPData: {
                 ships,
@@ -535,21 +442,13 @@ class ZKillboardClient {
                 totalKills,
                 characters
             },
-            // Keep these for compatibility but mark as unavailable from this data source
             last7Days: { kills: 'N/A', losses: 'N/A' },
             last30Days: { kills: 'N/A', losses: 'N/A' },
             last90Days: { kills: 'N/A', losses: 'N/A' }
         };
     }
 
-    /**
-     * Extract top 3 most active locations
-     */
-    /**
-     * Extract top 3 most active locations
-     */
     extractTopLocations(data) {
-        // Look for system data in topLists array
         const topLists = data.topLists || [];
         const systemList = topLists.find(list => list.type === 'solarSystem' || list.type === 'system');
 
@@ -557,23 +456,17 @@ class ZKillboardClient {
             return [];
         }
 
-        // Return all systems, not just top 3
         return systemList.values.map(system => ({
             systemId: system.solarSystemID || system.id,
             systemName: system.solarSystemName || system.name || 'Unknown System',
             kills: system.kills || 0,
-            // Remove losses since they're always 0
             securityStatus: system.solarSystemSecurity !== undefined
                 ? parseFloat(system.solarSystemSecurity)
                 : null
         }));
     }
 
-    /**
-     * Extract and analyze ship usage data
-     */
     extractTopShips(data) {
-        // Look for ship data in topLists array
         const topLists = data.topLists || [];
         const shipList = topLists.find(list => list.type === 'shipType');
 
@@ -581,7 +474,6 @@ class ZKillboardClient {
             return [];
         }
 
-        // Get ship data with enhanced classification
         const ships = shipList.values.map(ship => {
             const shipData = {
                 shipTypeID: ship.shipTypeID || ship.id,
@@ -592,7 +484,6 @@ class ZKillboardClient {
                 groupName: ship.groupName || 'Unknown'
             };
 
-            // Add ship classification
             shipData.classification = this.classifyShip(shipData);
 
             return shipData;
@@ -601,25 +492,18 @@ class ZKillboardClient {
         return ships;
     }
 
-    /**
-     * Classify ship using EVE Static Data Export mappings
-     */
     classifyShip(ship) {
-        // Determine tech level from pip or name
         let techLevel = 'T1';
         if (ship.pip && ship.pip.includes('tech2')) techLevel = 'T2';
         else if (ship.pip && ship.pip.includes('faction')) techLevel = 'Faction';
         else if (ship.pip && ship.pip.includes('tech3')) techLevel = 'T3';
 
-        // Use comprehensive ship type to group ID mapping for accurate classification
         let groupID = ship.groupID;
 
-        // If we don't have groupID from the API, look it up using ship type ID
         if (!groupID && ship.shipTypeID && SHIP_TYPE_TO_GROUP[ship.shipTypeID]) {
             groupID = SHIP_TYPE_TO_GROUP[ship.shipTypeID];
         }
 
-        // Get ship classification using the comprehensive mapping
         const classification = getShipClassification(
             ship.shipTypeID,
             groupID,
@@ -635,24 +519,18 @@ class ZKillboardClient {
         };
     }
 
-    /**
-     * Analyze ship usage patterns and preferences
-     */
     analyzeShipUsage(data) {
         const ships = this.extractTopShips(data);
         if (!ships.length) return null;
 
         const totalKills = ships.reduce((sum, ship) => sum + ship.kills, 0);
 
-        // Calculate diversity index (Shannon entropy)
         const diversity = this.calculateShipDiversity(ships);
 
-        // Analyze by size, tech level, and role
         const sizeBreakdown = this.analyzeByCategory(ships, 'size');
         const techBreakdown = this.analyzeByCategory(ships, 'techLevel');
         const roleBreakdown = this.analyzeByCategory(ships, 'role');
 
-        // Find specialization
         const specialization = this.findSpecialization(ships, totalKills);
 
         return {
@@ -666,9 +544,6 @@ class ZKillboardClient {
         };
     }
 
-    /**
-     * Calculate Shannon diversity index for ship usage
-     */
     calculateShipDiversity(ships) {
         const totalKills = ships.reduce((sum, ship) => sum + ship.kills, 0);
         if (totalKills === 0) return 0;
@@ -681,14 +556,10 @@ class ZKillboardClient {
             }
         }
 
-        // Normalize to 0-100 scale
         const maxPossibleEntropy = Math.log2(ships.length);
         return maxPossibleEntropy > 0 ? (entropy / maxPossibleEntropy) * 100 : 0;
     }
 
-    /**
-     * Analyze ships by a specific category
-     */
     analyzeByCategory(ships, category) {
         const categoryMap = new Map();
         const totalKills = ships.reduce((sum, ship) => sum + ship.kills, 0);
@@ -713,13 +584,9 @@ class ZKillboardClient {
         })).sort((a, b) => b.kills - a.kills);
     }
 
-    /**
-     * Find pilot's ship specialization
-     */
     findSpecialization(ships, totalKills) {
         if (!ships.length || totalKills === 0) return null;
 
-        // Check if they heavily favor one ship
         const topShip = ships[0];
         const topShipPercentage = Math.round((topShip.kills / totalKills) * 100);
 
@@ -732,7 +599,6 @@ class ZKillboardClient {
             };
         }
 
-        // Check for size specialization
         const sizeData = this.analyzeByCategory(ships, 'size');
         const topSize = sizeData[0];
         if (topSize && topSize.percentage >= 60) {
@@ -744,7 +610,6 @@ class ZKillboardClient {
             };
         }
 
-        // Check for role specialization
         const roleData = this.analyzeByCategory(ships, 'role');
         const topRole = roleData[0];
         if (topRole && topRole.percentage >= 70) {
@@ -764,16 +629,12 @@ class ZKillboardClient {
         };
     }
 
-    /**
-     * Analyze combat style based on ships and locations
-     */
     analyzeCombatStyle(data) {
         const ships = this.extractTopShips(data);
         const groups = data.groups || {};
 
         if (!ships.length) return null;
 
-        // Analyze engagement range preference
         let longRangeShips = 0;
         let brawlingShips = 0;
         let totalKills = 0;
@@ -782,7 +643,6 @@ class ZKillboardClient {
             const groupName = ship.groupName.toLowerCase();
             totalKills += ship.kills;
 
-            // Categorize by typical engagement range
             if (groupName.includes('interceptor') || groupName.includes('assault') ||
                 groupName.includes('destroyer') || groupName.includes('covert')) {
                 brawlingShips += ship.kills;
@@ -795,7 +655,6 @@ class ZKillboardClient {
         const engagementStyle = brawlingShips > longRangeShips ? 'Close-range Brawler' :
                               longRangeShips > brawlingShips ? 'Long-range Kiter' : 'Versatile';
 
-        // Analyze fleet preference
         const soloKills = this.safeGet(data, 'soloKills', 0);
         const totalKillsData = this.safeGet(data, 'shipsDestroyed', 0);
         const gangPreference = totalKillsData > 0 ?
@@ -804,7 +663,6 @@ class ZKillboardClient {
         const fleetRole = gangPreference > 70 ? 'Fleet Fighter' :
                          gangPreference < 30 ? 'Solo Hunter' : 'Flexible';
 
-        // Risk assessment based on ship values and security space
         const avgGangSize = this.safeGet(data, 'avgGangSize', 1);
         const riskTolerance = avgGangSize > 5 ? 'Conservative' :
                              avgGangSize < 3 ? 'High Risk' : 'Moderate';
@@ -818,14 +676,10 @@ class ZKillboardClient {
         };
     }
 
-    /**
-     * Analyze activity patterns and insights
-     */
     analyzeActivityInsights(data) {
         const months = data.months || {};
         const activity = data.activity || {};
 
-        // Calculate activity trend
         const monthEntries = Object.entries(months)
             .filter(([, monthData]) => (monthData.shipsDestroyed || 0) > 0)
             .sort(([a], [b]) => b.localeCompare(a))
@@ -840,16 +694,13 @@ class ZKillboardClient {
             else if (recent < older * 0.5) trend = 'Decreasing';
         }
 
-        // Analyze activity consistency
         const activeMonths = monthEntries.length;
         const consistency = activeMonths >= 6 ? 'Very Consistent' :
                            activeMonths >= 3 ? 'Moderately Active' :
                            activeMonths >= 1 ? 'Sporadic' : 'Inactive';
 
-        // Find prime time
         let primeTime = 'Unknown';
         if (activity.max) {
-            // Find the hour with most activity across all days
             const hourlyTotals = new Array(24).fill(0);
             for (let day = 0; day < 7; day++) {
                 const dayData = activity[day.toString()];
@@ -873,9 +724,6 @@ class ZKillboardClient {
         };
     }
 
-    /**
-     * Analyze security space preferences
-     */
     analyzeSecurityPreference(data) {
         const labels = data.labels || {};
 
@@ -919,13 +767,7 @@ class ZKillboardClient {
         };
     }
 
-    /**
-     * Extract active time periods (if available)
-     */
-    /**
- * Extract active time periods (if available)
- */
-    extractActivePeriods(data) {
+        extractActivePeriods(data) {
         const months = data.months || {};
 
         return Object.entries(months)
@@ -935,7 +777,6 @@ class ZKillboardClient {
             .sort(([a], [b]) => b.localeCompare(a)) // Sort by YYYYMM desc
             .slice(0, 6) // Last 6 active months
             .map(([monthKey, monthData]) => {
-                // Convert YYYYMM to readable format
                 const year = monthKey.substring(0, 4);
                 const month = monthKey.substring(4, 6);
                 const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -951,15 +792,6 @@ class ZKillboardClient {
                 };
             });
     }
-    /**
- * Extract and process activity data for histograms
- */
-    /**
-     * Extract and process activity data for histograms
-     */
-    /**
-     * Extract and process activity data for histograms
-     */
     extractActivityData(data) {
         const activity = data.activity;
 
@@ -971,20 +803,16 @@ class ZKillboardClient {
             };
         }
 
-        // Extract hourly data - handle sparse objects (only hours with activity are present)
         const hourlyTotals = new Array(24).fill(0);
         const dailyTotals = new Array(7).fill(0);
         const dayLabels = activity.days || ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
         let hasValidData = false;
 
-        // Process hourly data for each day (0-6)
         for (let day = 0; day < 7; day++) {
             const dayData = activity[day.toString()];
 
             if (dayData && typeof dayData === 'object') {
-                // Handle sparse object format: { "0": 1, "1": 2, "13": 9, "14": 7, ... }
-                // Convert sparse object to full 24-hour array
                 for (let hour = 0; hour < 24; hour++) {
                     const kills = dayData[hour.toString()] || 0;
                     hourlyTotals[hour] += kills;
@@ -992,7 +820,6 @@ class ZKillboardClient {
                     if (kills > 0) hasValidData = true;
                 }
             } else if (Array.isArray(dayData) && dayData.length === 24) {
-                // Handle array format (fallback for different data structures)
                 dayData.forEach((kills, hour) => {
                     const killCount = kills || 0;
                     hourlyTotals[hour] += killCount;
@@ -1002,7 +829,6 @@ class ZKillboardClient {
             }
         }
 
-        // Create formatted data for charts
         const hourlyData = hourlyTotals.map((kills, hour) => ({
             label: `${hour.toString().padStart(2, '0')}`,
             value: kills,
@@ -1023,9 +849,6 @@ class ZKillboardClient {
             maxDaily: Math.max(...dailyTotals)
         };
     }
-    /**
-     * Get performance statistics
-     */
     getStats() {
         return {
             requests: this.requestCount,
@@ -1034,20 +857,13 @@ class ZKillboardClient {
         };
     }
 
-    /**
-     * Clear all cached data
-     */
     clearCache() {
         this.cache.clear();
     }
 }
 
-// Create singleton instance
 const zkillClient = new ZKillboardClient();
 
-/**
- * Public API Functions
- */
 
 /**
  * Get zKillboard stats for a character
@@ -1061,13 +877,11 @@ export async function get_zkill_character_stats(charId) {
         console.error(`Failed to get character stats for ${charId}:`, error);
 
         if (error instanceof ZKillError) {
-            // Show user-friendly warning for expected errors
             if (error.status !== 404) {
                 showWarning(`zKillboard: ${error.message}`);
             }
         }
 
-        // Return empty stats object on error so the app can continue
         return zkillClient.createEmptyStats('characterID', charId);
     }
 }

@@ -16,13 +16,11 @@ import {
 import { getCacheRecordCount } from './database.js';
 import { getCounters } from './esi-api.js';
 
-// UI state variables
 let timerInterval = null;
 let startTime = 0;
 let queryStartTime = 0;
 let queryEndTime = 0;
 
-// Cache DOM elements to avoid repeated queries
 let statsElements = null;
 let progressElements = null;
 let uiElements = null;
@@ -30,7 +28,6 @@ let loadingElements = null;
 let lastProgressUpdate = 0;
 let lastTimerUpdate = 0;
 
-// Comprehensive element caching
 function getUIElements() {
     if (!uiElements) {
         uiElements = {
@@ -76,7 +73,6 @@ function getProgressElements() {
 }
 
 export function updateProgress(current, total, stage = null) {
-    // Throttle progress updates to every 50ms
     const now = Date.now();
     if (now - lastProgressUpdate < PROGRESS_UPDATE_THROTTLE_MS && current < total) return;
 
@@ -117,18 +113,15 @@ export function startLoading() {
     const uiElements = getUIElements();
     const progressElements = getProgressElements();
 
-    // Batch DOM updates using requestAnimationFrame
     requestAnimationFrame(() => {
-        // Collapse input section and disable hover during loading
         collapseInputSection();
         if (uiElements.inputSection) {
             uiElements.inputSection.classList.add('loading');
         }
 
-        // Update loading UI elements
         if (loadingElements.container) {
             loadingElements.container.style.display = 'block';
-            loadingElements.container.offsetHeight; // Force reflow
+            loadingElements.container.offsetHeight;
             loadingElements.container.classList.add("show");
         }
 
@@ -144,7 +137,6 @@ export function startLoading() {
             uiElements.errorContainer.innerHTML = "";
         }
 
-        // Reset progress indicators
         if (progressElements.bar) {
             progressElements.bar.style.width = '0%';
         }
@@ -164,7 +156,6 @@ export function stopLoading() {
 
     queryEndTime = performance.now();
 
-    // Immediate updates
     if (loadingElements.container) {
         loadingElements.container.classList.remove("show");
     }
@@ -177,19 +168,16 @@ export function stopLoading() {
         timerInterval = null;
     }
 
-    // Batch delayed updates
     setTimeout(() => {
         requestAnimationFrame(() => {
             if (loadingElements.resultsSection) {
                 loadingElements.resultsSection.classList.add("show");
             }
 
-            // Show header stats after first query
             if (uiElements.headerStats) {
                 uiElements.headerStats.style.display = 'flex';
             }
 
-            // Re-enable hover behavior after loading is complete
             if (uiElements.inputSection) {
                 uiElements.inputSection.classList.remove('loading');
             }
@@ -272,7 +260,6 @@ function getStatsElements() {
 export function updateStats(allResults) {
     const elements = getStatsElements();
 
-    // Count unique alliances and corporations
     const uniqueAlliances = new Set();
     const uniqueCorporations = new Set();
 
@@ -302,7 +289,6 @@ export async function updatePerformanceStats() {
     const queryTime = Math.round(queryEndTime - queryStartTime);
     const recordCount = await getCacheRecordCount();
 
-    // Cache performance stat elements
     if (!uiElements) getUIElements();
     const performanceElements = {
         queryTime: document.getElementById("query-time"),
@@ -311,7 +297,6 @@ export async function updatePerformanceStats() {
         cacheSize: document.getElementById("cache-size")
     };
 
-    // Batch DOM updates
     requestAnimationFrame(() => {
         if (performanceElements.queryTime) {
             performanceElements.queryTime.textContent = queryTime;
@@ -323,7 +308,6 @@ export async function updatePerformanceStats() {
             performanceElements.cacheInfo.textContent = localLookups;
         }
 
-        // Update the cache size element to show record count
         if (performanceElements.cacheSize) {
             if (recordCount === 1) {
                 performanceElements.cacheSize.textContent = `1 entry`;

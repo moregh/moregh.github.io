@@ -6,7 +6,6 @@
 */
 
 
-// Filter state
 let filterState = {
     warEligibleOnly: false,
     nameSearch: '',
@@ -19,22 +18,18 @@ let filterState = {
     isCollapsed: true
 };
 
-// Cached references to avoid repeated DOM queries
 let filterElements = null;
 let allResults = [];
 let filteredResults = [];
 
-// Callback for when filters change
 let onFiltersChangeCallback = null;
 
-// Performance optimization caches
 let corpSizeCache = new Map();
 let allianceSizeCache = new Map();
 let characterSearchCache = new Map();
 let lastFilterHash = '';
 let filteredResultsCache = new Map();
 
-// Helper functions for performance optimization
 function createFilterHash(state) {
     return JSON.stringify({
         warEligibleOnly: state.warEligibleOnly,
@@ -52,13 +47,11 @@ function buildSizeCaches() {
     corpSizeCache.clear();
     allianceSizeCache.clear();
 
-    // Build corporation size cache
     allResults.forEach(character => {
         const corpId = character.corporation_id;
         corpSizeCache.set(corpId, (corpSizeCache.get(corpId) || 0) + 1);
     });
 
-    // Build alliance size cache
     allResults.forEach(character => {
         if (character.alliance_id) {
             const allianceId = character.alliance_id;
@@ -102,7 +95,6 @@ function cacheFilterElements() {
         toggleIcon: document.querySelector('#filter-toggle .toggle-icon'),
         clearBtn: document.getElementById('filter-clear'),
 
-        // Filter inputs
         warEligibleOnly: document.getElementById('filter-war-eligible-only'),
         nameSearch: document.getElementById('filter-name'),
         minCorpSize: document.getElementById('filter-min-corp-size'),
@@ -112,7 +104,6 @@ function cacheFilterElements() {
         corporationSelect: document.getElementById('filter-corporation'),
         allianceSelect: document.getElementById('filter-alliance'),
 
-        // Value displays
         minCorpSizeValue: document.getElementById('min-corp-size-value'),
         maxCorpSizeValue: document.getElementById('max-corp-size-value'),
         minAllianceSizeValue: document.getElementById('min-alliance-size-value'),
@@ -127,23 +118,18 @@ function cacheFilterElements() {
 function setupEventListeners() {
     if (!filterElements) return;
 
-    // Toggle filters
     filterElements.toggleBtn?.addEventListener('click', toggleFilters);
     filterElements.clearBtn?.addEventListener('click', clearAllFilters);
 
-    // War eligibility toggle
     filterElements.warEligibleOnly?.addEventListener('change', handleFilterChange);
 
-    // Text search with debouncing
     filterElements.nameSearch?.addEventListener('input', debounce(handleFilterChange, 300));
 
-    // Range sliders
     filterElements.minCorpSize?.addEventListener('input', handleMinCorpSizeChange);
     filterElements.maxCorpSize?.addEventListener('input', handleMaxCorpSizeChange);
     filterElements.minAllianceSize?.addEventListener('input', handleMinAllianceSizeChange);
     filterElements.maxAllianceSize?.addEventListener('input', handleMaxAllianceSizeChange);
 
-    // Dropdown filters
     filterElements.corporationSelect?.addEventListener('change', handleFilterChange);
     filterElements.allianceSelect?.addEventListener('change', handleAllianceChange);
 }
@@ -156,7 +142,6 @@ function handleFilterChange() {
     applyFilters();
     updateResultsDisplay();
 
-    // Notify app that filters have changed
     if (onFiltersChangeCallback) {
         onFiltersChangeCallback();
     }
@@ -169,7 +154,6 @@ function handleMinCorpSizeChange() {
     filterState.minCorpSize = parseInt(filterElements.minCorpSize.value);
     filterElements.minCorpSizeValue.textContent = filterState.minCorpSize;
 
-    // Ensure min doesn't exceed max
     if (filterState.minCorpSize > filterState.maxCorpSize) {
         filterState.maxCorpSize = filterState.minCorpSize;
         filterElements.maxCorpSize.value = filterState.maxCorpSize;
@@ -190,7 +174,6 @@ function handleMaxCorpSizeChange() {
     filterState.maxCorpSize = parseInt(filterElements.maxCorpSize.value);
     filterElements.maxCorpSizeValue.textContent = filterState.maxCorpSize;
 
-    // Ensure max doesn't go below min
     if (filterState.maxCorpSize < filterState.minCorpSize) {
         filterState.minCorpSize = filterState.maxCorpSize;
         filterElements.minCorpSize.value = filterState.minCorpSize;
@@ -211,7 +194,6 @@ function handleMinAllianceSizeChange() {
     filterState.minAllianceSize = parseInt(filterElements.minAllianceSize.value);
     filterElements.minAllianceSizeValue.textContent = filterState.minAllianceSize;
 
-    // Ensure min doesn't exceed max
     if (filterState.minAllianceSize > filterState.maxAllianceSize) {
         filterState.maxAllianceSize = filterState.minAllianceSize;
         filterElements.maxAllianceSize.value = filterState.maxAllianceSize;
@@ -232,7 +214,6 @@ function handleMaxAllianceSizeChange() {
     filterState.maxAllianceSize = parseInt(filterElements.maxAllianceSize.value);
     filterElements.maxAllianceSizeValue.textContent = filterState.maxAllianceSize;
 
-    // Ensure max doesn't go below min
     if (filterState.maxAllianceSize < filterState.minAllianceSize) {
         filterState.minAllianceSize = filterState.maxAllianceSize;
         filterElements.minAllianceSize.value = filterState.minAllianceSize;
@@ -250,25 +231,19 @@ function handleMaxAllianceSizeChange() {
  * Handle alliance change and update corporation dropdown
  */
 function handleAllianceChange() {
-    // Store current corporation selection
     const currentCorpSelection = filterElements.corporationSelect.value;
 
-    // Update corporation dropdown based on selected alliance
     populateCorporationDropdown();
 
-    // Check if the currently selected corporation is still available in the new dropdown
     const corpOptions = Array.from(filterElements.corporationSelect.options);
     const isCurrentCorpStillAvailable = corpOptions.some(option => option.value === currentCorpSelection);
 
     if (isCurrentCorpStillAvailable) {
-        // Keep the corporation selection if it's still valid
         filterElements.corporationSelect.value = currentCorpSelection;
     } else {
-        // Only reset if the corporation is not available in the new alliance
         filterElements.corporationSelect.value = '';
     }
 
-    // Apply filters
     handleFilterChange();
 }
 
@@ -281,26 +256,21 @@ function populateCorporationDropdown() {
     const corpSelect = filterElements.corporationSelect;
     const selectedAllianceId = filterElements.allianceSelect?.value;
 
-    // Clear existing options
     corpSelect.innerHTML = '<option value="">All Corporations</option>';
 
-    // Get corporations data
     const corporations = new Map();
     allResults.forEach(character => {
         if (character.corporation_id && character.corporation_name) {
-            // If an alliance is selected, only include corps from that alliance
             if (selectedAllianceId) {
                 if (character.alliance_id && character.alliance_id.toString() === selectedAllianceId) {
                     corporations.set(character.corporation_id, character.corporation_name);
                 }
             } else {
-                // If no alliance selected, include all corporations
                 corporations.set(character.corporation_id, character.corporation_name);
             }
         }
     });
 
-    // Sort corporations by name and add options
     const sortedCorps = Array.from(corporations.entries()).sort((a, b) => a[1].localeCompare(b[1]));
     sortedCorps.forEach(([id, name]) => {
         const option = document.createElement('option');
@@ -338,14 +308,12 @@ function applyFilters() {
         return;
     }
 
-    // Check if we can use cached results
     const currentFilterHash = createFilterHash(filterState);
     if (currentFilterHash === lastFilterHash && filteredResultsCache.has(currentFilterHash)) {
         filteredResults = filteredResultsCache.get(currentFilterHash);
         return;
     }
 
-    // Pre-compile filter conditions for better performance
     const hasNameSearch = !!filterState.nameSearch;
     const searchTerm = filterState.nameSearch;
     const hasCorpFilter = !!filterState.selectedCorporation;
@@ -353,31 +321,27 @@ function applyFilters() {
     const hasAllianceFilter = !!filterState.selectedAlliance;
     const allianceFilterId = filterState.selectedAlliance;
 
-    filteredResults = allResults.filter(character => {
-        // War eligibility filter (fastest check first)
+    const characterResults = allResults.filter(result => result.character_name);
+
+    filteredResults = characterResults.filter(character => {
         if (filterState.warEligibleOnly && !character.war_eligible) return false;
 
-        // Corporation filter (exact match, fast)
         if (hasCorpFilter && character.corporation_id.toString() !== corpFilterId) {
             return false;
         }
 
-        // Alliance filter (exact match, fast)
         if (hasAllianceFilter && character.alliance_id?.toString() !== allianceFilterId) {
             return false;
         }
 
-        // Corporation size filter (using cached values)
         const corpSize = corpSizeCache.get(character.corporation_id) || 0;
         if (corpSize < filterState.minCorpSize || corpSize > filterState.maxCorpSize) return false;
 
-        // Alliance size filter (using cached values)
         if (character.alliance_id) {
             const allianceSize = allianceSizeCache.get(character.alliance_id) || 0;
             if (allianceSize < filterState.minAllianceSize || allianceSize > filterState.maxAllianceSize) return false;
         }
 
-        // Name search filter (most expensive, do last, use cached searchable text)
         if (hasNameSearch) {
             const searchableText = characterSearchCache.get(character.character_id) || '';
             if (!searchableText.includes(searchTerm)) return false;
@@ -386,11 +350,9 @@ function applyFilters() {
         return true;
     });
 
-    // Cache the results
     filteredResultsCache.set(currentFilterHash, filteredResults);
     lastFilterHash = currentFilterHash;
 
-    // Limit cache size to prevent memory bloat
     if (filteredResultsCache.size > 20) {
         const firstKey = filteredResultsCache.keys().next().value;
         filteredResultsCache.delete(firstKey);
@@ -429,7 +391,6 @@ function updateResultsDisplay() {
     const totalResults = allResults.length;
     const filteredCount = filteredResults.length;
 
-    // Update filter results count
     if (filterElements.resultsCount) {
         if (filteredCount === totalResults) {
             filterElements.resultsCount.textContent = 'Showing all results';
@@ -485,26 +446,20 @@ function expandFilters() {
 function clearAllFilters() {
     if (!filterElements) return;
 
-    // Reset war eligibility toggle
     filterElements.warEligibleOnly.checked = false;
 
-    // Clear text search
     filterElements.nameSearch.value = '';
 
-    // Reset sliders to minimum/maximum values
     filterElements.minCorpSize.value = 1;
     filterElements.maxCorpSize.value = filterElements.maxCorpSize.max;
     filterElements.minAllianceSize.value = 1;
     filterElements.maxAllianceSize.value = filterElements.maxAllianceSize.max;
 
-    // Reset dropdowns to "All" options
     filterElements.allianceSelect.value = '';
     filterElements.corporationSelect.value = '';
 
-    // Repopulate corporation dropdown (since alliance selection was cleared)
     populateCorporationDropdown();
 
-    // Update displays and apply filters
     updateRangeValues();
     handleFilterChange();
 }
@@ -515,11 +470,9 @@ function clearAllFilters() {
 export function setResultsData(results) {
     allResults = results || [];
 
-    // Clear caches when new data is loaded
     filteredResultsCache.clear();
     lastFilterHash = '';
 
-    // Build performance caches
     buildSizeCaches();
     buildSearchCache();
 
@@ -535,7 +488,6 @@ export function setResultsData(results) {
 function updateSliderMaximums(results) {
     if (!results || !results.length || !filterElements) return;
 
-    // Calculate max corporation size
     const corpSizes = new Map();
     results.forEach(char => {
         const corpId = char.corporation_id;
@@ -543,7 +495,6 @@ function updateSliderMaximums(results) {
     });
     const maxCorpSize = Math.max(...corpSizes.values());
 
-    // Calculate max alliance size (total members)
     const allianceSizes = new Map();
     results.forEach(char => {
         if (char.alliance_id) {
@@ -553,11 +504,9 @@ function updateSliderMaximums(results) {
     });
     const maxAllianceSize = allianceSizes.size > 0 ? Math.max(...allianceSizes.values()) : 1;
 
-    // Update slider max attributes
     if (filterElements.minCorpSize && filterElements.maxCorpSize) {
         filterElements.minCorpSize.max = maxCorpSize;
         filterElements.maxCorpSize.max = maxCorpSize;
-        // Update max corp size value if it exceeds new maximum
         if (filterState.maxCorpSize > maxCorpSize) {
             filterState.maxCorpSize = maxCorpSize;
             filterElements.maxCorpSize.value = maxCorpSize;
@@ -568,7 +517,6 @@ function updateSliderMaximums(results) {
     if (filterElements.minAllianceSize && filterElements.maxAllianceSize) {
         filterElements.minAllianceSize.max = maxAllianceSize;
         filterElements.maxAllianceSize.max = maxAllianceSize;
-        // Update max alliance size value if it exceeds new maximum
         if (filterState.maxAllianceSize > maxAllianceSize) {
             filterState.maxAllianceSize = maxAllianceSize;
             filterElements.maxAllianceSize.value = maxAllianceSize;
@@ -583,7 +531,6 @@ function updateSliderMaximums(results) {
 function populateDropdowns(results) {
     if (!filterElements || !results.length) return;
 
-    // Get unique corporations and alliances
     const corporations = new Map();
     const alliances = new Map();
 
@@ -596,17 +543,14 @@ function populateDropdowns(results) {
         }
     });
 
-    // Populate corporation dropdown (initially with all corporations)
     populateCorporationDropdown();
 
-    // Populate alliance dropdown
     if (filterElements.allianceSelect) {
         const allianceSelect = filterElements.allianceSelect;
 
         // Clear existing options except "All Alliances"
         allianceSelect.innerHTML = '<option value="">All Alliances</option>';
 
-        // Sort alliances by name and add options
         const sortedAlliances = Array.from(alliances.entries()).sort((a, b) => a[1].localeCompare(b[1]));
         sortedAlliances.forEach(([id, name]) => {
             const option = document.createElement('option');
@@ -631,34 +575,26 @@ export function getFilteredAlliances(allAlliances) {
     if (!allAlliances || !allAlliances.length) return [];
 
     return allAlliances.filter(alliance => {
-        // War eligibility filter
         if (filterState.warEligibleOnly && !alliance.war_eligible) return false;
 
-        // Name search filter
         if (filterState.nameSearch) {
             const searchLower = filterState.nameSearch;
             const nameMatch = alliance.name?.toLowerCase().includes(searchLower);
             if (!nameMatch) return false;
         }
 
-        // Alliance size filter
         if (alliance.count < filterState.minAllianceSize || alliance.count > filterState.maxAllianceSize) return false;
 
-        // Specific alliance filter (if a specific alliance is selected, only show that one)
         if (filterState.selectedAlliance && alliance.id.toString() !== filterState.selectedAlliance) {
             return false;
         }
 
-        // Corporation filter (if a corporation is selected, only show the alliance that corporation belongs to)
         if (filterState.selectedCorporation) {
-            // Find the alliance ID for the selected corporation by checking character data
             const corpMembers = allResults.filter(char => char.corporation_id.toString() === filterState.selectedCorporation);
             const corpAllianceId = corpMembers.length > 0 ? corpMembers[0].alliance_id : null;
 
-            // If the corporation has no alliance, don't show any alliances
             if (!corpAllianceId) return false;
 
-            // Only show the alliance that this corporation belongs to
             if (alliance.id.toString() !== corpAllianceId.toString()) {
                 return false;
             }
@@ -675,27 +611,21 @@ export function getFilteredCorporations(allCorporations) {
     if (!allCorporations || !allCorporations.length) return [];
 
     return allCorporations.filter(corporation => {
-        // War eligibility filter
         if (filterState.warEligibleOnly && !corporation.war_eligible) return false;
 
-        // Name search filter
         if (filterState.nameSearch) {
             const searchLower = filterState.nameSearch;
             const nameMatch = corporation.name?.toLowerCase().includes(searchLower);
             if (!nameMatch) return false;
         }
 
-        // Corporation size filter
         if (corporation.count < filterState.minCorpSize || corporation.count > filterState.maxCorpSize) return false;
 
-        // Specific corporation filter (if a specific corporation is selected, only show that one)
         if (filterState.selectedCorporation && corporation.id.toString() !== filterState.selectedCorporation) {
             return false;
         }
 
-        // Alliance filter (if an alliance is selected, only show corporations from that alliance)
         if (filterState.selectedAlliance) {
-            // Find the alliance ID for this corporation by checking character data
             const corpMembers = allResults.filter(char => char.corporation_id === corporation.id);
             const corpAllianceId = corpMembers.length > 0 ? corpMembers[0].alliance_id : null;
             if (corpAllianceId?.toString() !== filterState.selectedAlliance) {

@@ -5,7 +5,6 @@
     Licensed under AGPL License.
 */
 
-/* Header */
 .title-link {
     text-decoration: none;
     color: inherit;
@@ -157,7 +156,7 @@
     left: -100%;
     width: 100%;
     height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+    background: linear-gradient(90deg, transparent, var(--white-3), transparent);
     transition: left 0.6s ease;
 }
 
@@ -169,7 +168,6 @@
     animation: titleGlow 2s ease-in-out infinite
 }
 
-/* Header Styles */
 .compact-header {
     padding: 1rem 0 0.5rem 0;
     border-bottom: 1px solid var(--border-color);
@@ -197,7 +195,6 @@
     padding: 0 1rem
 }
 
-/* Header Stats */
 .header-stats {
     flex: 1;
     display: flex;
@@ -218,7 +215,7 @@
     align-items: center;
     gap: 0.3rem;
     padding: 0.3rem 0.6rem;
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--white-02);
     border-radius: 8px;
     border-left: 2px solid;
     transition: all 0.27s ease;
@@ -228,7 +225,7 @@
 
 .stats-grid.compact .stat-card:hover {
     transform: translateY(-1px);
-    background: rgba(255, 255, 255, 0.05)
+    background: var(--white-05)
 }
 
 .stats-grid.compact .stat-icon {

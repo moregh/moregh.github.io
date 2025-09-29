@@ -15,18 +15,19 @@ import {
     getCachedCorporationInfo,
     setCachedCorporationInfo,
     getCachedAllianceInfo,
-    setCachedAllianceInfo
+    setCachedAllianceInfo,
+    getCachedEntityName,
+    setCachedEntityName
 } from './database.js';
 import { updateProgress, showWarning, showError } from './ui.js';
 import { esiClient } from './esi-client.js';
+import { validateEntityName, classifyEntityType } from './validation.js';
 
-// Program caches
 const corporationInfoCache = new Map();
 const allianceInfoCache = new Map();
 const characterNameToIdCache = new Map();
 const characterAffiliationCache = new Map();
 
-// Local cache hit tracking
 let localCacheHits = 0;
 
 function incrementLocalCacheHits() {
@@ -82,7 +83,6 @@ export async function processInChunks(items, processFn, chunkSize = CHUNK_SIZE, 
             showWarning(`Error processing chunk ${i + 1}/${totalChunks}: ${e.message}`);
             console.error(`Error processing chunk ${i + 1}/${totalChunks}:`, e);
 
-            // Handle different error types appropriately
             if (e.message.includes('character IDs') || e.message.includes('character names')) {
                 results.push([]); // Empty array for failed character lookups
             } else {
@@ -90,7 +90,6 @@ export async function processInChunks(items, processFn, chunkSize = CHUNK_SIZE, 
             }
         }
 
-        // Small delay between chunks
         if (i + 1 < items.length && delay > 0) {
             await new Promise(resolve => setTimeout(resolve, delay));
         }
@@ -103,7 +102,6 @@ export async function getCharacterIds(names) {
     const cachedCharacters = [];
     const uncachedNames = [];
 
-    // First, check cache for all names
     for (const name of names) {
         const lowerName = name.toLowerCase();
         if (characterNameToIdCache.has(lowerName)) {
@@ -138,10 +136,8 @@ export async function getCharacterIds(names) {
                     const data = await esiClient.post('/universe/ids/', nameChunk);
                     const characters = data?.characters || [];
 
-                    // Cache each character immediately
                     for (const char of characters) {
                         await setCachedNameToId(char.name, char);
-                        // Also update in-memory cache
                         characterNameToIdCache.set(char.name.toLowerCase(), char);
                     }
 
@@ -155,18 +151,98 @@ export async function getCharacterIds(names) {
             CHUNK_DELAY
         );
 
-        // Flatten the results (each chunk returns an array of characters)
         fetchedCharacters = fetchedCharacters.flat().filter(char => char !== null);
     }
 
     return [...cachedCharacters, ...fetchedCharacters];
 }
 
+export async function getEntityIds(names) {
+    const entityCache = new Map();
+    const cachedEntities = { characters: [], corporations: [], alliances: [] };
+    const uncachedNames = [];
+
+    for (const name of names) {
+        const cached = await getCachedEntityName(name);
+        if (cached) {
+            if (cached.type === 'character') {
+                cachedEntities.characters.push({ id: cached.id, name: cached.name });
+            } else if (cached.type === 'corporation') {
+                cachedEntities.corporations.push({ id: cached.id, name: cached.name });
+            } else if (cached.type === 'alliance') {
+                cachedEntities.alliances.push({ id: cached.id, name: cached.name });
+            }
+            incrementLocalCacheHits();
+            continue;
+        }
+
+        if (validateEntityName(name)) {
+            uncachedNames.push(name);
+        } else {
+            console.warn(`Invalid entity name: ${name}`);
+        }
+    }
+
+    let fetchedEntities = { characters: [], corporations: [], alliances: [] };
+
+    if (uncachedNames.length > 0) {
+        updateProgress(0, uncachedNames.length, `Looking up ${uncachedNames.length} entity names...`);
+
+        const results = await processInChunks(
+            chunkArray(uncachedNames, MAX_ESI_CALL_SIZE),
+            async (nameChunk, index, totalChunks) => {
+                updateProgress(index * MAX_ESI_CALL_SIZE, uncachedNames.length,
+                    `Looking up entity names (batch ${index + 1}/${totalChunks})...`);
+
+                try {
+                    const data = await esiClient.post('/universe/ids/', nameChunk);
+
+                    const characters = data?.characters || [];
+                    const corporations = data?.corporations || [];
+                    const alliances = data?.alliances || [];
+
+                    for (const char of characters) {
+                        await setCachedEntityName(char.name, { id: char.id, name: char.name, type: 'character' });
+                        await setCachedNameToId(char.name, char);
+                        characterNameToIdCache.set(char.name.toLowerCase(), char);
+                    }
+
+                    for (const corp of corporations) {
+                        await setCachedEntityName(corp.name, { id: corp.id, name: corp.name, type: 'corporation' });
+                    }
+
+                    for (const alliance of alliances) {
+                        await setCachedEntityName(alliance.name, { id: alliance.id, name: alliance.name, type: 'alliance' });
+                    }
+
+                    return { characters, corporations, alliances };
+                } catch (error) {
+                    console.error(`Failed to get entity IDs for batch ${index + 1}:`, error);
+                    throw new Error(`Failed to get entity IDs for batch ${index + 1}: ${error.message}`);
+                }
+            },
+            MAX_ESI_CALL_SIZE,
+            CHUNK_DELAY
+        );
+
+        results.forEach(batch => {
+            fetchedEntities.characters.push(...(batch.characters || []));
+            fetchedEntities.corporations.push(...(batch.corporations || []));
+            fetchedEntities.alliances.push(...(batch.alliances || []));
+        });
+    }
+
+    return {
+        characters: [...cachedEntities.characters, ...fetchedEntities.characters],
+        corporations: [...cachedEntities.corporations, ...fetchedEntities.corporations],
+        alliances: [...cachedEntities.alliances, ...fetchedEntities.alliances]
+    };
+}
+
 export async function getCharacterAffiliations(characterIds) {
     const cachedAffiliations = [];
     const uncachedIds = [];
 
-    // Check cache first
     for (const id of characterIds) {
         if (characterAffiliationCache.has(id)) {
             cachedAffiliations.push(characterAffiliationCache.get(id));
@@ -203,10 +279,8 @@ export async function getCharacterAffiliations(characterIds) {
                         throw new Error('Invalid response format from affiliations endpoint');
                     }
 
-                    // Cache each affiliation immediately
                     for (const affiliation of affiliations) {
                         await setCachedAffiliation(affiliation.character_id, affiliation);
-                        // Also update in-memory cache
                         characterAffiliationCache.set(affiliation.character_id, affiliation);
                     }
 
@@ -227,11 +301,9 @@ export async function getCharacterAffiliations(characterIds) {
     return [...cachedAffiliations, ...fetchedAffiliations];
 }
 
-// Function to get corporation information with smart caching
 export async function getCorporationInfoWithCaching(uniqueCorpIds) {
     updateProgress(0, uniqueCorpIds.length, "Getting corporation information...");
 
-    // Step 1: Check which corps need API calls vs cache
     const cachedCorps = [];
     const uncachedCorpIds = [];
 
@@ -247,7 +319,6 @@ export async function getCorporationInfoWithCaching(uniqueCorpIds) {
     const corpMap = new Map();
     let processedCorps = 0;
 
-    // Step 2: Process cached corps instantly
     if (cachedCorps.length > 0) {
         for (const corpId of cachedCorps) {
             try {
@@ -265,7 +336,6 @@ export async function getCorporationInfoWithCaching(uniqueCorpIds) {
         }
     }
 
-    // Step 3: Check IndexedDB cache for uncached corps
     const uncachedFromDB = await checkIndexedDBCache(uncachedCorpIds, corpMap, 'corporation');
     processedCorps += (uncachedCorpIds.length - uncachedFromDB.length);
 
@@ -274,7 +344,6 @@ export async function getCorporationInfoWithCaching(uniqueCorpIds) {
             `Getting corporation information (${processedCorps}/${uniqueCorpIds.length})...`);
     }
 
-    // Step 4: Process uncached corps with API calls
     if (uncachedFromDB.length > 0) {
         await processUncachedCorporations(uncachedFromDB, corpMap, processedCorps, uniqueCorpIds.length);
     }
@@ -282,7 +351,6 @@ export async function getCorporationInfoWithCaching(uniqueCorpIds) {
     return corpMap;
 }
 
-// Function to get alliance information with smart caching
 export async function getAllianceInfoWithCaching(uniqueAllianceIds) {
     if (uniqueAllianceIds.length === 0) {
         return new Map();
@@ -290,7 +358,6 @@ export async function getAllianceInfoWithCaching(uniqueAllianceIds) {
 
     updateProgress(0, uniqueAllianceIds.length, "Getting alliance information...");
 
-    // Step 1: Check which alliances need API calls vs cache
     const cachedAlliances = [];
     const uncachedAllianceIds = [];
 
@@ -306,7 +373,6 @@ export async function getAllianceInfoWithCaching(uniqueAllianceIds) {
     const allianceMap = new Map();
     let processedAlliances = 0;
 
-    // Step 2: Process cached alliances instantly
     if (cachedAlliances.length > 0) {
         for (const allianceId of cachedAlliances) {
             try {
@@ -324,7 +390,6 @@ export async function getAllianceInfoWithCaching(uniqueAllianceIds) {
         }
     }
 
-    // Step 3: Check IndexedDB cache for uncached alliances
     const uncachedFromDB = await checkIndexedDBCache(uncachedAllianceIds, allianceMap, 'alliance');
     processedAlliances += (uncachedAllianceIds.length - uncachedFromDB.length);
 
@@ -333,7 +398,6 @@ export async function getAllianceInfoWithCaching(uniqueAllianceIds) {
             `Getting alliance information (${processedAlliances}/${uniqueAllianceIds.length})...`);
     }
 
-    // Step 4: Process uncached alliances with API calls
     if (uncachedFromDB.length > 0) {
         await processUncachedAlliances(uncachedFromDB, allianceMap, processedAlliances, uniqueAllianceIds.length);
     }
@@ -341,14 +405,12 @@ export async function getAllianceInfoWithCaching(uniqueAllianceIds) {
     return allianceMap;
 }
 
-// Generic function to check IndexedDB cache for multiple IDs
 async function checkIndexedDBCache(uncachedIds, resultMap, type) {
     if (uncachedIds.length === 0) return [];
 
     const getCacheFunction = type === 'corporation' ? getCachedCorporationInfo : getCachedAllianceInfo;
     const inMemoryCache = type === 'corporation' ? corporationInfoCache : allianceInfoCache;
 
-    // Batch check IndexedDB
     const dbCachePromises = uncachedIds.map(async id => {
         const cached = await getCacheFunction(id);
         return { id, cached };
@@ -370,7 +432,6 @@ async function checkIndexedDBCache(uncachedIds, resultMap, type) {
     return stillUncached;
 }
 
-// Function to process uncached corporations via API using batch requests
 async function processUncachedCorporations(uncachedIds, corpMap, startingCount, totalCount) {
     const corpChunks = chunkArray(uncachedIds, CHUNK_SIZE);
     let processedCorps = startingCount;
@@ -378,7 +439,6 @@ async function processUncachedCorporations(uncachedIds, corpMap, startingCount, 
     for (let i = 0; i < corpChunks.length; i++) {
         const chunk = corpChunks[i];
 
-        // Create batch requests for this chunk
         const batchRequests = chunk.map(corpId => ({
             method: 'GET',
             endpoint: `/corporations/${corpId}/`,
@@ -386,7 +446,6 @@ async function processUncachedCorporations(uncachedIds, corpMap, startingCount, 
         }));
 
         try {
-            // Use ESI client's batch functionality
             const chunkResults = await esiClient.batchRequests(batchRequests, {
                 maxConcurrency: 8, // Conservative concurrency for corporation requests
                 chunkDelay: CHUNK_DELAY,
@@ -397,7 +456,6 @@ async function processUncachedCorporations(uncachedIds, corpMap, startingCount, 
                 }
             });
 
-            // Process results and cache them
             for (let j = 0; j < chunkResults.length; j++) {
                 const result = chunkResults[j];
                 const request = batchRequests[j];
@@ -406,13 +464,11 @@ async function processUncachedCorporations(uncachedIds, corpMap, startingCount, 
                 let corporationInfo;
 
                 if (result && result.name !== undefined) {
-                    // Successful response - sanitize the data
                     corporationInfo = {
                         name: result.name,
                         war_eligible: Boolean(result.war_eligible)
                     };
                 } else {
-                    // Failed response or null
                     console.warn(`Failed to get corporation info for ${corpId}`);
                     corporationInfo = {
                         name: 'Unknown Corporation',
@@ -420,7 +476,6 @@ async function processUncachedCorporations(uncachedIds, corpMap, startingCount, 
                     };
                 }
 
-                // Cache in memory and IndexedDB
                 corporationInfoCache.set(corpId, corporationInfo);
                 await setCachedCorporationInfo(corpId, corporationInfo);
                 corpMap.set(corpId, corporationInfo);
@@ -429,7 +484,6 @@ async function processUncachedCorporations(uncachedIds, corpMap, startingCount, 
         } catch (error) {
             console.error(`Failed to process corporation chunk ${i + 1}:`, error);
 
-            // Fallback: create entries for all corps in this chunk
             chunk.forEach(corpId => {
                 const fallbackInfo = { name: 'Unknown Corporation', war_eligible: false };
                 corporationInfoCache.set(corpId, fallbackInfo);
@@ -441,14 +495,12 @@ async function processUncachedCorporations(uncachedIds, corpMap, startingCount, 
         updateProgress(processedCorps, totalCount,
             `Getting corporation information (${processedCorps}/${totalCount})...`);
 
-        // Small delay between chunks
         if (i + 1 < corpChunks.length) {
             await new Promise(resolve => setTimeout(resolve, CHUNK_DELAY));
         }
     }
 }
 
-// Function to process uncached alliances via API using batch requests
 async function processUncachedAlliances(uncachedIds, allianceMap, startingCount, totalCount) {
     const allianceChunks = chunkArray(uncachedIds, CHUNK_SIZE);
     let processedAlliances = startingCount;
@@ -456,7 +508,6 @@ async function processUncachedAlliances(uncachedIds, allianceMap, startingCount,
     for (let i = 0; i < allianceChunks.length; i++) {
         const chunk = allianceChunks[i];
 
-        // Create batch requests for this chunk
         const batchRequests = chunk.map(allianceId => ({
             method: 'GET',
             endpoint: `/alliances/${allianceId}/`,
@@ -464,7 +515,6 @@ async function processUncachedAlliances(uncachedIds, allianceMap, startingCount,
         }));
 
         try {
-            // Use ESI client's batch functionality
             const chunkResults = await esiClient.batchRequests(batchRequests, {
                 maxConcurrency: 8, // Conservative concurrency for alliance requests
                 chunkDelay: CHUNK_DELAY,
@@ -475,7 +525,6 @@ async function processUncachedAlliances(uncachedIds, allianceMap, startingCount,
                 }
             });
 
-            // Process results and cache them
             for (let j = 0; j < chunkResults.length; j++) {
                 const result = chunkResults[j];
                 const request = batchRequests[j];
@@ -484,19 +533,16 @@ async function processUncachedAlliances(uncachedIds, allianceMap, startingCount,
                 let allianceInfo;
 
                 if (result && result.name !== undefined) {
-                    // Successful response - sanitize the data
                     allianceInfo = {
                         name: result.name
                     };
                 } else {
-                    // Failed response or null
                     console.warn(`Failed to get alliance info for ${allianceId}`);
                     allianceInfo = {
                         name: 'Unknown Alliance'
                     };
                 }
 
-                // Cache in memory and IndexedDB
                 allianceInfoCache.set(allianceId, allianceInfo);
                 await setCachedAllianceInfo(allianceId, allianceInfo);
                 allianceMap.set(allianceId, allianceInfo);
@@ -517,14 +563,12 @@ async function processUncachedAlliances(uncachedIds, allianceMap, startingCount,
         updateProgress(processedAlliances, totalCount,
             `Getting alliance information (${processedAlliances}/${totalCount})...`);
 
-        // Small delay between chunks
         if (i + 1 < allianceChunks.length) {
             await new Promise(resolve => setTimeout(resolve, CHUNK_DELAY));
         }
     }
 }
 
-// Function to build final character results
 export function buildCharacterResults(characters, affiliationMap, corpMap, allianceMap) {
     updateProgress(0, characters.length, "Building final results...");
     const results = [];
@@ -583,7 +627,6 @@ export function buildCharacterResults(characters, affiliationMap, corpMap, allia
     return results;
 }
 
-// Function to handle missing character warnings
 export async function handleMissingCharacters(characters, originalNames) {
     if (characters.length !== originalNames.length) {
         const foundNames = new Set(characters.map(c => c.name.toLowerCase()));
@@ -597,20 +640,15 @@ export async function handleMissingCharacters(characters, originalNames) {
     }
 }
 
-// Main validator function - now much cleaner and focused
 export async function validator(names) {
-    // Reset counters at start
     resetCounters();
 
     try {
-        // Step 1: Get character IDs
         const characters = await getCharacterIds(names);
         const characterIds = characters.map(char => char.id);
 
-        // Step 2: Handle missing characters
         await handleMissingCharacters(characters, names);
 
-        // Step 3: Get character affiliations
         updateProgress(0, characterIds.length, "Getting character affiliations...");
         const affiliations = await getCharacterAffiliations(characterIds);
 
@@ -619,21 +657,17 @@ export async function validator(names) {
             affiliationMap.set(affiliation.character_id, affiliation);
         });
 
-        // Step 4: Get unique IDs and fetch organization info
         const uniqueCorpIds = Array.from(new Set(affiliations.map(a => a.corporation_id)));
         const uniqueAllianceIds = Array.from(new Set(affiliations.map(a => a.alliance_id).filter(id => id)));
 
-        // Step 5: Get corporation and alliance information
         const [corpMap, allianceMap] = await Promise.all([
             getCorporationInfoWithCaching(uniqueCorpIds),
             getAllianceInfoWithCaching(uniqueAllianceIds)
         ]);
 
-        // Step 6: Build and return final results
         return buildCharacterResults(characters, affiliationMap, corpMap, allianceMap);
 
     } catch (error) {
-        // Enhanced error handling with ESI-specific error types
         if (error.name === 'ESIRateLimitError') {
             throw new Error(`Rate limit exceeded. Please wait ${error.retryAfter} seconds before trying again.`);
         } else if (error.name === 'ESIServerError') {
@@ -641,7 +675,110 @@ export async function validator(names) {
         } else if (error.name === 'ESIError') {
             throw new Error(`ESI API error: ${error.message}`);
         } else {
-            // Re-throw other errors as-is
+            throw error;
+        }
+    }
+}
+
+export async function mixedValidator(names) {
+    resetCounters();
+
+    try {
+        const entities = await getEntityIds(names);
+
+        const totalFound = entities.characters.length + entities.corporations.length + entities.alliances.length;
+        if (totalFound !== names.length) {
+            const foundNames = new Set([
+                ...entities.characters.map(c => c.name.toLowerCase()),
+                ...entities.corporations.map(c => c.name.toLowerCase()),
+                ...entities.alliances.map(a => a.name.toLowerCase())
+            ]);
+            const missingNames = names.filter(name => !foundNames.has(name.toLowerCase()));
+            if (missingNames.length > 0) {
+                console.warn(`Could not find ${missingNames.length} entity/entities:`, missingNames);
+                updateProgress(0, 0, `Warning: ${missingNames.length} entity names not found`);
+                await new Promise(resolve => setTimeout(resolve, 1500));
+            }
+        }
+
+        const results = [];
+
+        if (entities.characters.length > 0) {
+            const characterIds = entities.characters.map(char => char.id);
+            const affiliations = await getCharacterAffiliations(characterIds);
+            const affiliationMap = new Map();
+            affiliations.forEach(affiliation => {
+                affiliationMap.set(affiliation.character_id, affiliation);
+            });
+
+            const uniqueCorpIds = Array.from(new Set(affiliations.map(a => a.corporation_id)));
+            const uniqueAllianceIds = Array.from(new Set(affiliations.map(a => a.alliance_id).filter(id => id)));
+
+            const [corpMap, allianceMap] = await Promise.all([
+                getCorporationInfoWithCaching(uniqueCorpIds),
+                getAllianceInfoWithCaching(uniqueAllianceIds)
+            ]);
+
+            const characterResults = buildCharacterResults(entities.characters, affiliationMap, corpMap, allianceMap);
+            results.push(...characterResults);
+        }
+
+        if (entities.corporations.length > 0) {
+            const corpIds = entities.corporations.map(corp => corp.id);
+            const corpInfoMap = await getCorporationInfoWithCaching(corpIds);
+
+            for (const corp of entities.corporations) {
+                const corpInfo = corpInfoMap.get(corp.id);
+                if (corpInfo) {
+                    results.push({
+                        entity_type: 'corporation',
+                        entity_name: corp.name,
+                        entity_id: sanitizeId(corp.id),
+                        corporation_name: corp.name,
+                        corporation_id: sanitizeId(corp.id),
+                        alliance_name: null,
+                        alliance_id: null,
+                        war_eligible: Boolean(corpInfo.war_eligible),
+                        character_name: null,
+                        character_id: null
+                    });
+                }
+            }
+        }
+
+        if (entities.alliances.length > 0) {
+            const allianceIds = entities.alliances.map(alliance => alliance.id);
+            const allianceInfoMap = await getAllianceInfoWithCaching(allianceIds);
+
+            for (const alliance of entities.alliances) {
+                const allianceInfo = allianceInfoMap.get(alliance.id);
+                if (allianceInfo) {
+                    results.push({
+                        entity_type: 'alliance',
+                        entity_name: alliance.name,
+                        entity_id: sanitizeId(alliance.id),
+                        corporation_name: null,
+                        corporation_id: null,
+                        alliance_name: alliance.name,
+                        alliance_id: sanitizeId(alliance.id),
+                        war_eligible: true, // Alliances are always war eligible
+                        character_name: null,
+                        character_id: null
+                    });
+                }
+            }
+        }
+
+        return results;
+
+    } catch (error) {
+        if (error.name === 'ESIRateLimitError') {
+            throw new Error(`Rate limit exceeded. Please wait ${error.retryAfter} seconds before trying again.`);
+        } else if (error.name === 'ESIServerError') {
+            throw new Error(`EVE ESI servers are experiencing issues (${error.status}). Please try again later.`);
+        } else if (error.name === 'ESIError') {
+            throw new Error(`ESI API error: ${error.message}`);
+        } else {
             throw error;
         }
     }
