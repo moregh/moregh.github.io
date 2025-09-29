@@ -8,17 +8,14 @@
 // Configuration
 export const CACHE_EXPIRY_HOURS = 12;
 export const LONG_CACHE_EXPIRY_HOURS = 168;
-export const INITIAL_USER_RESULTS_COUNT = 12;
-export const INITIAL_CORP_ALLIANCE_COUNT = 5;
-export const LOAD_MORE_COUNT = 12;
 export const MAX_ESI_CALL_SIZE = 100;
-export const MAX_CONCURRENT_IMAGES = 8;
+export const MAX_CONCURRENT_IMAGES = 4; // Reduced from 8 for better performance
 export const CHUNK_SIZE = 50;
 export const CHUNK_DELAY = 25;
 export const STATS_UPDATE_DELAY = 100;
 export const DB_NAME = 'EVEWarTargetCache';
 export const DB_VERSION = 1;
-export const VERSION = "0.6.0";
+export const VERSION = "0.7.0";
 
 // Time and throttling
 export const PROGRESS_UPDATE_THROTTLE_MS = 50;
@@ -58,11 +55,8 @@ export const MOUSEOVER_CARD_AVATAR_SIZE_PX = 32;
 export const MOUSEOVER_CARD_MAX_ITEMS = 10;
 
 // Performance configuration
-export const INTERSECTION_OBSERVER_THROTTLE_MS = 50;
-export const BATCH_OPERATION_SIZE = 20;
 export const MAX_ELEMENT_POOL_SIZE = 50;
 export const VIRTUAL_SCROLL_BUFFER_SIZE = 10;
-export const OBSERVER_THROTTLE_MS = 50;
 
 export const PERFORMANCE_CONFIG = {
     VIRTUAL_SCROLL_BUFFER: 10,

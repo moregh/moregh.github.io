@@ -24,7 +24,6 @@ import {
     sanitizeAllianceName,
     sanitizeId,
     sanitizeAttribute,
-    sanitizeZkillStats,
     escapeHtml
 } from './xss-protection.js';
 
@@ -477,7 +476,6 @@ class ZKillStatsCard {
         return `
         <div class="zkill-section">
             <h3 class="zkill-section-title">
-                <span class="zkill-section-icon">📊</span>
                 Activity Patterns
             </h3>
             <div class="zkill-charts-grid">
@@ -527,7 +525,7 @@ class ZKillStatsCard {
                          class="zkill-entity-avatar"
                          loading="eager">
                     <div class="zkill-entity-details">
-                        <h2>${headerName} ${warStatusBadge} <span class="zkill-stats-icon">📊</span></h2>
+                        <h2>${headerName} ${warStatusBadge}</h2>
                         <div class="zkill-entity-type">${sanitizedType}</div>
                     </div>
                     <!-- Affiliations now separate from entity-details -->
@@ -888,7 +886,6 @@ class ZKillStatsCard {
         return `
         <div class="zkill-section">
             <h3 class="zkill-section-title">
-                <span class="zkill-section-icon">📊</span>
                 Recent PvP Activity
             </h3>
             <div class="zkill-activity-grid">

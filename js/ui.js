@@ -25,17 +25,44 @@ let queryEndTime = 0;
 // Cache DOM elements to avoid repeated queries
 let statsElements = null;
 let progressElements = null;
+let uiElements = null;
+let loadingElements = null;
 let lastProgressUpdate = 0;
 let lastTimerUpdate = 0;
 
+// Comprehensive element caching
+function getUIElements() {
+    if (!uiElements) {
+        uiElements = {
+            timer: document.getElementById("timer"),
+            headerStats: document.getElementById('header-stats'),
+            inputSection: document.getElementById('input-section'),
+            errorContainer: document.getElementById('error-container'),
+            versionDisplay: document.getElementById('version-display')
+        };
+    }
+    return uiElements;
+}
+
+function getLoadingElements() {
+    if (!loadingElements) {
+        loadingElements = {
+            container: document.getElementById("loading-container"),
+            resultsSection: document.getElementById("results-section"),
+            checkButton: document.getElementById("checkButton")
+        };
+    }
+    return loadingElements;
+}
+
 export function collapseInputSection() {
-    const inputSection = document.getElementById('input-section');
-    inputSection.classList.add('collapsed');
+    const elements = getUIElements();
+    elements.inputSection?.classList.add('collapsed');
 }
 
 export function expandInputSection() {
-    const inputSection = document.getElementById('input-section');
-    inputSection.classList.remove('collapsed');
+    const elements = getUIElements();
+    elements.inputSection?.classList.remove('collapsed');
 }
 
 function getProgressElements() {
@@ -74,7 +101,10 @@ function updateTimer() {
     if (now - lastTimerUpdate < TIMER_UPDATE_THROTTLE_MS) return;
 
     const elapsed = ((now - startTime) / 1000).toFixed(1);
-    document.getElementById("timer").textContent = `Elapsed: ${elapsed}s`;
+    const elements = getUIElements();
+    if (elements.timer) {
+        elements.timer.textContent = `Elapsed: ${elapsed}s`;
+    }
     lastTimerUpdate = now;
 }
 
@@ -83,103 +113,147 @@ export function updateTitle(count, total) {
 }
 
 export function startLoading() {
-    const lc = document.getElementById("loading-container");
-    const rs = document.getElementById("results-section");
-    const cb = document.getElementById("checkButton");
-    const ec = document.getElementById("error-container");
+    const loadingElements = getLoadingElements();
+    const uiElements = getUIElements();
+    const progressElements = getProgressElements();
 
-    // Collapse input section and disable hover during loading
-    const inputSection = document.getElementById('input-section');
-    collapseInputSection();
-    inputSection.classList.add('loading');
+    // Batch DOM updates using requestAnimationFrame
+    requestAnimationFrame(() => {
+        // Collapse input section and disable hover during loading
+        collapseInputSection();
+        if (uiElements.inputSection) {
+            uiElements.inputSection.classList.add('loading');
+        }
 
-    lc.style.display = 'block';
-    lc.offsetHeight; // Force reflow
-    lc.classList.add("show");
-    rs.classList.remove("show");
-    cb.disabled = true;
-    ec.innerHTML = "";
+        // Update loading UI elements
+        if (loadingElements.container) {
+            loadingElements.container.style.display = 'block';
+            loadingElements.container.offsetHeight; // Force reflow
+            loadingElements.container.classList.add("show");
+        }
 
-    document.getElementById('progressBar').style.width = '0%';
-    document.getElementById('progressText').textContent = 'Processed: 0 / 0';
+        if (loadingElements.resultsSection) {
+            loadingElements.resultsSection.classList.remove("show");
+        }
+
+        if (loadingElements.checkButton) {
+            loadingElements.checkButton.disabled = true;
+        }
+
+        if (uiElements.errorContainer) {
+            uiElements.errorContainer.innerHTML = "";
+        }
+
+        // Reset progress indicators
+        if (progressElements.bar) {
+            progressElements.bar.style.width = '0%';
+        }
+        if (progressElements.text) {
+            progressElements.text.textContent = 'Processed: 0 / 0';
+        }
+    });
 
     queryStartTime = performance.now();
-
     startTime = Date.now();
     timerInterval = setInterval(updateTimer, TIMER_UPDATE_INTERVAL_MS);
 }
 
 export function stopLoading() {
-    const lc = document.getElementById("loading-container");
-    const rs = document.getElementById("results-section");
-    const cb = document.getElementById("checkButton");
+    const loadingElements = getLoadingElements();
+    const uiElements = getUIElements();
 
     queryEndTime = performance.now();
 
-    lc.classList.remove("show");
-    cb.disabled = false;
+    // Immediate updates
+    if (loadingElements.container) {
+        loadingElements.container.classList.remove("show");
+    }
+    if (loadingElements.checkButton) {
+        loadingElements.checkButton.disabled = false;
+    }
 
     if (timerInterval) {
         clearInterval(timerInterval);
         timerInterval = null;
     }
 
+    // Batch delayed updates
     setTimeout(() => {
-        rs.classList.add("show");
-        // Show header stats after first query
-        const headerStats = document.getElementById('header-stats');
-        if (headerStats) {
-            headerStats.style.display = 'flex';
-        }
-        // Re-enable hover behavior after loading is complete
-        const inputSection = document.getElementById('input-section');
-        inputSection.classList.remove('loading');
+        requestAnimationFrame(() => {
+            if (loadingElements.resultsSection) {
+                loadingElements.resultsSection.classList.add("show");
+            }
+
+            // Show header stats after first query
+            if (uiElements.headerStats) {
+                uiElements.headerStats.style.display = 'flex';
+            }
+
+            // Re-enable hover behavior after loading is complete
+            if (uiElements.inputSection) {
+                uiElements.inputSection.classList.remove('loading');
+            }
+        });
 
         setTimeout(() => {
-            lc.style.display = 'none';
+            if (loadingElements.container) {
+                loadingElements.container.style.display = 'none';
+            }
         }, LOADING_HIDE_DELAY_MS);
     }, LOADING_DISPLAY_DELAY_MS);
 }
 
 export function showInformation(message) {
-    document.getElementById("error-container").innerHTML = `
-        <div class="info-message glass-card">
-        <div class="information-icon">
-        <div class="info-icon">✅</div>
-        <div class="info-content">
-            <div class="info-title">Info</div>
-            <div class="info-text">${message}</div>
-        </div>
-        </div>
-    `;
+    const elements = getUIElements();
+    if (elements.errorContainer) {
+        elements.errorContainer.innerHTML = `
+            <div class="info-message glass-card">
+            <div class="information-icon">
+            <div class="info-icon">✅</div>
+            <div class="info-content">
+                <div class="info-title">Info</div>
+                <div class="info-text">${message}</div>
+            </div>
+            </div>
+        `;
+    }
 }
 
 export function showWarning(message) {
-    document.getElementById("error-container").innerHTML = `
-        <div class="warning-message glass-card">
-        <div class="warning-icon">⚠️</div>
-        <div class="warning-content">
-            <div class="warning-title">Warning</div>
-            <div class="warning-text">${message}</div>
-        </div>
-        </div>
-    `;
+    const elements = getUIElements();
+    if (elements.errorContainer) {
+        elements.errorContainer.innerHTML = `
+            <div class="warning-message glass-card">
+            <div class="warning-icon">⚠️</div>
+            <div class="warning-content">
+                <div class="warning-title">Warning</div>
+                <div class="warning-text">${message}</div>
+            </div>
+            </div>
+        `;
+    }
 }
 
 export function showError(message) {
-    document.getElementById("error-container").innerHTML = `
-    <div class="error-message glass-card">
-      <div class="error-icon">⚠️</div>
-      <div class="error-content">
-        <div class="error-title">Error</div>
-        <div class="error-text">${message}</div>
-      </div>
-    </div>
-  `;
+    const elements = getUIElements();
+    if (elements.errorContainer) {
+        elements.errorContainer.innerHTML = `
+        <div class="error-message glass-card">
+          <div class="error-icon">⚠️</div>
+          <div class="error-content">
+            <div class="error-title">Error</div>
+            <div class="error-text">${message}</div>
+          </div>
+        </div>
+      `;
+    }
 }
 
 export function clearErrorMessage() {
-    document.getElementById("error-container").innerHTML = "";
+    const elements = getUIElements();
+    if (elements.errorContainer) {
+        elements.errorContainer.innerHTML = "";
+    }
 }
 
 function getStatsElements() {
@@ -228,24 +302,41 @@ export async function updatePerformanceStats() {
     const queryTime = Math.round(queryEndTime - queryStartTime);
     const recordCount = await getCacheRecordCount();
 
-    document.getElementById("query-time").textContent = queryTime;
-    document.getElementById("esi-lookups").textContent = esiLookups;
-    document.getElementById("cache-info").textContent = localLookups;
+    // Cache performance stat elements
+    if (!uiElements) getUIElements();
+    const performanceElements = {
+        queryTime: document.getElementById("query-time"),
+        esiLookups: document.getElementById("esi-lookups"),
+        cacheInfo: document.getElementById("cache-info"),
+        cacheSize: document.getElementById("cache-size")
+    };
 
-    // Update the cache size element to show record count
-    const cacheSizeElement = document.getElementById("cache-size");
-    if (cacheSizeElement) {
-        if (recordCount === 1) {
-            cacheSizeElement.textContent = `1 entry`;
-        } else {
-            cacheSizeElement.textContent = `${recordCount.toLocaleString()} entries`;
+    // Batch DOM updates
+    requestAnimationFrame(() => {
+        if (performanceElements.queryTime) {
+            performanceElements.queryTime.textContent = queryTime;
         }
-    }
+        if (performanceElements.esiLookups) {
+            performanceElements.esiLookups.textContent = esiLookups;
+        }
+        if (performanceElements.cacheInfo) {
+            performanceElements.cacheInfo.textContent = localLookups;
+        }
+
+        // Update the cache size element to show record count
+        if (performanceElements.cacheSize) {
+            if (recordCount === 1) {
+                performanceElements.cacheSize.textContent = `1 entry`;
+            } else {
+                performanceElements.cacheSize.textContent = `${recordCount.toLocaleString()} entries`;
+            }
+        }
+    });
 }
 
 export function updateVersionDisplay() {
-    const versionElement = document.getElementById('version-display');
-    if (versionElement) {
-        versionElement.textContent = `v${VERSION}`;
+    const elements = getUIElements();
+    if (elements.versionDisplay) {
+        elements.versionDisplay.textContent = `v${VERSION}`;
     }
 }

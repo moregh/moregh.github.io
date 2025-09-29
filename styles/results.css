@@ -145,7 +145,6 @@
 /* Tabs Header */
 .tabs-header {
     display: flex;
-    justify-content: space-between;
     align-items: flex-end;
     padding: 0;
     background: rgba(255, 255, 255, 0.02);
@@ -156,7 +155,6 @@
 .tabs-nav {
     display: flex;
     gap: 0;
-    margin-bottom: -2px;
     flex: 1;
 }
 
@@ -183,10 +181,12 @@
 
 .tab-btn:first-child {
     margin-left: 0;
+    border-top-left-radius: 18px;
 }
 
 .tab-btn:last-child {
     margin-right: 0;
+    border-top-right-radius: 18px;
 }
 
 .tab-btn::after {
@@ -243,7 +243,7 @@
 .tab-count {
     background: rgba(255, 255, 255, 0.2);
     padding: 0.2rem 0.5rem;
-    border-radius: 12px;
+    border-radius: var(--radius-large);
     font-size: 0.75rem;
     font-weight: 700;
     min-width: 1.5rem;
@@ -254,12 +254,7 @@
     background: rgba(255, 255, 255, 0.3);
 }
 
-.tab-controls {
-    display: flex;
-    gap: 0.8rem;
-    align-items: center;
-    padding: 0 1.8rem 0.8rem 1.8rem;
-}
+
 
 /* Tab Content */
 .tab-content {
@@ -351,7 +346,7 @@
     border-radius: 10.8px;
     object-fit: cover;
     border: 1.8px solid rgba(255, 255, 255, 0.1);
-    background: linear-gradient(45deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+    background: var(--gradient-highlight);
     transition: all 0.27s ease;
     flex-shrink: 0;
     contain: layout;
@@ -443,7 +438,7 @@
     color: var(--secondary-color);
     background: rgba(74, 222, 128, 0.1);
     padding: 0.2rem 0.5rem;
-    border-radius: 8px;
+    border-radius: var(--radius-medium);
     min-width: 2rem;
     text-align: center;
 }
@@ -512,10 +507,10 @@
 /* War Eligibility Badges */
 .war-eligible-badge {
     display: inline-block;
-    background: linear-gradient(135deg, var(--war-color), var(--war-color-dark));
+    background: var(--gradient-war);
     color: white;
     padding: 2px 6px;
-    border-radius: 8px;
+    border-radius: var(--radius-medium);
     font-size: 0.65rem;
     font-weight: 700;
     text-transform: uppercase;
@@ -541,7 +536,7 @@
 /* Highlight war-eligible items */
 .result-item.war-eligible {
     border: 1px solid rgba(255, 71, 87, 0.3);
-    background: linear-gradient(135deg, rgba(255, 71, 87, 0.03), rgba(255, 71, 87, 0.08));
+    background: var(--gradient-war-subtle);
 }
 
 .column-header {
@@ -627,7 +622,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: linear-gradient(135deg, transparent, rgba(255, 255, 255, 0.02), transparent);
+    background: var(--gradient-transparent);
     opacity: 0;
     transition: opacity 0.27s ease;
     pointer-events: none
@@ -670,7 +665,7 @@
     object-fit: cover;
     border: 1.8px solid rgba(255, 255, 255, 0.1);
     transition: all 0.27s ease;
-    background: linear-gradient(45deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+    background: var(--gradient-highlight);
     contain: layout;
     transform: translateZ(0);
     transition: opacity 0.2s ease;
@@ -780,7 +775,7 @@
     border-radius: 3.6px;
     object-fit: cover;
     border: 0.9px solid rgba(255, 255, 255, 0.1);
-    background: linear-gradient(45deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+    background: var(--gradient-highlight);
     transition: opacity 0.3s ease;
     flex-shrink: 0;
     contain: layout;
@@ -814,12 +809,6 @@
     opacity: 1;
 }
 
-/* Load More Button */
-.load-more-container {
-    padding: 0.9rem 1.8rem 1.8rem;
-    display: flex;
-    justify-content: center
-}
 
 /* No Results States */
 .no-results {

@@ -6,9 +6,6 @@
 */
 
 import {
-    INITIAL_USER_RESULTS_COUNT,
-    INITIAL_CORP_ALLIANCE_COUNT,
-    LOAD_MORE_COUNT,
     STATS_UPDATE_DELAY,
     CHARACTER_COUNT_DEBOUNCE_MS
 } from './config.js';
@@ -43,8 +40,6 @@ let allSummaryData = { alliance: [], corporation: [] };
 
 // Tabbed interface state
 let currentTab = 'characters';
-let displayedTabResults = { characters: 0, alliances: 0, corporations: 0 };
-let expandedTabSections = { characters: false, alliances: false, corporations: false };
 
 // Store complete results
 let completeResults = [];
@@ -108,14 +103,13 @@ document.addEventListener('click', function (event) {
     if (!target) return;
 
     const action = target.dataset.action;
-    const type = target.dataset.type;
 
     switch (action) {
         case 'toggle-expanded':
-            toggleTabExpanded();
+            // No longer needed - always show all
             break;
         case 'load-more':
-            loadMoreTabResults(type);
+            // No longer needed - always show all
             break;
         case 'reload-page':
             event.preventDefault();
@@ -184,39 +178,14 @@ function switchTab(tabName) {
     });
     document.getElementById(`${tabName}-tab`).classList.add('active');
 
-    // Update the expand button and count
-    updateTabControls();
+    // Update the tab counts
+    updateTabCounts();
 
     // Update the display for the current tab
     updateTabDisplay();
 }
 
-function toggleTabExpanded() {
-    expandedTabSections[currentTab] = !expandedTabSections[currentTab];
-    updateTabDisplay();
-    updateTabControls();
-}
-
-function loadMoreTabResults(type) {
-    const tabType = type || currentTab;
-    const currentCount = displayedTabResults[tabType];
-    let newCount;
-
-    if (tabType === 'characters') {
-        const filteredResults = getFilteredResults();
-        newCount = Math.min(currentCount + LOAD_MORE_COUNT, filteredResults.length);
-    } else if (tabType === 'alliances') {
-        const filteredAlliances = getFilteredAlliances(allSummaryData.alliance);
-        newCount = Math.min(currentCount + LOAD_MORE_COUNT, filteredAlliances.length);
-    } else if (tabType === 'corporations') {
-        const filteredCorporations = getFilteredCorporations(allSummaryData.corporation);
-        newCount = Math.min(currentCount + LOAD_MORE_COUNT, filteredCorporations.length);
-    }
-
-    displayedTabResults[tabType] = newCount;
-    updateTabDisplay();
-    updateTabControls();
-}
+// Load more functionality removed - always show all results
 
 function updateTabDisplay() {
     if (currentTab === 'characters') {
@@ -224,92 +193,16 @@ function updateTabDisplay() {
         getObserverManager().cleanupDeadElements();
 
         const filteredResults = getFilteredResults();
-        const resultsToShow = expandedTabSections.characters
-            ? filteredResults
-            : filteredResults.slice(0, displayedTabResults.characters);
-
-        renderGrid("characters-grid", resultsToShow, 'character');
+        renderGrid("characters-grid", filteredResults, 'character');
 
     } else if (currentTab === 'alliances') {
         const filteredAlliances = getFilteredAlliances(allSummaryData.alliance);
-        const alliancesToShow = expandedTabSections.alliances
-            ? filteredAlliances
-            : filteredAlliances.slice(0, displayedTabResults.alliances);
-
-        renderGrid("alliances-grid", alliancesToShow, 'alliance');
+        renderGrid("alliances-grid", filteredAlliances, 'alliance');
 
     } else if (currentTab === 'corporations') {
         const filteredCorporations = getFilteredCorporations(allSummaryData.corporation);
-        const corporationsToShow = expandedTabSections.corporations
-            ? filteredCorporations
-            : filteredCorporations.slice(0, displayedTabResults.corporations);
-
-        renderGrid("corporations-grid", corporationsToShow, 'corporation');
+        renderGrid("corporations-grid", filteredCorporations, 'corporation');
     }
-
-    updateTabLoadMoreButtons();
-}
-
-function updateTabControls() {
-    const button = document.getElementById('tab-expand');
-    const totalSpan = document.getElementById('tab-total');
-
-    if (!button || !totalSpan) return;
-
-    let totalCount = 0;
-    let isExpanded = expandedTabSections[currentTab];
-
-    if (currentTab === 'characters') {
-        const filteredResults = getFilteredResults();
-        totalCount = filteredResults.length;
-    } else if (currentTab === 'alliances') {
-        const filteredAlliances = getFilteredAlliances(allSummaryData.alliance);
-        totalCount = filteredAlliances.length;
-    } else if (currentTab === 'corporations') {
-        const filteredCorporations = getFilteredCorporations(allSummaryData.corporation);
-        totalCount = filteredCorporations.length;
-    }
-
-    button.textContent = isExpanded
-        ? `Show Less (${totalCount})`
-        : `Show All (${totalCount})`;
-
-    totalSpan.textContent = totalCount;
-}
-
-function updateTabLoadMoreButtons() {
-    const loadMoreContainers = {
-        characters: document.getElementById("characters-load-more"),
-        alliances: document.getElementById("alliances-load-more"),
-        corporations: document.getElementById("corporations-load-more")
-    };
-
-    // Hide all load more buttons first
-    Object.values(loadMoreContainers).forEach(container => {
-        if (container) container.style.display = 'none';
-    });
-
-    // Show load more button for current tab if needed
-    const currentContainer = loadMoreContainers[currentTab];
-    if (!currentContainer) return;
-
-    let shouldShow = false;
-
-    if (currentTab === 'characters') {
-        const filteredResults = getFilteredResults();
-        shouldShow = !expandedTabSections.characters &&
-                    displayedTabResults.characters < filteredResults.length;
-    } else if (currentTab === 'alliances') {
-        const filteredAlliances = getFilteredAlliances(allSummaryData.alliance);
-        shouldShow = !expandedTabSections.alliances &&
-                    displayedTabResults.alliances < filteredAlliances.length;
-    } else if (currentTab === 'corporations') {
-        const filteredCorporations = getFilteredCorporations(allSummaryData.corporation);
-        shouldShow = !expandedTabSections.corporations &&
-                    displayedTabResults.corporations < filteredCorporations.length;
-    }
-
-    currentContainer.style.display = shouldShow ? 'flex' : 'none';
 }
 
 function updateTabCounts() {
@@ -426,23 +319,11 @@ export async function validateNames() {
         allSummaryData.alliance = allAlliances;
         allSummaryData.corporation = allCorps;
 
-        // Reset tab display counters
-        const filteredResults = getFilteredResults();
-        displayedTabResults.characters = Math.min(INITIAL_USER_RESULTS_COUNT, filteredResults.length);
-        displayedTabResults.alliances = Math.min(INITIAL_CORP_ALLIANCE_COUNT, allAlliances.length);
-        displayedTabResults.corporations = Math.min(INITIAL_CORP_ALLIANCE_COUNT, allCorps.length);
-
-        // Reset expanded states
-        expandedTabSections.characters = false;
-        expandedTabSections.alliances = false;
-        expandedTabSections.corporations = false;
+        // No state initialization needed - always show all results
 
         // Update tab counts
         updateTabCounts();
-
-        // Update tab controls
-        updateTabControls();
-
+    
         // Update the display for the current tab
         updateTabDisplay();
 
@@ -528,10 +409,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Initialize filters system
     initializeFilters(() => {
-        updateTabCounts();
-        updateTabControls();
-        updateTabDisplay();
-    });
+            updateTabDisplay();
+        });
 
     const textarea = document.getElementById('names');
     textarea.addEventListener('input', debouncedUpdateCharacterCount);

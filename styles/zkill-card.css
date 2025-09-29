@@ -9,7 +9,7 @@ Licensed under AGPL License.
     background: linear-gradient(135deg, var(--war-color), var(--war-color-dark));
     color: white;
     padding: 2px 6px;
-    border-radius: 8px;
+    border-radius: var(--radius-medium);
     font-size: 0.7rem;
     font-weight: 700;
     text-transform: uppercase;
@@ -123,10 +123,10 @@ Entity (avatar, details, affiliations)
 .zkill-entity-avatar {
 width: 60px;
 height: 60px;
-border-radius: 12px;
+border-radius: var(--radius-large);
 border: 2px solid rgba(255, 255, 255, 0.2);
 object-fit: cover;
-background: linear-gradient(45deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+background: var(--gradient-highlight);
 }
 
 .zkill-entity-info {
@@ -175,7 +175,7 @@ gap: 0.5rem;
 padding: 0.5rem 0.75rem;
 background: rgba(255, 255, 255, 0.03);
 border: 1px solid rgba(255, 255, 255, 0.1);
-border-radius: 8px;
+border-radius: var(--radius-medium);
 transition: all 0.2s ease;
 white-space: nowrap;
 }
@@ -188,10 +188,10 @@ transform: translateY(-1px);
 .zkill-affiliation-logo {
 width: 32px;
 height: 32px;
-border-radius: 6px;
+border-radius: var(--radius-small);
 object-fit: cover;
 border: 1px solid rgba(255, 255, 255, 0.1);
-background: linear-gradient(45deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+background: var(--gradient-highlight);
 transition: opacity 0.3s ease;
 flex-shrink: 0;
 }
@@ -317,7 +317,7 @@ margin-bottom: 2rem;
 .zkill-stat-item {
 background: rgba(255, 255, 255, 0.03);
 border: 1px solid rgba(255, 255, 255, 0.1);
-border-radius: 12px;
+border-radius: var(--radius-large);
 padding: 1.2rem;
 text-align: center;
 position: relative;
@@ -331,7 +331,7 @@ top: 0;
 left: 0;
 right: 0;
 height: 3px;
-background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+background: var(--gradient-primary);
 opacity: 0.6;
 }
 .zkill-stat-item:hover {
@@ -368,7 +368,7 @@ margin-bottom: 1rem;
 .zkill-activity-period {
 flex: 1;
 background: rgba(255, 255, 255, 0.03);
-border-radius: 8px;
+border-radius: var(--radius-medium);
 padding: 1rem;
 text-align: center;
 border-left: 3px solid var(--primary-color);
@@ -402,7 +402,7 @@ margin-bottom: 1rem;
 .zkill-activity-card {
 background: rgba(255, 255, 255, 0.03);
 border: 1px solid rgba(255, 255, 255, 0.1);
-border-radius: 12px;
+border-radius: var(--radius-large);
 padding: 1rem;
 text-align: center;
 transition: all 0.3s ease;
@@ -416,7 +416,7 @@ top: 0;
 left: 0;
 right: 0;
 height: 3px;
-background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+background: var(--gradient-primary);
 opacity: 0.6;
 }
 .zkill-activity-card:hover {
@@ -455,7 +455,7 @@ margin-bottom: 1rem;
 .zkill-location-card {
 background: rgba(255, 255, 255, 0.03);
 border: 1px solid rgba(255, 255, 255, 0.1);
-border-radius: 8px;
+border-radius: var(--radius-medium);
 padding: 0.8rem;
 border-left: 3px solid var(--secondary-color);
 transition: all 0.2s ease;
@@ -504,9 +504,6 @@ gap: 1rem;
 font-size: 0.9rem;
 }
 
-/* Remove old legacy location list styles (kept hidden) */
-.zkill-locations-list { display: none; }
-.zkill-location-item { display: none; }
 
 /* ============================
 Charts
@@ -520,7 +517,7 @@ margin-bottom: 1rem;
 .zkill-chart-container {
 background: rgba(255, 255, 255, 0.03);
 border: 1px solid rgba(255, 255, 255, 0.1);
-border-radius: 12px;
+border-radius: var(--radius-large);
 padding: 1rem;
 position: relative;
 overflow: hidden;
@@ -532,7 +529,7 @@ top: 0;
 left: 0;
 right: 0;
 height: 3px;
-background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+background: var(--gradient-primary);
 opacity: 0.6;
 }
 .zkill-chart-title {
@@ -576,7 +573,7 @@ margin-bottom: 1rem;
 .zkill-members-dropdown {
 background: rgba(255, 255, 255, 0.03);
 border: 1px solid rgba(255, 255, 255, 0.1);
-border-radius: 12px;
+border-radius: var(--radius-large);
 overflow: hidden;
 margin-top: 1rem;
 }
@@ -604,7 +601,7 @@ gap: 0.5rem;
 background: rgba(0, 212, 255, 0.2);
 color: var(--primary-color);
 padding: 0.2rem 0.6rem;
-border-radius: 12px;
+border-radius: var(--radius-large);
 font-size: 0.8rem;
 font-weight: 600;
 }
@@ -641,10 +638,10 @@ transition: all 0.2s ease;
 .zkill-member-avatar {
 width: 32px;
 height: 32px;
-border-radius: 6px;
+border-radius: var(--radius-small);
 object-fit: cover;
 border: 1px solid rgba(255, 255, 255, 0.1);
-background: linear-gradient(45deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+background: var(--gradient-highlight);
 transition: opacity 0.3s ease;
 flex-shrink: 0;
 }

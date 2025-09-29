@@ -38,7 +38,7 @@
     transition: all 0.2s ease;
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 8px;
+    border-radius: var(--radius-medium);
     padding: 0.4rem 0.8rem;
     color: var(--text-primary);
     font-size: 0.85rem;
@@ -59,80 +59,7 @@
     font-size: 0.7rem;
 }
 
-/* Expand Buttons (used by results and summary) */
-.btn-expand,
-.expand-btn,
-.summary-expand-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: none;
-    cursor: pointer;
-    font-family: inherit;
-    text-decoration: none;
-    user-select: none;
-    background: rgba(255, 255, 255, 0.1);
-    border: 0.9px solid var(--border-color);
-    color: var(--text-secondary);
-    padding: 0.45rem 0.9rem;
-    border-radius: 7.2px;
-    font-size: 0.765rem;
-    transition: all 0.18s ease;
-}
 
-.btn-expand:hover,
-.expand-btn:hover,
-.summary-expand-btn:hover {
-    background: rgba(255, 255, 255, 0.15);
-    color: var(--text-primary);
-}
-
-/* Expand Button Small Variant (for summary) */
-.btn-expand-sm,
-.summary-expand-btn {
-    padding: 0.36rem 0.72rem;
-    border-radius: 6px;
-    font-size: 0.72rem;
-}
-
-/* Load More Buttons */
-.btn-load-more,
-.load-more-btn,
-.summary-load-more-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: none;
-    cursor: pointer;
-    font-family: inherit;
-    text-decoration: none;
-    user-select: none;
-    background: linear-gradient(135deg, rgba(0, 212, 255, 0.1), rgba(0, 153, 204, 0.1));
-    border: 1.8px solid var(--border-glow);
-    color: var(--primary-color);
-    padding: 0.72rem 1.8rem;
-    border-radius: 22.5px;
-    font-size: 0.9rem;
-    font-weight: 600;
-    transition: all 0.27s ease;
-}
-
-.btn-load-more:hover,
-.load-more-btn:hover,
-.summary-load-more-btn:hover {
-    background: linear-gradient(135deg, rgba(0, 212, 255, 0.2), rgba(0, 153, 204, 0.2));
-    border-color: var(--primary-color);
-    transform: translateY(-1.8px);
-    box-shadow: 0 4.5px 13.5px rgba(0, 212, 255, 0.2);
-}
-
-/* Load More Button Small Variant (for summary) */
-.btn-load-more-sm,
-.summary-load-more-btn {
-    padding: 0.54rem 1.35rem;
-    border-radius: 18px;
-    font-size: 0.81rem;
-}
 
 /* Clear Button (for filters) */
 .btn-clear,
@@ -147,7 +74,7 @@
     user-select: none;
     background: rgba(255, 71, 87, 0.1);
     border: 1px solid rgba(255, 71, 87, 0.3);
-    border-radius: 8px;
+    border-radius: var(--radius-medium);
     padding: 0.4rem 0.8rem;
     color: var(--danger-color);
     font-size: 0.85rem;
@@ -249,7 +176,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: linear-gradient(135deg, transparent, rgba(255, 255, 255, 0.02), transparent);
+    background: var(--gradient-transparent);
     opacity: 0;
     transition: opacity 0.27s ease;
     pointer-events: none;
@@ -324,7 +251,7 @@
 .badge {
     display: inline-block;
     padding: 0.2rem 0.4rem;
-    border-radius: 6px;
+    border-radius: var(--radius-small);
     font-size: 0.7rem;
     font-weight: 700;
     text-transform: uppercase;
@@ -334,7 +261,7 @@
 }
 
 .badge-war {
-    background: linear-gradient(135deg, var(--war-color), var(--war-color-dark));
+    background: var(--gradient-war);
     color: white;
     box-shadow: 0 2px 6px rgba(255, 71, 87, 0.3);
     animation: warPulse 2s infinite;

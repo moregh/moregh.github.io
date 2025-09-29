@@ -18,17 +18,189 @@ import {
 } from './config.js';
 import { ManagedObservers, setImageObserverEnabled } from './observers.js';
 import {
-    sanitizeCharacterName,
-    sanitizeCorporationName,
-    sanitizeAllianceName,
     sanitizeId,
-    sanitizeAttribute,
-    sanitizeForDOM,
-    decodeHtmlEntities
+    sanitizeAttribute
 } from './xss-protection.js';
 
 // Create single observer instance
 const observerManager = new ManagedObservers();
+
+// Centralized Event Management System
+class EventManager {
+    constructor() {
+        this.delegatedListeners = new Map();
+        this.init();
+    }
+
+    init() {
+        // Use event delegation for mouseover cards
+        document.addEventListener('mouseenter', this.handleMouseEnter.bind(this), true);
+        document.addEventListener('mouseleave', this.handleMouseLeave.bind(this), true);
+    }
+
+    handleMouseEnter(event) {
+        const entityCard = event.target.closest('.entity-card, .summary-item');
+        if (entityCard && entityCard._mouseoverCard) {
+            this.showMouseoverCard(entityCard);
+        }
+
+        const mouseoverCard = event.target.closest('.mouseover-card');
+        if (mouseoverCard) {
+            mouseoverCard.classList.add('visible');
+        }
+    }
+
+    handleMouseLeave(event) {
+        const entityCard = event.target.closest('.entity-card, .summary-item');
+        if (entityCard && entityCard._mouseoverCard) {
+            this.hideMouseoverCard(entityCard);
+        }
+
+        const mouseoverCard = event.target.closest('.mouseover-card');
+        if (mouseoverCard) {
+            setTimeout(() => {
+                if (!mouseoverCard.matches(':hover')) {
+                    mouseoverCard.classList.remove('visible');
+                }
+            }, 10);
+        }
+    }
+
+    showMouseoverCard(item) {
+        const card = item._mouseoverCard;
+        if (!card) return;
+
+        // Clear any existing timeout
+        if (item._showTimeout) {
+            clearTimeout(item._showTimeout);
+        }
+
+        // Add delay before showing popup to prevent flashing during scrolling
+        item._showTimeout = setTimeout(() => {
+            // Check if mouse is still over the item
+            if (item.matches(':hover')) {
+                // Hide all other visible popup cards first
+                const allCards = document.querySelectorAll('.mouseover-card.visible');
+                allCards.forEach(otherCard => {
+                    if (otherCard !== card) {
+                        otherCard.classList.remove('visible');
+                    }
+                });
+
+                this.positionMouseoverCard(item, card);
+                card.classList.add('visible');
+            }
+            item._showTimeout = null;
+        }, POPUP_SHOW_DELAY);
+    }
+
+    hideMouseoverCard(item) {
+        const card = item._mouseoverCard;
+
+        // Clear the show timeout if mouse leaves before delay completes
+        if (item._showTimeout) {
+            clearTimeout(item._showTimeout);
+            item._showTimeout = null;
+        }
+
+        if (card) {
+            // Only hide the card if we're not moving to the card itself
+            setTimeout(() => {
+                if (!card.matches(':hover')) {
+                    card.classList.remove('visible');
+                }
+            }, 10);
+        }
+    }
+
+    positionMouseoverCard(item, card) {
+        const itemRect = item.getBoundingClientRect();
+        const parentContainer = item.closest('.summary-column') || item.closest('.tab-content') || item.closest('.result-grid');
+        const containerRect = parentContainer.getBoundingClientRect();
+
+        // Position card relative to the parent container (85% from the top)
+        const relativeTop = itemRect.top - containerRect.top + (itemRect.height * 0.85);
+        const relativeLeft = itemRect.left - containerRect.left + (itemRect.width / 2);
+
+        card.style.position = 'absolute';
+        card.style.top = relativeTop + 'px';
+        card.style.left = relativeLeft + 'px';
+        card.style.transform = 'translateX(-50%)';
+    }
+
+    cleanup() {
+        // Clear all timeouts
+        document.querySelectorAll('.entity-card, .summary-item').forEach(item => {
+            if (item._showTimeout) {
+                clearTimeout(item._showTimeout);
+                item._showTimeout = null;
+            }
+        });
+    }
+}
+
+// Create global event manager
+const eventManager = new EventManager();
+
+// DOM Element Pooling System for Performance
+class ElementPool {
+    constructor(createFn, resetFn, maxSize = 50) {
+        this.pool = [];
+        this.createFn = createFn;
+        this.resetFn = resetFn;
+        this.maxSize = maxSize;
+        this.created = 0;
+        this.reused = 0;
+    }
+
+    acquire() {
+        if (this.pool.length > 0) {
+            this.reused++;
+            return this.pool.pop();
+        }
+        this.created++;
+        return this.createFn();
+    }
+
+    release(element) {
+        if (this.pool.length < this.maxSize && element && element.parentNode) {
+            element.parentNode.removeChild(element);
+            this.resetFn(element);
+            this.pool.push(element);
+        }
+    }
+
+    clear() {
+        this.pool = [];
+    }
+
+    getStats() {
+        return { created: this.created, reused: this.reused, pooled: this.pool.length };
+    }
+}
+
+// Element pools for different types
+let characterElementPool;
+let entityCardPool;
+let mouseoverCardPool;
+
+// Initialize pools
+function initializeElementPools() {
+    characterElementPool = new ElementPool(
+        () => createBaseCharacterElement(),
+        (element) => resetCharacterElement(element)
+    );
+
+    entityCardPool = new ElementPool(
+        () => createBaseEntityCardElement(),
+        (element) => resetEntityCardElement(element)
+    );
+
+    mouseoverCardPool = new ElementPool(
+        () => createBaseMouseoverCardElement(),
+        (element) => resetMouseoverCardElement(element)
+    );
+}
 
 // Entity maps for mouseover functionality
 let corpToCharactersMap = new Map();
@@ -74,6 +246,134 @@ export function buildEntityMaps(results) {
         });
         allianceToCorpsMap.set(allianceId, corps.sort((a, b) => b.count - a.count));
     });
+}
+
+// Base element creation functions for pooling
+function createBaseCharacterElement() {
+    const template = document.createElement('template');
+    const placeholder = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3C/svg%3E";
+
+    template.innerHTML = `
+        <div class="result-item grid-view animate-ready" data-clickable="character" style="cursor: pointer;">
+            <div class="character-header">
+                <img src="${placeholder}" class="character-avatar" loading="lazy" decoding="async">
+                <div class="character-name">
+                    <a href="#" target="_blank" class="character-link"></a>
+                </div>
+            </div>
+            <div class="character-details">
+                <div class="corp-alliance-info">
+                    <div class="org-item corp-item">
+                        <img src="${placeholder}" class="org-logo" loading="lazy" decoding="async">
+                        <a href="#" target="_blank" class="character-link"></a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    return template.content.firstElementChild;
+}
+
+function createBaseEntityCardElement() {
+    const template = document.createElement('template');
+    const placeholder = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3C/svg%3E";
+
+    template.innerHTML = `
+        <div class="result-item entity-card" data-clickable="" style="cursor: pointer;">
+            <div class="entity-header">
+                <img src="${placeholder}" class="entity-logo" loading="lazy" decoding="async">
+                <div class="entity-info">
+                    <div class="entity-name">
+                        <span class="entity-type-icon"></span>
+                        <a href="#" target="_blank" class="character-link"></a>
+                    </div>
+                    <div class="entity-details">
+                        <div class="entity-count">
+                            <span class="count-number"></span>
+                            <span class="count-label"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    return template.content.firstElementChild;
+}
+
+function createBaseMouseoverCardElement() {
+    const div = document.createElement("div");
+    div.className = "mouseover-card";
+    return div;
+}
+
+// Reset functions for pooling
+function resetCharacterElement(element) {
+    if (!element) return;
+
+    // Clear dynamic classes
+    element.className = "result-item grid-view animate-ready";
+    element.dataset.characterId = "";
+    element.style.cssText = "cursor: pointer;";
+
+    // Clear images
+    const images = element.querySelectorAll('img');
+    images.forEach(img => {
+        img.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3C/svg%3E";
+        img.dataset.src = "";
+        img.alt = "";
+    });
+
+    // Clear links
+    const links = element.querySelectorAll('a');
+    links.forEach(link => {
+        link.href = "#";
+        link.textContent = "";
+    });
+
+    // Remove alliance section if it exists
+    const allianceItem = element.querySelector('.corp-alliance-info .org-item:last-child');
+    if (allianceItem && allianceItem.querySelector('a[href*="/alliance/"]')) {
+        allianceItem.remove();
+    }
+}
+
+function resetEntityCardElement(element) {
+    if (!element) return;
+
+    element.className = "result-item entity-card";
+    element.dataset.clickable = "";
+    element.dataset.entityId = "";
+    element.dataset.entityName = "";
+    element.style.cssText = "cursor: pointer;";
+
+    // Clear entity logo
+    const logo = element.querySelector('.entity-logo');
+    if (logo) {
+        logo.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3C/svg%3E";
+        logo.dataset.src = "";
+        logo.alt = "";
+    }
+
+    // Clear text content
+    const typeIcon = element.querySelector('.entity-type-icon');
+    const link = element.querySelector('.character-link');
+    const countNumber = element.querySelector('.count-number');
+    const countLabel = element.querySelector('.count-label');
+
+    if (typeIcon) typeIcon.textContent = "";
+    if (link) { link.href = "#"; link.textContent = ""; }
+    if (countNumber) countNumber.textContent = "";
+    if (countLabel) countLabel.textContent = "";
+
+    // Remove mouseover card reference
+    delete element._mouseoverCard;
+}
+
+function resetMouseoverCardElement(element) {
+    if (!element) return;
+    element.className = "mouseover-card";
+    element.innerHTML = "";
+    element.style.cssText = "";
 }
 
 export function createMouseoverCard(entity, type) {
@@ -128,7 +428,7 @@ export function createMouseoverCard(entity, type) {
 }
 
 // Optimized updateElementContent function
-export function updateElementContent(element, character, viewType) {
+export function updateElementContent(element, character) {
     // Cache DOM queries for better performance
     const avatar = element.querySelector('.character-avatar');
     const characterLink = element.querySelector('.character-name a');
@@ -148,7 +448,7 @@ export function updateElementContent(element, character, viewType) {
     }
 
     if (characterLink) {
-        characterLink.innerHTML = sanitizeCharacterName(character.character_name);
+        characterLink.textContent = character.character_name;
         characterLink.href = `https://zkillboard.com/character/${character.character_id}/`;
     }
 
@@ -164,7 +464,7 @@ export function updateElementContent(element, character, viewType) {
     }
 
     if (corpLink) {
-        corpLink.innerHTML = sanitizeCorporationName(character.corporation_name);
+        corpLink.textContent = character.corporation_name;
         corpLink.href = `https://zkillboard.com/corporation/${character.corporation_id}/`;
     }
 
@@ -214,7 +514,7 @@ export function updateElementContent(element, character, viewType) {
             }
 
             if (allianceLink) {
-                allianceLink.innerHTML = sanitizeAllianceName(character.alliance_name);
+                allianceLink.textContent = character.alliance_name;
                 allianceLink.href = `https://zkillboard.com/alliance/${character.alliance_id}/`;
             }
         }
@@ -227,80 +527,138 @@ export function updateElementContent(element, character, viewType) {
 }
 
 export function createCharacterItem(character, viewType = 'grid') {
-    // Create element using createDocumentFragment for better performance
-    const template = document.createElement('template');
-    const placeholder = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3C/svg%3E";
+    // Initialize pools if not already done
+    if (!characterElementPool) {
+        initializeElementPools();
+    }
 
-    // Sanitize character data
+    // Get element from pool
+    const element = characterElementPool.acquire();
+
+    // Sanitize IDs but keep names unescaped for textContent usage
     const characterId = sanitizeId(character.character_id);
-    const characterName = sanitizeCharacterName(character.character_name);
+    const characterName = character.character_name; // Don't sanitize - textContent is safe
     const corporationId = sanitizeId(character.corporation_id);
-    const corporationName = sanitizeCorporationName(character.corporation_name);
+    const corporationName = character.corporation_name; // Don't sanitize - textContent is safe
     const allianceId = character.alliance_id ? sanitizeId(character.alliance_id) : null;
-    const allianceName = character.alliance_name ? sanitizeAllianceName(character.alliance_name) : null;
+    const allianceName = character.alliance_name; // Don't sanitize - textContent is safe
 
-    const allianceSection = allianceName && allianceId ? `
-        <div class="org-item">
-            <img src="${placeholder}"
-                 data-src="https://images.evetech.net/alliances/${allianceId}/logo?size=${ALLIANCE_LOGO_SIZE_PX}"
-                 alt="${sanitizeAttribute(allianceName)}"
-                 class="org-logo"
-                 loading="lazy"
-                 decoding="async">
-            <a href="https://zkillboard.com/alliance/${allianceId}/"
-               target="_blank"
-               class="character-link">${allianceName}</a>
-        </div>
-    ` : '';
+    // Update element classes and attributes
+    element.className = `result-item ${viewType}-view animate-ready ${character.war_eligible ? 'war-eligible' : ''}`;
+    element.dataset.characterId = sanitizeAttribute(characterId.toString());
 
-    const warEligibleBadge = character.war_eligible ?
-        '<span class="war-eligible-badge">WAR</span>' : '';
+    // Update character avatar and name
+    const avatar = element.querySelector('.character-avatar');
+    const characterLink = element.querySelector('.character-name .character-link');
 
-    template.innerHTML = `
-    <div class="result-item ${viewType}-view animate-ready ${character.war_eligible ? 'war-eligible' : ''}"
-         data-character-id="${sanitizeAttribute(characterId.toString())}"
-         data-clickable="character"
-         style="cursor: pointer;">
-            <div class="character-header">
-                <img src="${placeholder}"
-                     data-src="https://images.evetech.net/characters/${characterId}/portrait?size=${CHARACTER_PORTRAIT_SIZE_PX}"
-                     alt="${sanitizeAttribute(characterName)}"
-                     class="character-avatar"
+    if (avatar) {
+        avatar.dataset.src = `https://images.evetech.net/characters/${characterId}/portrait?size=${CHARACTER_PORTRAIT_SIZE_PX}`;
+        avatar.alt = sanitizeAttribute(characterName);
+    }
+
+    if (characterLink) {
+        characterLink.href = `https://zkillboard.com/character/${characterId}/`;
+        characterLink.textContent = characterName;
+    }
+
+    // Update war eligible badge
+    const nameDiv = element.querySelector('.character-name');
+    let existingBadge = nameDiv.querySelector('.war-eligible-badge');
+    if (character.war_eligible && !existingBadge) {
+        const badge = document.createElement('span');
+        badge.className = 'war-eligible-badge';
+        badge.textContent = 'WAR';
+        nameDiv.appendChild(badge);
+    } else if (!character.war_eligible && existingBadge) {
+        existingBadge.remove();
+    }
+
+    // Update corporation info
+    const corpLogo = element.querySelector('.corp-item .org-logo');
+    const corpLink = element.querySelector('.corp-item .character-link');
+
+    if (corpLogo) {
+        corpLogo.dataset.src = `https://images.evetech.net/corporations/${corporationId}/logo?size=${CORP_LOGO_SIZE_PX}`;
+        corpLogo.alt = sanitizeAttribute(corporationName);
+    }
+
+    if (corpLink) {
+        corpLink.href = `https://zkillboard.com/corporation/${corporationId}/`;
+        corpLink.textContent = corporationName;
+    }
+
+    // Handle alliance info
+    const corpAllianceInfo = element.querySelector('.corp-alliance-info');
+    let allianceItem = corpAllianceInfo.querySelector('.org-item:last-child');
+    const isAllianceItem = allianceItem && allianceItem !== corpAllianceInfo.querySelector('.corp-item');
+
+    if (allianceName && allianceId) {
+        if (!isAllianceItem) {
+            // Create alliance section
+            const newAllianceItem = document.createElement('div');
+            newAllianceItem.className = 'org-item';
+            newAllianceItem.innerHTML = `
+                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3C/svg%3E"
+                     data-src="https://images.evetech.net/alliances/${allianceId}/logo?size=${ALLIANCE_LOGO_SIZE_PX}"
+                     alt="${sanitizeAttribute(allianceName)}"
+                     class="org-logo"
                      loading="lazy"
                      decoding="async">
-                <div class="character-name">
-                    <a href="https://zkillboard.com/character/${characterId}/"
-                       target="_blank"
-                       class="character-link">${characterName}</a>
-                    ${warEligibleBadge}
-                </div>
-            </div>
-            <div class="character-details">
-                <div class="corp-alliance-info">
-                    <div class="org-item">
-                        <img src="${placeholder}"
-                             data-src="https://images.evetech.net/corporations/${corporationId}/logo?size=${CORP_LOGO_SIZE_PX}"
-                             alt="${sanitizeAttribute(corporationName)}"
-                             class="org-logo"
-                             loading="lazy"
-                             decoding="async">
-                        <a href="https://zkillboard.com/corporation/${corporationId}/"
-                           target="_blank"
-                           class="character-link">${corporationName}</a>
-                    </div>
-                    ${allianceSection}
-                </div>
-            </div>
-        </div>
-    `;
+                <a href="https://zkillboard.com/alliance/${allianceId}/"
+                   target="_blank"
+                   class="character-link">${allianceName}</a>
+            `;
+            corpAllianceInfo.appendChild(newAllianceItem);
+        } else {
+            // Update existing alliance section
+            const allianceLogo = allianceItem.querySelector('.org-logo');
+            const allianceLink = allianceItem.querySelector('.character-link');
 
-    return template.content.firstElementChild;
+            if (allianceLogo) {
+                allianceLogo.dataset.src = `https://images.evetech.net/alliances/${allianceId}/logo?size=${ALLIANCE_LOGO_SIZE_PX}`;
+                allianceLogo.alt = sanitizeAttribute(allianceName);
+            }
+
+            if (allianceLink) {
+                allianceLink.href = `https://zkillboard.com/alliance/${allianceId}/`;
+                allianceLink.textContent = allianceName;
+            }
+        }
+    } else if (isAllianceItem) {
+        // Remove alliance section if character has no alliance
+        allianceItem.remove();
+    }
+
+    return element;
+}
+
+// Function to release elements back to the pool
+export function releaseElementToPool(element) {
+    if (!element) return;
+
+    const isCharacterElement = element.classList.contains('result-item') && element.querySelector('.character-avatar');
+    const isEntityCard = element.classList.contains('entity-card');
+
+    if (isCharacterElement && characterElementPool) {
+        characterElementPool.release(element);
+    } else if (isEntityCard && entityCardPool) {
+        entityCardPool.release(element);
+    }
+}
+
+// Get pool stats for debugging
+export function getPoolStats() {
+    return {
+        character: characterElementPool?.getStats() || { created: 0, reused: 0, pooled: 0 },
+        entity: entityCardPool?.getStats() || { created: 0, reused: 0, pooled: 0 },
+        mouseover: mouseoverCardPool?.getStats() || { created: 0, reused: 0, pooled: 0 }
+    };
 }
 
 export function createEntityCard({ id, name, count, type, war_eligible }) {
     // Sanitize input data
     const sanitizedId = sanitizeId(id);
-    const sanitizedName = type === 'corporation' ? sanitizeCorporationName(name) : sanitizeAllianceName(name);
+    const sanitizedName = name; // Don't escape the name for display
     const sanitizedCount = Math.max(0, Math.floor(count || 0));
     const allowedTypes = ['corporation', 'alliance'];
     const sanitizedType = allowedTypes.includes(type) ? type : 'corporation';
@@ -333,7 +691,7 @@ export function createEntityCard({ id, name, count, type, war_eligible }) {
                         <span class="entity-type-icon">${entityIcon}</span>
                         <a href="https://zkillboard.com/${sanitizedType}/${sanitizedId}/"
                            target="_blank"
-                           class="character-link">${sanitizedName}</a>
+                           class="character-link"></a>
                         ${warEligibleBadge}
                     </div>
                     <div class="entity-details">
@@ -349,96 +707,20 @@ export function createEntityCard({ id, name, count, type, war_eligible }) {
 
     const item = template.content.firstElementChild;
 
+    // Set the entity name safely using textContent
+    const nameLink = item.querySelector('.character-link');
+    if (nameLink) {
+        nameLink.textContent = name; // Use original unsanitized name
+    }
+
     // Create mouseover card but don't append it to the item
-    const mouseoverCard = createMouseoverCard({ id: sanitizedId, name: sanitizedName, count: sanitizedCount, war_eligible }, sanitizedType);
+    const mouseoverCard = createMouseoverCard({ id: sanitizedId, name: name, count: sanitizedCount, war_eligible }, sanitizedType);
 
     // Store reference to the card on the item for later use
     item._mouseoverCard = mouseoverCard;
 
-    // Add event listeners to position and show the card with delay
-    item.addEventListener('mouseenter', function() {
-        const card = this._mouseoverCard;
-        if (card) {
-            // Clear any existing timeout
-            if (this._showTimeout) {
-                clearTimeout(this._showTimeout);
-            }
-
-            // Add delay before showing popup to prevent flashing during scrolling
-            this._showTimeout = setTimeout(() => {
-                // Check if mouse is still over the item
-                if (this.matches(':hover')) {
-                    // Hide all other visible popup cards first
-                    const allCards = document.querySelectorAll('.mouseover-card.visible');
-                    allCards.forEach(otherCard => {
-                        if (otherCard !== card) {
-                            otherCard.classList.remove('visible');
-                        }
-                    });
-
-                    const itemRect = this.getBoundingClientRect();
-                    const parentContainer = this.closest('.summary-column') || this.closest('.tab-content') || this.closest('.result-grid');
-                    const containerRect = parentContainer.getBoundingClientRect();
-
-                    // Position card relative to the parent container (85% from the top)
-                    const relativeTop = itemRect.top - containerRect.top + (itemRect.height * 0.85);
-                    const relativeLeft = itemRect.left - containerRect.left + (itemRect.width / 2);
-
-                    card.style.position = 'absolute';
-                    card.style.top = relativeTop + 'px';
-                    card.style.left = relativeLeft + 'px';
-                    card.style.transform = 'translateX(-50%)';
-
-                    // Show the card
-                    card.classList.add('visible');
-                }
-                this._showTimeout = null;
-            }, POPUP_SHOW_DELAY);
-        }
-    });
-
-    item.addEventListener('mouseleave', function(e) {
-        const card = this._mouseoverCard;
-
-        // Clear the show timeout if mouse leaves before delay completes
-        if (this._showTimeout) {
-            clearTimeout(this._showTimeout);
-            this._showTimeout = null;
-        }
-
-        if (card) {
-            // Only hide the card if we're not moving to the card itself
-            setTimeout(() => {
-                if (!card.matches(':hover')) {
-                    card.classList.remove('visible');
-                }
-            }, 10);
-        }
-    });
-
-    // Add mouse event handling to the card itself
-    mouseoverCard.addEventListener('mouseenter', function() {
-        // Keep the card visible when hovering over it
-        this.classList.add('visible');
-    });
-
-    mouseoverCard.addEventListener('mouseleave', function() {
-        // Hide the card when leaving it
-        this.classList.remove('visible');
-    });
-
-    // Prevent mouse events from bubbling through the card to elements behind it
-    mouseoverCard.addEventListener('mousemove', function(e) {
-        e.stopPropagation();
-    });
-
-    mouseoverCard.addEventListener('mouseenter', function(e) {
-        e.stopPropagation();
-    });
-
-    mouseoverCard.addEventListener('mouseleave', function(e) {
-        e.stopPropagation();
-    });
+    // Event handling is now managed by the centralized EventManager
+    // No individual event listeners needed - better performance!
 
     // FIXED: Observe the entity logo image after it's in the DOM structure
     requestAnimationFrame(() => {
@@ -455,7 +737,7 @@ export function createSummaryItem({ id, name, count, type, war_eligible }) {
     // Keep the old function for backward compatibility if needed elsewhere
     // This creates the original horizontal list-style items
     const sanitizedId = sanitizeId(id);
-    const sanitizedName = type === 'corporation' ? sanitizeCorporationName(name) : sanitizeAllianceName(name);
+    const sanitizedName = name; // Don't escape the name for display
     const sanitizedCount = Math.max(0, Math.floor(count || 0));
     const allowedTypes = ['corporation', 'alliance'];
     const sanitizedType = allowedTypes.includes(type) ? type : 'corporation';
@@ -486,8 +768,22 @@ export function createSummaryItem({ id, name, count, type, war_eligible }) {
 
     const nameDiv = document.createElement("div");
     nameDiv.className = "summary-name";
-    const warBadge = war_eligible ? '<span class="war-eligible-badge summary-war-badge">WAR</span>' : '';
-    nameDiv.innerHTML = `<a href="https://zkillboard.com/${sanitizedType}/${sanitizedId}/" target="_blank" class="character-link">${sanitizedName}</a> ${warBadge}`;
+    // Create link element
+    const link = document.createElement('a');
+    link.href = `https://zkillboard.com/${sanitizedType}/${sanitizedId}/`;
+    link.target = '_blank';
+    link.className = 'character-link';
+    link.textContent = name; // Use original name, not sanitized
+    nameDiv.appendChild(link);
+
+    // Add war badge if needed
+    if (war_eligible) {
+        const warBadge = document.createElement('span');
+        warBadge.className = 'war-eligible-badge summary-war-badge';
+        warBadge.textContent = 'WAR';
+        nameDiv.appendChild(document.createTextNode(' '));
+        nameDiv.appendChild(warBadge);
+    }
     content.appendChild(nameDiv);
 
     const countDiv = document.createElement("div");
@@ -498,84 +794,13 @@ export function createSummaryItem({ id, name, count, type, war_eligible }) {
     item.appendChild(content);
 
     // Create mouseover card but don't append it to the item
-    const mouseoverCard = createMouseoverCard({ id: sanitizedId, name: sanitizedName, count: sanitizedCount, war_eligible }, sanitizedType);
+    const mouseoverCard = createMouseoverCard({ id: sanitizedId, name: name, count: sanitizedCount, war_eligible }, sanitizedType);
 
     // Store reference to the card on the item for later use
     item._mouseoverCard = mouseoverCard;
 
-    // Add event listeners similar to createEntityCard but for list-style items
-    item.addEventListener('mouseenter', function() {
-        const card = this._mouseoverCard;
-        if (card) {
-            if (this._showTimeout) {
-                clearTimeout(this._showTimeout);
-            }
-
-            this._showTimeout = setTimeout(() => {
-                if (this.matches(':hover')) {
-                    const allCards = document.querySelectorAll('.mouseover-card.visible');
-                    allCards.forEach(otherCard => {
-                        if (otherCard !== card) {
-                            otherCard.classList.remove('visible');
-                        }
-                    });
-
-                    const itemRect = this.getBoundingClientRect();
-                    const parentContainer = this.closest('.summary-column') || this.closest('.tab-content') || this.closest('.result-grid');
-                    const containerRect = parentContainer.getBoundingClientRect();
-
-                    const relativeTop = itemRect.top - containerRect.top + (itemRect.height * 0.85);
-                    const relativeLeft = itemRect.left - containerRect.left + (itemRect.width / 2);
-
-                    card.style.position = 'absolute';
-                    card.style.top = relativeTop + 'px';
-                    card.style.left = relativeLeft + 'px';
-                    card.style.transform = 'translateX(-50%)';
-
-                    card.classList.add('visible');
-                }
-                this._showTimeout = null;
-            }, POPUP_SHOW_DELAY);
-        }
-    });
-
-    item.addEventListener('mouseleave', function(e) {
-        const card = this._mouseoverCard;
-
-        if (this._showTimeout) {
-            clearTimeout(this._showTimeout);
-            this._showTimeout = null;
-        }
-
-        if (card) {
-            setTimeout(() => {
-                if (!card.matches(':hover')) {
-                    card.classList.remove('visible');
-                }
-            }, 10);
-        }
-    });
-
-    // Add mouse event handling to the card itself
-    mouseoverCard.addEventListener('mouseenter', function() {
-        this.classList.add('visible');
-    });
-
-    mouseoverCard.addEventListener('mouseleave', function() {
-        this.classList.remove('visible');
-    });
-
-    mouseoverCard.addEventListener('mousemove', function(e) {
-        e.stopPropagation();
-    });
-
-    mouseoverCard.addEventListener('mouseenter', function(e) {
-        e.stopPropagation();
-    });
-
-    mouseoverCard.addEventListener('mouseleave', function(e) {
-        e.stopPropagation();
-    });
+    // Event handling is now managed by the centralized EventManager
+    // No individual event listeners needed - better performance!
 
     // FIXED: Observe the logo image after it's in the DOM structure
     requestAnimationFrame(() => {
@@ -586,13 +811,11 @@ export function createSummaryItem({ id, name, count, type, war_eligible }) {
 }
 
 // Optimized renderGrid function using document fragments
-export function renderGrid(containerId, items, type = 'character', limit = null) {
+export function renderGrid(containerId, items, type = 'character') {
     const container = document.getElementById(containerId);
 
     if (type === 'character') {
-        const itemsToShow = limit ? items.slice(0, limit) : items;
-
-        if (itemsToShow.length === 0) {
+        if (items.length === 0) {
             container.innerHTML = `
                 <div class="no-results">
                     <div class="no-results-icon">🔍</div>
@@ -603,12 +826,10 @@ export function renderGrid(containerId, items, type = 'character', limit = null)
         }
 
         // Use virtual scrolling for better performance
-        setupVirtualScrolling(containerId, itemsToShow);
+        setupVirtualScrolling(containerId, items);
 
     } else {
-        const itemsToShow = limit ? items.slice(0, limit) : items;
-
-        if (itemsToShow.length === 0) {
+        if (items.length === 0) {
             container.innerHTML = `
                 <div class="no-summary">
                     <div class="no-results-icon">📊</div>
@@ -619,21 +840,25 @@ export function renderGrid(containerId, items, type = 'character', limit = null)
         }
 
         // Use virtual scrolling for corporations and alliances too
-        setupEntityScrolling(containerId, itemsToShow, type);
+        setupEntityScrolling(containerId, items, type);
     }
 }
 
 // Virtual scrolling configuration constants
 const VIRTUAL_SCROLL_CONFIG = {
-    CONTAINER_HEIGHT: '60vh',
-    MIN_HEIGHT: '300px',
-    MAX_HEIGHT: '600px',
-    BUFFER_SIZE: 5,
+    CONTAINER_HEIGHT: '75vh',
+    MIN_HEIGHT: '720px',
+    MAX_HEIGHT: '900px',
+    BUFFER_SIZE: 5, // Increased to ensure smooth scrolling and full initial render
     GRID_GAP: '1.35rem',
     CONTENT_PADDING: '1.8rem',
     MIN_ITEM_WIDTH: 252,
     CONTAINER_MIN_WIDTH: 270,
-    CONTAINER_PADDING: 60
+    CONTAINER_PADDING: 60,
+    // Performance optimization constants
+    SCROLL_DEBOUNCE_MS: 8,
+    MAX_RENDERED_ELEMENTS: 200, // Limit total rendered elements
+    MIN_INITIAL_ROWS: 6 // Ensure at least 6 rows rendered initially (4 visible + 2 buffer)
 };
 
 const VIEW_DIMENSIONS = {
@@ -690,8 +915,6 @@ export function setupEntityScrolling(containerId, items, type) {
         gridTemplateColumns: `repeat(auto-fill, minmax(${minWidth}, 1fr))`
     });
 
-    // Create document fragment for batch DOM operations
-    const fragment = document.createDocumentFragment();
 
     // Create all items in memory first using the new card format
     const elements = items.map(item => createEntityCard(item));
@@ -745,8 +968,14 @@ export function setupVirtualScrolling(containerId, items) {
         return;
     }
 
-    const scrollInstance = new VirtualScrollManager(container, items);
-    scrollInstance.initialize();
+    // Use requestAnimationFrame to ensure DOM is ready and dimensions are calculated
+    requestAnimationFrame(() => {
+        // Double RAF to ensure layout is complete
+        requestAnimationFrame(() => {
+            const scrollInstance = new VirtualScrollManager(container, items);
+            scrollInstance.initialize();
+        });
+    });
 }
 
 /**
@@ -809,9 +1038,17 @@ class VirtualScrollManager {
         }
 
         // Calculate items per row for grid view
+        // Add fallback for when parentGrid.clientWidth is 0 (DOM not ready)
+        let parentWidth = this.parentGrid.clientWidth;
+        if (parentWidth === 0) {
+            // Fallback: try to get computed width or use a reasonable default
+            const computedStyle = window.getComputedStyle(this.parentGrid);
+            parentWidth = parseInt(computedStyle.width) || 800; // fallback to 800px
+        }
+
         const containerWidth = Math.max(
             VIRTUAL_SCROLL_CONFIG.CONTAINER_MIN_WIDTH,
-            this.parentGrid.clientWidth - VIRTUAL_SCROLL_CONFIG.CONTAINER_PADDING
+            parentWidth - VIRTUAL_SCROLL_CONFIG.CONTAINER_PADDING
         );
 
         return {
@@ -903,6 +1140,19 @@ class VirtualScrollManager {
         this.scrollListener = this.createScrollHandler();
         this.container.addEventListener('scroll', this.scrollListener, { passive: true });
         this.container._scrollListener = this.scrollListener;
+
+        // Add resize listener to recalculate dimensions when needed
+        this.resizeListener = () => {
+            // Recalculate configuration if container dimensions changed
+            const newViewConfig = this.calculateViewConfig();
+            if (newViewConfig.itemsPerRow !== this.viewConfig.itemsPerRow) {
+                this.viewConfig = newViewConfig;
+                this.dimensions = this.calculateDimensions();
+                this.updateVisibleItems();
+            }
+        };
+        window.addEventListener('resize', this.resizeListener, { passive: true });
+        this.container._resizeListener = this.resizeListener;
     }
 
     createScrollHandler() {
@@ -957,8 +1207,14 @@ class VirtualScrollManager {
 
         const startRow = Math.max(0,
             Math.floor(scrollTop / this.dimensions.itemHeight) - VIRTUAL_SCROLL_CONFIG.BUFFER_SIZE);
-        const endRow = Math.min(this.dimensions.totalRows,
+        let endRow = Math.min(this.dimensions.totalRows,
             Math.ceil((scrollTop + containerHeight) / this.dimensions.itemHeight) + VIRTUAL_SCROLL_CONFIG.BUFFER_SIZE);
+
+        // Ensure we render at least MIN_INITIAL_ROWS on initial load
+        if (scrollTop === 0) {
+            endRow = Math.max(endRow, VIRTUAL_SCROLL_CONFIG.MIN_INITIAL_ROWS);
+            endRow = Math.min(endRow, this.dimensions.totalRows);
+        }
 
         return {
             startIndex: startRow * this.dimensions.itemsPerRow,
@@ -1008,6 +1264,11 @@ class VirtualScrollManager {
         let element = this.renderedElements.get(index);
 
         if (!element) {
+            // Limit total rendered elements to prevent memory bloat
+            if (this.renderedElements.size >= VIRTUAL_SCROLL_CONFIG.MAX_RENDERED_ELEMENTS) {
+                this.cleanupOldElements();
+            }
+
             element = this.createElement(index);
             this.renderedElements.set(index, element);
             this.content.appendChild(element);
@@ -1015,6 +1276,46 @@ class VirtualScrollManager {
         } else {
             this.showExistingElement(element);
         }
+    }
+
+    cleanupOldElements() {
+        // Remove elements that are far from the current view
+        const scrollTop = this.container.scrollTop;
+        const containerHeight = this.container.clientHeight;
+        const currentCenterRow = Math.floor((scrollTop + containerHeight / 2) / this.dimensions.itemHeight);
+        const keepDistance = VIRTUAL_SCROLL_CONFIG.BUFFER_SIZE * 3; // Keep elements within 3x buffer distance
+
+        const elementsToRemove = [];
+        for (const [index] of this.renderedElements) {
+            const elementRow = Math.floor(index / this.dimensions.itemsPerRow);
+            if (Math.abs(elementRow - currentCenterRow) > keepDistance) {
+                elementsToRemove.push(index);
+            }
+        }
+
+        // Remove oldest elements first
+        elementsToRemove.slice(0, Math.max(20, elementsToRemove.length / 4)).forEach(index => {
+            const element = this.renderedElements.get(index);
+            if (element) {
+                // Clean up observers
+                const images = element.querySelectorAll('img[data-src]');
+                images.forEach(img => {
+                    if (observerManager.observedImages.has(img)) {
+                        observerManager.imageObserver?.unobserve(img);
+                        observerManager.observedImages.delete(img);
+                    }
+                });
+
+                if (observerManager.observedAnimations.has(element)) {
+                    observerManager.animationObserver?.unobserve(element);
+                    observerManager.observedAnimations.delete(element);
+                }
+
+                // Release to pool and remove from DOM
+                releaseElementToPool(element);
+                this.renderedElements.delete(index);
+            }
+        });
     }
 
     createElement(index) {
@@ -1083,6 +1384,10 @@ class VirtualScrollManager {
             this.container.removeEventListener('scroll', this.container._scrollListener);
             delete this.container._scrollListener;
         }
+        if (this.container._resizeListener) {
+            window.removeEventListener('resize', this.container._resizeListener);
+            delete this.container._resizeListener;
+        }
     }
 
     cleanupObservers() {
@@ -1099,6 +1404,9 @@ class VirtualScrollManager {
                 observerManager.animationObserver?.unobserve(element);
                 observerManager.observedAnimations.delete(element);
             }
+
+            // Release element back to pool
+            releaseElementToPool(element);
         });
     }
 
@@ -1166,4 +1474,9 @@ export function getEntityMaps() {
         corpToCharactersMap,
         allianceToCorpsMap
     };
+}
+
+// Export event manager cleanup function
+export function cleanupEventListeners() {
+    eventManager.cleanup();
 }

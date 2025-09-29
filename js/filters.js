@@ -27,6 +27,58 @@ let filteredResults = [];
 // Callback for when filters change
 let onFiltersChangeCallback = null;
 
+// Performance optimization caches
+let corpSizeCache = new Map();
+let allianceSizeCache = new Map();
+let characterSearchCache = new Map();
+let lastFilterHash = '';
+let filteredResultsCache = new Map();
+
+// Helper functions for performance optimization
+function createFilterHash(state) {
+    return JSON.stringify({
+        warEligibleOnly: state.warEligibleOnly,
+        nameSearch: state.nameSearch,
+        minCorpSize: state.minCorpSize,
+        maxCorpSize: state.maxCorpSize,
+        minAllianceSize: state.minAllianceSize,
+        maxAllianceSize: state.maxAllianceSize,
+        selectedCorporation: state.selectedCorporation,
+        selectedAlliance: state.selectedAlliance
+    });
+}
+
+function buildSizeCaches() {
+    corpSizeCache.clear();
+    allianceSizeCache.clear();
+
+    // Build corporation size cache
+    allResults.forEach(character => {
+        const corpId = character.corporation_id;
+        corpSizeCache.set(corpId, (corpSizeCache.get(corpId) || 0) + 1);
+    });
+
+    // Build alliance size cache
+    allResults.forEach(character => {
+        if (character.alliance_id) {
+            const allianceId = character.alliance_id;
+            allianceSizeCache.set(allianceId, (allianceSizeCache.get(allianceId) || 0) + 1);
+        }
+    });
+}
+
+function buildSearchCache() {
+    characterSearchCache.clear();
+    allResults.forEach(character => {
+        const searchableText = [
+            character.character_name?.toLowerCase() || '',
+            character.corporation_name?.toLowerCase() || '',
+            character.alliance_name?.toLowerCase() || ''
+        ].join(' ');
+        characterSearchCache.set(character.character_id, searchableText);
+    });
+}
+
 /**
  * Initialize filter system
  */
@@ -278,7 +330,7 @@ function updateFilterState() {
 }
 
 /**
- * Apply filters to results
+ * Apply filters to results with memoization
  */
 function applyFilters() {
     if (!allResults.length) {
@@ -286,63 +338,64 @@ function applyFilters() {
         return;
     }
 
+    // Check if we can use cached results
+    const currentFilterHash = createFilterHash(filterState);
+    if (currentFilterHash === lastFilterHash && filteredResultsCache.has(currentFilterHash)) {
+        filteredResults = filteredResultsCache.get(currentFilterHash);
+        return;
+    }
+
+    // Pre-compile filter conditions for better performance
+    const hasNameSearch = !!filterState.nameSearch;
+    const searchTerm = filterState.nameSearch;
+    const hasCorpFilter = !!filterState.selectedCorporation;
+    const corpFilterId = filterState.selectedCorporation;
+    const hasAllianceFilter = !!filterState.selectedAlliance;
+    const allianceFilterId = filterState.selectedAlliance;
+
     filteredResults = allResults.filter(character => {
-        // War eligibility filter
+        // War eligibility filter (fastest check first)
         if (filterState.warEligibleOnly && !character.war_eligible) return false;
 
-        // Name search filter
-        if (filterState.nameSearch) {
-            const searchLower = filterState.nameSearch;
-            const nameMatch = character.character_name?.toLowerCase().includes(searchLower) ||
-                            character.corporation_name?.toLowerCase().includes(searchLower) ||
-                            character.alliance_name?.toLowerCase().includes(searchLower);
-            if (!nameMatch) return false;
-        }
-
-        // Corporation filter
-        if (filterState.selectedCorporation && character.corporation_id.toString() !== filterState.selectedCorporation) {
+        // Corporation filter (exact match, fast)
+        if (hasCorpFilter && character.corporation_id.toString() !== corpFilterId) {
             return false;
         }
 
-        // Alliance filter
-        if (filterState.selectedAlliance && character.alliance_id?.toString() !== filterState.selectedAlliance) {
+        // Alliance filter (exact match, fast)
+        if (hasAllianceFilter && character.alliance_id?.toString() !== allianceFilterId) {
             return false;
         }
 
-        // Corporation size filter
-        const corpSize = getCorpSize(character.corporation_id);
+        // Corporation size filter (using cached values)
+        const corpSize = corpSizeCache.get(character.corporation_id) || 0;
         if (corpSize < filterState.minCorpSize || corpSize > filterState.maxCorpSize) return false;
 
-        // Alliance size filter (total members in alliance)
+        // Alliance size filter (using cached values)
         if (character.alliance_id) {
-            const allianceSize = getAllianceMemberCount(character.alliance_id);
+            const allianceSize = allianceSizeCache.get(character.alliance_id) || 0;
             if (allianceSize < filterState.minAllianceSize || allianceSize > filterState.maxAllianceSize) return false;
+        }
+
+        // Name search filter (most expensive, do last, use cached searchable text)
+        if (hasNameSearch) {
+            const searchableText = characterSearchCache.get(character.character_id) || '';
+            if (!searchableText.includes(searchTerm)) return false;
         }
 
         return true;
     });
+
+    // Cache the results
+    filteredResultsCache.set(currentFilterHash, filteredResults);
+    lastFilterHash = currentFilterHash;
+
+    // Limit cache size to prevent memory bloat
+    if (filteredResultsCache.size > 20) {
+        const firstKey = filteredResultsCache.keys().next().value;
+        filteredResultsCache.delete(firstKey);
+    }
 }
-
-/**
- * Get corporation size from our results data
- */
-function getCorpSize(corporationId) {
-    if (!allResults.length) return 1;
-
-    const corpMembers = allResults.filter(char => char.corporation_id === corporationId);
-    return corpMembers.length;
-}
-
-/**
- * Get alliance size (total member count) from our results data
- */
-function getAllianceMemberCount(allianceId) {
-    if (!allResults.length) return 1;
-
-    const allianceMembers = allResults.filter(char => char.alliance_id === allianceId);
-    return allianceMembers.length;
-}
-
 
 /**
  * Update range value displays
@@ -461,6 +514,15 @@ function clearAllFilters() {
  */
 export function setResultsData(results) {
     allResults = results || [];
+
+    // Clear caches when new data is loaded
+    filteredResultsCache.clear();
+    lastFilterHash = '';
+
+    // Build performance caches
+    buildSizeCaches();
+    buildSearchCache();
+
     updateSliderMaximums(results);
     populateDropdowns(results);
     applyFilters();

@@ -8,10 +8,10 @@
 /* Summary war eligibility badges */
 .summary-war-badge {
     display: inline-block;
-    background: linear-gradient(135deg, var(--war-color), var(--war-color-dark));
+    background: var(--gradient-war);
     color: white;
     padding: 1px 4px;
-    border-radius: 6px;
+    border-radius: var(--radius-small);
     font-size: 0.55rem;
     font-weight: 700;
     text-transform: uppercase;
@@ -26,7 +26,7 @@
 /* Highlight war-eligible summary items */
 .summary-item.war-eligible {
     border: 1px solid rgba(255, 71, 87, 0.3);
-    background: linear-gradient(135deg, rgba(255, 71, 87, 0.03), rgba(255, 71, 87, 0.08));
+    background: var(--gradient-war-subtle);
 }
 
 /* Summary Section */
@@ -164,7 +164,7 @@
     border-radius: 7.2px;
     object-fit: cover;
     border: 1.8px solid rgba(255, 255, 255, 0.1);
-    background: linear-gradient(45deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+    background: var(--gradient-highlight);
     transition: opacity 0.3s ease;
 }
 
@@ -203,10 +203,6 @@
     text-align: center
 }
 
-.summary-load-more-container {
-    padding: 0.9rem 0 0;
-    text-align: center
-}
 
 .no-summary {
     display: flex;
@@ -227,7 +223,7 @@
     background: var(--background-dark);
     backdrop-filter: blur(18px);
     border: 1px solid rgba(0, 212, 255, 0.5);
-    border-radius: 13.5px;
+    border-radius: var(--radius-xl);
     box-shadow: 0 9px 36px rgba(0, 0, 0, 0.4), inset 0 0.9px 0 rgba(255, 255, 255, 0.1);
     padding: 1.2rem;
     z-index: 9999;
@@ -267,7 +263,7 @@
     gap: 0.6rem;
     padding: 0.4rem 0.6rem;
     background: rgba(255, 255, 255, 0.02);
-    border-radius: 6px;
+    border-radius: var(--radius-small);
     border-left: 2px solid var(--secondary-color);
     transition: all 0.2s ease;
     cursor: pointer;
@@ -294,7 +290,7 @@
     border-radius: 4px;
     object-fit: cover;
     border: 1px solid rgba(255, 255, 255, 0.1);
-    background: linear-gradient(45deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+    background: var(--gradient-highlight);
     transition: opacity 0.3s ease;
 }
 

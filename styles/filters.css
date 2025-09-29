@@ -111,7 +111,7 @@
 .filter-input {
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 8px;
+    border-radius: var(--radius-medium);
     padding: 0.6rem 0.8rem;
     color: var(--text-primary);
     font-size: 0.85rem;
@@ -315,7 +315,7 @@
 .filter-select {
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 8px;
+    border-radius: var(--radius-medium);
     padding: 0.6rem 0.8rem;
     color: var(--text-primary);
     font-size: 0.85rem;

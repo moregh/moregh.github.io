@@ -182,42 +182,6 @@ export function sanitizeAllianceData(alliance) {
     };
 }
 
-/**
- * Sanitizes zKillboard statistics data
- * @param {Object} stats - Stats data from zKillboard API
- * @returns {Object} - Sanitized stats object
- */
-export function sanitizeZkillStats(stats) {
-    if (!stats || typeof stats !== 'object') {
-        return {};
-    }
-
-    const sanitized = {};
-
-    // Sanitize numeric stats
-    ['kills', 'losses', 'soloKills', 'iskDestroyed', 'iskLost', 'pointsDestroyed', 'pointsLost'].forEach(key => {
-        if (typeof stats[key] === 'number') {
-            sanitized[key] = Math.max(0, Math.floor(stats[key]));
-        } else {
-            sanitized[key] = 0;
-        }
-    });
-
-    // Sanitize arrays of objects (top killers, etc.)
-    ['topKillers', 'topVictims', 'topShips', 'topSystems'].forEach(key => {
-        if (Array.isArray(stats[key])) {
-            sanitized[key] = stats[key].slice(0, 10).map(item => ({
-                id: sanitizeId(item.id),
-                name: sanitizeText(item.name, 50),
-                count: Math.max(0, Math.floor(item.count || 0))
-            }));
-        } else {
-            sanitized[key] = [];
-        }
-    });
-
-    return sanitized;
-}
 
 /**
  * Sanitizes URL parameters for zkillboard links
