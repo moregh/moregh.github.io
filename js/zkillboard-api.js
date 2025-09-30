@@ -304,7 +304,8 @@ class ZKillboardClient {
     async getEntityStatsWithKillmails(entityType, entityId, options = {}) {
         const {
             maxKillmails = MAX_KILLMAILS_TO_FETCH,
-            fetchKillmails = true
+            fetchKillmails = true,
+            onProgress = null
         } = options;
 
         const stats = await this.getEntityStats(entityType, entityId);
@@ -316,6 +317,10 @@ class ZKillboardClient {
         const zkillRoleAnalysis = this.analyzeZkillStatsForSpecialRoles(stats);
 
         try {
+            if (onProgress) {
+                onProgress('zkill', 'Fetching kill IDs from zKillboard...', 0, 0);
+            }
+
             let kills = [];
             if (entityType === 'characterID') {
                 kills = await get_zkill_character_kills(entityId);
@@ -329,10 +334,19 @@ class ZKillboardClient {
                 return stats;
             }
 
+            if (onProgress) {
+                onProgress('zkill', `Received ${kills.length} kill IDs`, 100, 0);
+            }
+
             const killmails = await fetchKillmailsBatch(kills, {
                 maxConcurrency: KILLMAIL_BATCH_SIZE,
                 batchDelay: KILLMAIL_FETCH_DELAY_MS,
-                maxKillmails: maxKillmails
+                maxKillmails: maxKillmails,
+                onProgress: (processed, total, successCount, failedCount) => {
+                    if (onProgress) {
+                        onProgress('esi', `Fetching killmails from ESI (${processed}/${total})...`, processed, total);
+                    }
+                }
             });
 
             if (killmails && killmails.length > 0) {

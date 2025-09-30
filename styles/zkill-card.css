@@ -595,10 +595,30 @@ font-size: 0.7rem;
 font-weight: 600;
 flex-shrink: 0;
 }
-.zkill-location-security.highsec { background: rgba(74, 222, 128, 0.2); color: var(--secondary-color); }
-.zkill-location-security.lowsec { background: rgba(251, 191, 36, 0.2); color: var(--warning-color); }
-.zkill-location-security.nullsec { background: rgba(248, 113, 113, 0.2); color: var(--danger-color); }
-.zkill-location-security.unknown { background: rgba(128, 128, 128, 0.2); color: var(--text-muted); }
+.zkill-location-security.highsec,
+.zkill-location-security.sec-high {
+background: rgba(74, 222, 128, 0.2);
+color: var(--secondary-color);
+}
+.zkill-location-security.lowsec,
+.zkill-location-security.sec-low {
+background: rgba(251, 191, 36, 0.2);
+color: var(--warning-color);
+}
+.zkill-location-security.nullsec,
+.zkill-location-security.sec-null {
+background: rgba(248, 113, 113, 0.2);
+color: var(--danger-color);
+}
+.zkill-location-security.sec-wspace {
+background: rgba(155, 89, 182, 0.2);
+color: #9b59b6;
+}
+.zkill-location-security.unknown,
+.zkill-location-security.sec-unknown {
+background: rgba(128, 128, 128, 0.2);
+color: var(--text-muted);
+}
 .zkill-location-kills {
 color: var(--secondary-color);
 font-size: 0.8rem;
@@ -780,17 +800,108 @@ flex-direction: column;
 align-items: center;
 justify-content: center;
 padding: 3rem;
-gap: 1rem;
+gap: 1.5rem;
+}
+.zkill-loading-spinner-container {
+position: relative;
+width: 60px;
+height: 60px;
+display: flex;
+align-items: center;
+justify-content: center;
 }
 .zkill-loading-spinner {
-width: 40px;
-height: 40px;
+width: 60px;
+height: 60px;
 border: 3px solid rgba(0, 212, 255, 0.2);
 border-radius: 50%;
 border-top-color: var(--primary-color);
 animation: spin 1s linear infinite;
+position: relative;
+z-index: 2;
 }
-.zkill-loading-text { color: var(--text-secondary); font-size: 1rem; }
+.zkill-pulse-ring {
+position: absolute;
+width: 60px;
+height: 60px;
+border: 3px solid var(--primary-color);
+border-radius: 50%;
+animation: pulse 2s ease-out infinite;
+z-index: 1;
+}
+.zkill-loading-title {
+color: var(--text-primary);
+font-size: 1.3rem;
+font-weight: 600;
+margin: 0;
+}
+.zkill-loading-subtitle {
+color: var(--text-secondary);
+font-size: 0.9rem;
+margin: 0;
+}
+.zkill-progress-container {
+width: 100%;
+max-width: 400px;
+height: 6px;
+background: rgba(255, 255, 255, 0.05);
+border-radius: 10px;
+overflow: hidden;
+position: relative;
+}
+.zkill-progress-bar {
+height: 100%;
+background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+border-radius: 10px;
+width: 0%;
+transition: width 0.3s ease;
+position: relative;
+z-index: 2;
+}
+.zkill-progress-glow {
+position: absolute;
+top: 0;
+left: 0;
+right: 0;
+bottom: 0;
+background: linear-gradient(90deg, transparent, rgba(0, 212, 255, 0.3), transparent);
+animation: shimmer 2s infinite;
+z-index: 1;
+}
+.zkill-loading-stats {
+display: flex;
+justify-content: space-between;
+width: 100%;
+max-width: 400px;
+font-size: 0.85rem;
+}
+.zkill-progress-text {
+color: var(--text-secondary);
+}
+.zkill-timer {
+color: var(--primary-color);
+font-weight: 600;
+}
+
+@keyframes pulse {
+0% {
+transform: scale(1);
+opacity: 1;
+}
+100% {
+transform: scale(1.5);
+opacity: 0;
+}
+}
+
+@keyframes shimmer {
+0% {
+transform: translateX(-100%);
+}
+100% {
+transform: translateX(100%);
+}
+}
 
 .zkill-error {
 text-align: center;

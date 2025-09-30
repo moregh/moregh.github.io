@@ -86,11 +86,43 @@ class ZKillStatsCard {
             this.isVisible = true;
         });
 
+        const startTime = Date.now();
+        const timerInterval = setInterval(() => {
+            const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+            const timerEl = this.currentModal.querySelector('.zkill-timer');
+            if (timerEl) {
+                timerEl.textContent = `Elapsed: ${elapsed}s`;
+            }
+        }, 100);
+
         try {
-            const [stats, affiliationData] = await Promise.all([
-                this.loadStats(apiType, entityId),
-                this.fetchEntityAffiliations(entityType, entityId)
-            ]);
+            this.updateLoadingProgress('Connecting to zKillboard...', 0, '');
+
+            const statsPromise = this.loadStats(apiType, entityId, (source, message, current, total) => {
+                let percentage = 0;
+                let detail = '';
+
+                if (source === 'zkill') {
+                    percentage = 10;
+                    detail = message;
+                } else if (source === 'esi') {
+                    if (total > 0) {
+                        percentage = 10 + (current / total) * 60;
+                        detail = `${current}/${total} killmails`;
+                    } else {
+                        percentage = 10;
+                        detail = message;
+                    }
+                }
+
+                this.updateLoadingProgress(message, percentage, detail);
+            });
+
+            const affiliationPromise = this.fetchEntityAffiliations(entityType, entityId);
+
+            const [stats, affiliationData] = await Promise.all([statsPromise, affiliationPromise]);
+
+            this.updateLoadingProgress('Loading affiliations...', 75, '');
 
             let corporationName = null;
             let allianceName = null;
@@ -104,6 +136,10 @@ class ZKillStatsCard {
                 allianceName = names.allianceName;
             }
 
+            this.updateLoadingProgress('Processing data...', 90, '');
+
+            clearInterval(timerInterval);
+
             this.renderAffiliations(
                 affiliationData?.corporation_id,
                 corporationName,
@@ -113,13 +149,17 @@ class ZKillStatsCard {
 
             this.populateStatsData(stats, entityType, entityId, entityName);
         } catch (error) {
+            clearInterval(timerInterval);
             console.error('Failed to load zKillboard stats:', error);
             this.showError('Failed to load killboard statistics. Please try again later.');
         }
     }
 
-    async loadStats(apiType, entityId) {
-        const options = { includeKillmails: true };
+    async loadStats(apiType, entityId, onProgress = null) {
+        const options = {
+            includeKillmails: true,
+            onProgress: onProgress
+        };
         switch (apiType) {
             case 'characterID':
                 return await get_zkill_character_stats(entityId, options);
@@ -465,8 +505,20 @@ class ZKillStatsCard {
             </div>
             <div class="zkill-card-content">
                 <div class="zkill-loading">
-                    <div class="zkill-loading-spinner"></div>
-                    <div class="zkill-loading-text">Loading killboard statistics...</div>
+                    <div class="zkill-loading-spinner-container">
+                        <div class="zkill-loading-spinner"></div>
+                        <div class="zkill-pulse-ring"></div>
+                    </div>
+                    <h3 class="zkill-loading-title">Loading killboard statistics</h3>
+                    <p class="zkill-loading-subtitle">Fetching data from zKillboard...</p>
+                    <div class="zkill-progress-container">
+                        <div class="zkill-progress-bar"></div>
+                        <div class="zkill-progress-glow"></div>
+                    </div>
+                    <div class="zkill-loading-stats">
+                        <span class="zkill-progress-text">Connecting to zKillboard API...</span>
+                        <span class="zkill-timer">Elapsed: 0.0s</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -604,6 +656,26 @@ class ZKillStatsCard {
         const backBtn = document.getElementById('zkill-back-btn');
         if (backBtn) {
             backBtn.style.display = this.navigationHistory.length > 0 ? 'block' : 'none';
+        }
+    }
+
+    updateLoadingProgress(text, percentage, detail = '') {
+        if (!this.currentModal) return;
+
+        const progressText = this.currentModal.querySelector('.zkill-progress-text');
+        const progressBar = this.currentModal.querySelector('.zkill-progress-bar');
+        const subtitle = this.currentModal.querySelector('.zkill-loading-subtitle');
+
+        if (progressText) {
+            progressText.textContent = text;
+        }
+
+        if (progressBar) {
+            progressBar.style.width = `${percentage}%`;
+        }
+
+        if (subtitle && detail) {
+            subtitle.textContent = detail;
         }
     }
 
