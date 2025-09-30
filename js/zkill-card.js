@@ -748,27 +748,27 @@ class ZKillStatsCard {
             <div class="zkill-stats-grid zkill-stats-grid-single-row">
                 <div class="zkill-stat-item zkill-stat-item-compact">
                     <div class="zkill-stat-label">Avg Fleet Size</div>
-                    <div class="zkill-stat-value">${fleetSize.average}</div>
+                    <div class="zkill-stat-value zkill-stat-value-fleet">${fleetSize.average}</div>
                 </div>
                 <div class="zkill-stat-item zkill-stat-item-compact">
                     <div class="zkill-stat-label">Solo Kills</div>
-                    <div class="zkill-stat-value">${soloVsFleet.solo.percentage}%</div>
+                    <div class="zkill-stat-value zkill-stat-value-solo">${soloVsFleet.solo.percentage}%</div>
                 </div>
                 <div class="zkill-stat-item zkill-stat-item-compact">
                     <div class="zkill-stat-label">Small Gang</div>
-                    <div class="zkill-stat-value">${soloVsFleet.smallGang.percentage}%</div>
+                    <div class="zkill-stat-value zkill-stat-value-gang">${soloVsFleet.smallGang.percentage}%</div>
                 </div>
                 <div class="zkill-stat-item zkill-stat-item-compact">
                     <div class="zkill-stat-label">Fleet Ops</div>
-                    <div class="zkill-stat-value">${soloVsFleet.fleet.percentage}%</div>
+                    <div class="zkill-stat-value zkill-stat-value-ops">${soloVsFleet.fleet.percentage}%</div>
                 </div>
                 <div class="zkill-stat-item zkill-stat-item-compact">
-                    <div class="zkill-stat-label">Most Expensive Kill</div>
-                    <div class="zkill-stat-value">${this.formatISK(analysis.mostExpensiveKill.value)}</div>
+                    <div class="zkill-stat-label">Biggest</div>
+                    <div class="zkill-stat-value zkill-stat-value-isk">${this.formatISK(analysis.mostExpensiveKill.value)}</div>
                 </div>
                 <div class="zkill-stat-item zkill-stat-item-compact">
-                    <div class="zkill-stat-label">Avg Kill Value</div>
-                    <div class="zkill-stat-value">${this.formatISK(analysis.avgValue)}</div>
+                    <div class="zkill-stat-label">Average</div>
+                    <div class="zkill-stat-value zkill-stat-value-isk">${this.formatISK(analysis.avgValue)}</div>
                 </div>
             </div>
         </div>
@@ -797,7 +797,7 @@ class ZKillStatsCard {
         const killsHTML = killsWithNames.map(kill => {
             const date = new Date(kill.time);
             const relativeTime = this.getRelativeTime(date);
-            const iskValue = (kill.value / 1000000).toFixed(1);
+            const iskValue = this.formatISK(kill.value);
 
             const secStatus = kill.systemSecurity !== undefined && kill.systemSecurity !== null
                 ? kill.systemSecurity.toFixed(1)
@@ -813,7 +813,7 @@ class ZKillStatsCard {
                              loading="lazy">
                         <div class="zkill-kill-ship-info">
                             <div class="zkill-kill-ship-name">${kill.shipName}</div>
-                            <div class="zkill-kill-value">${iskValue}M ISK</div>
+                            <div class="zkill-kill-value">${iskValue}</div>
                         </div>
                     </div>
                     <div class="zkill-kill-details">
@@ -1504,15 +1504,15 @@ class ZKillStatsCard {
 
     formatISK(isk) {
         if (isk >= 1000000000000) {
-            return (isk / 1000000000000).toFixed(1) + 'T ISK';
+            return (isk / 1000000000000).toFixed(1) + 'T';
         } else if (isk >= 1000000000) {
-            return (isk / 1000000000).toFixed(1) + 'B ISK';
+            return (isk / 1000000000).toFixed(1) + 'B';
         } else if (isk >= 1000000) {
-            return (isk / 1000000).toFixed(1) + 'M ISK';
+            return (isk / 1000000).toFixed(1) + 'M';
         } else if (isk >= 1000) {
-            return (isk / 1000).toFixed(1) + 'k ISK';
+            return (isk / 1000).toFixed(1) + 'k';
         }
-        return isk.toFixed(0) + ' ISK';
+        return isk.toFixed(0);
     }
 
     formatSecurity(security, systemName) {

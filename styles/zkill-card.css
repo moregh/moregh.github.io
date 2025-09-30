@@ -345,7 +345,11 @@ background: rgba(255, 255, 255, 0.06);
 border-color: rgba(0, 212, 255, 0.3);
 }
 .zkill-stat-item-compact {
-padding: 0.8rem 0.6rem;
+padding: 1rem 0.8rem;
+display: flex;
+flex-direction: column;
+justify-content: center;
+height: 100%;
 }
 .zkill-stat-value {
 font-size: 1.8rem;
@@ -356,7 +360,8 @@ display: block;
 }
 .zkill-stat-item-compact .zkill-stat-value {
 font-size: 1.3rem;
-margin-bottom: 0.3rem;
+margin-bottom: 0.4rem;
+margin-top: auto;
 }
 .zkill-stat-label {
 font-size: 0.9rem;
@@ -367,6 +372,22 @@ font-weight: 500;
 }
 .zkill-stat-item-compact .zkill-stat-label {
 font-size: 0.75rem;
+margin-bottom: auto;
+}
+.zkill-stat-value-fleet {
+color: #3498db;
+}
+.zkill-stat-value-solo {
+color: #e74c3c;
+}
+.zkill-stat-value-gang {
+color: #f39c12;
+}
+.zkill-stat-value-ops {
+color: #9b59b6;
+}
+.zkill-stat-value-isk {
+color: #f1c40f;
 }
 .zkill-stat-item.kills .zkill-stat-value { color: var(--secondary-color); }
 .zkill-stat-item.losses .zkill-stat-value { color: var(--danger-color); }
@@ -1274,10 +1295,19 @@ REORGANIZED LAYOUT - Tactical Intelligence First
     border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
+.zkill-tag-capital {
+    background: #f1c40f;
+    background: linear-gradient(135deg, #f1c40f, #f39c12);
+    color: #1a1a1a;
+    border: 1px solid rgba(255, 215, 0, 0.4);
+    font-weight: 600;
+}
+
 .zkill-tag-capital-hunter {
-    background: linear-gradient(135deg, #c0392b, #8e2de2);
+    background: #e74c3c;
+    background: linear-gradient(135deg, #e74c3c, #9b59b6);
     color: white;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
 }
 
 .zkill-tag-industrial-hunter {
@@ -1305,9 +1335,10 @@ REORGANIZED LAYOUT - Tactical Intelligence First
 }
 
 .zkill-tag-capital-pilot {
-    background: linear-gradient(135deg, #d4af37, #aa8a2e);
+    background: #f1c40f;
+    background: linear-gradient(135deg, #f1c40f, #f39c12);
     color: #1a1a1a;
-    border: 1px solid rgba(255, 215, 0, 0.3);
+    border: 1px solid rgba(255, 215, 0, 0.4);
     font-weight: 600;
 }
 

@@ -351,6 +351,7 @@ class ZKillboardClient {
                 };
 
                 stats.combatStyle = this.enrichCombatStyleWithKillmails(stats.combatStyle, mergedAnalysis, stats);
+                stats.securityPreference = this.analyzeSecurityPreference(stats._rawData, stats.killmailData);
             } else {
                 const mergedAnalysis = {
                     blopsAnalysis: zkillRoleAnalysis.blopsAnalysis,
@@ -547,12 +548,7 @@ class ZKillboardClient {
             groupID = SHIP_TYPE_TO_GROUP[ship.shipTypeID];
         }
 
-        const classification = getShipClassification(
-            ship.shipTypeID,
-            groupID,
-            ship.shipName,
-            ship.groupName
-        );
+        const classification = getShipClassification(groupID);
 
         return {
             techLevel,
@@ -638,7 +634,7 @@ class ZKillboardClient {
                 type: 'Ship Specialist',
                 focus: topShip.shipName,
                 percentage: topShipPercentage,
-                description: `Heavily specializes in ${topShip.shipName}`
+                description: `Prefers the ${topShip.shipName}`
             };
         }
 
@@ -748,7 +744,7 @@ class ZKillboardClient {
             'tackle': 'Tackle',
             'support': 'Fleet Support',
             'logistics': 'Logistics',
-            'ewar': 'EWAR',
+            'ewar': 'Cyno/e-war',
             'scout': 'Scout/Bomber'
         };
         return labels[role] || role;
@@ -782,14 +778,6 @@ class ZKillboardClient {
     }
 
     mergeSingleAnalysis(detailedAnalysis, zkillAnalysis, flagField) {
-        console.log('[Merge Analysis]', {
-            flagField,
-            hasZkillAnalysis: !!zkillAnalysis,
-            hasDetailedAnalysis: !!detailedAnalysis,
-            zkillFlag: zkillAnalysis?.[flagField],
-            detailedFlag: detailedAnalysis?.[flagField]
-        });
-
         if (!zkillAnalysis) return detailedAnalysis;
         if (!detailedAnalysis) return zkillAnalysis;
 
@@ -797,7 +785,6 @@ class ZKillboardClient {
         const detailedFlag = detailedAnalysis[flagField];
 
         if (zkillFlag && !detailedFlag) {
-            console.log(`[Merge Analysis] Using zkill stats for ${flagField} - zkill says true, detailed says false`);
             return {
                 ...detailedAnalysis,
                 [flagField]: true,
@@ -814,7 +801,6 @@ class ZKillboardClient {
         const totalKills = stats.totalKills || 0;
 
         if (!rawData || !rawData.topAllTime || totalKills === 0) {
-            console.log('[Cyno/Blops Detection] No raw data or topAllTime available');
             return { cynoAnalysis: null, blopsAnalysis: null };
         }
 
@@ -822,15 +808,8 @@ class ZKillboardClient {
         const shipData = topAllTime.find(entry => entry.type === 'ship');
 
         if (!shipData || !shipData.data || !shipData.data.length) {
-            console.log('[Cyno/Blops Detection] No ship data in topAllTime');
             return { cynoAnalysis: null, blopsAnalysis: null };
         }
-
-        console.log('[Cyno/Blops Detection] Analyzing zkill stats:', {
-            totalKills,
-            allTimeShipsCount: shipData.data.length,
-            allTimeShips: shipData.data.map(s => ({ id: s.shipTypeID, kills: s.kills }))
-        });
 
         const CYNO_SHIP_IDS = [670, 33328, 33816, 11129, 11176, 28710, 33470, 11172];
         const FORCE_RECON_GROUP_ID = 833;
@@ -890,11 +869,6 @@ class ZKillboardClient {
             source: 'zkill_stats'
         };
 
-        console.log('[Cyno/Blops Detection] Analysis results:', {
-            cynoAnalysis,
-            blopsAnalysis
-        });
-
         return { cynoAnalysis, blopsAnalysis };
     }
 
@@ -918,11 +892,6 @@ class ZKillboardClient {
             const groupID = SHIP_TYPE_TO_GROUP[shipTypeID];
 
             if (groupID && CAPITAL_GROUP_IDS.includes(groupID)) {
-                console.log('[Capital Pilot Detection] Found capital ship:', {
-                    shipTypeID,
-                    groupID,
-                    kills: ship.kills
-                });
                 return true;
             }
         }
@@ -947,14 +916,6 @@ class ZKillboardClient {
         let enhancedFleetRole = existingStyle.fleetRole;
         let playstyleDetails = [];
         let tagScores = {};
-
-        console.log('[Enrich Combat Style] Checking special roles:', {
-            hasBlopsAnalysis: !!blopsAnalysis,
-            isBlopsUser: blopsAnalysis?.isBlopsUser,
-            hasCynoAnalysis: !!cynoAnalysis,
-            isCynoPilot: cynoAnalysis?.isCynoPilot,
-            cynoAnalysis
-        });
 
         if (blopsAnalysis && blopsAnalysis.isBlopsUser) {
             playstyleDetails.push('Blops');
@@ -1081,7 +1042,7 @@ class ZKillboardClient {
         };
     }
 
-    analyzeSecurityPreference(data) {
+    analyzeSecurityPreference(data, killmailData = null) {
         const topLists = data.topLists || [];
         const systemList = topLists.find(list => list.type === 'solarSystem' || list.type === 'system');
 
@@ -1145,15 +1106,287 @@ class ZKillboardClient {
 
         const primary = breakdown[0]?.space || 'Unknown';
 
-        let riskProfile = 'Moderate Risk';
-        if (total > 50) riskProfile = 'High Risk';
-        else if (total < 5) riskProfile = 'Risk Averse';
+        const riskProfile = this.calculateRiskProfile(data, breakdown, killmailData);
 
         return {
             primary,
             breakdown,
             riskProfile
         };
+    }
+
+    calculateRiskProfile(data, secBreakdown, killmailData = null) {
+        let riskScore = 0;
+
+        const totalKills = this.safeGet(data, 'shipsDestroyed', 0);
+        const soloKills = this.safeGet(data, 'soloKills', 0);
+
+        const lowsecPct = secBreakdown.find(b => b.space === 'Lowsec')?.percentage || 0;
+        const nullsecPct = secBreakdown.find(b => b.space === 'Nullsec')?.percentage || 0;
+        const wspacePct = secBreakdown.find(b => b.space === 'W-Space')?.percentage || 0;
+        const highsecPct = secBreakdown.find(b => b.space === 'Highsec')?.percentage || 0;
+
+        riskScore += highsecPct * 0.4;
+        riskScore += lowsecPct * 0.45;
+        riskScore += nullsecPct * 0.45;
+        riskScore += wspacePct * 0.5;
+
+        if (killmailData?.recentKills && killmailData.recentKills.length > 0) {
+            const activityScore = this.analyzeActivityPattern(killmailData.recentKills, totalKills);
+            riskScore += activityScore;
+        } else {
+            const fallbackActivityScore = this.estimateActivityFromStats(data, totalKills);
+            riskScore += fallbackActivityScore;
+        }
+
+        if (killmailData?.analysis) {
+            const analysis = killmailData.analysis;
+            const avgValue = analysis.avgValue || 0;
+
+            if (analysis.hvtAnalysis?.isHVTHunter) {
+                riskScore += 10;
+            }
+
+            if (analysis.targetPreferences?.capitalHunter) {
+                riskScore += 10;
+            }
+
+            if (avgValue > 500000000) {
+                riskScore += 8;
+            } else if (avgValue > 100000000) {
+                riskScore += 4;
+            }
+
+            const soloVsFleet = analysis.soloVsFleet;
+            if (soloVsFleet?.solo?.percentage > 50) {
+                riskScore += 12;
+            }
+
+            if (analysis.engagementPatterns?.huntingStyle === 'Roaming Hunter') {
+                riskScore += 6;
+            }
+
+            if (analysis.shipComposition?.uniqueShips > 15) {
+                riskScore += 2;
+            }
+
+            if (analysis.cynoAnalysis?.isCynoPilot) {
+                riskScore += 15;
+            }
+        }
+
+        const soloRatio = totalKills > 0 ? soloKills / totalKills : 0;
+        if (soloRatio > 0.5) {
+            riskScore += 15;
+        } else if (soloRatio > 0.3) {
+            riskScore += 8;
+        }
+
+        if (riskScore >= 100) return 'Extreme Risk';
+        if (riskScore >= 80) return 'Very High Risk';
+        if (riskScore >= 60) return 'High Risk';
+        if (riskScore >= 40) return 'Moderate Risk';
+        if (riskScore >= 20) return 'Low Risk';
+        return 'Minimal Risk';
+    }
+
+    analyzeActivityPattern(recentKills, totalKills) {
+        if (!recentKills || recentKills.length === 0) return 0;
+
+        const now = Date.now();
+        const oneDayMs = 24 * 60 * 60 * 1000;
+
+        const killsLast7d = recentKills.filter(k => {
+            const killTime = new Date(k.time).getTime();
+            return (now - killTime) < (7 * oneDayMs);
+        }).length;
+
+        const killsLast14d = recentKills.filter(k => {
+            const killTime = new Date(k.time).getTime();
+            return (now - killTime) < (14 * oneDayMs);
+        }).length;
+
+        const killsLast30d = recentKills.filter(k => {
+            const killTime = new Date(k.time).getTime();
+            return (now - killTime) < (30 * oneDayMs);
+        }).length;
+
+        const killsByDay = new Map();
+        const uniqueSystems = new Set();
+        const fleetSizes = [];
+
+        recentKills.forEach(kill => {
+            const killTime = new Date(kill.time).getTime();
+            if ((now - killTime) < (30 * oneDayMs)) {
+                const day = new Date(kill.time).toISOString().split('T')[0];
+                if (!killsByDay.has(day)) {
+                    killsByDay.set(day, []);
+                }
+                killsByDay.get(day).push(kill);
+                if (kill.systemId) uniqueSystems.add(kill.systemId);
+                if (kill.attackers) fleetSizes.push(kill.attackers);
+            }
+        });
+
+        const activityDays = killsByDay.size;
+        const systemDiversity = uniqueSystems.size;
+        const fleetVariance = this.calculateVariance(fleetSizes);
+
+        const isFleetFightSpike = this.detectFleetFightSpike(killsByDay, totalKills);
+
+        let activityScore = 0;
+
+        if (isFleetFightSpike) {
+            activityScore += 8;
+        } else {
+            if (killsLast7d >= 15) {
+                activityScore += 28;
+            } else if (killsLast7d >= 10) {
+                activityScore += 25;
+            } else if (killsLast7d >= 5) {
+                activityScore += 20;
+            } else if (killsLast7d >= 3) {
+                activityScore += 15;
+            } else if (killsLast7d >= 1) {
+                activityScore += 10;
+            }
+        }
+
+        if (activityDays >= 20) {
+            activityScore += 30;
+        } else if (activityDays >= 15) {
+            activityScore += 25;
+        } else if (activityDays >= 10) {
+            activityScore += 20;
+        } else if (activityDays >= 7) {
+            activityScore += 15;
+        } else if (activityDays >= 5) {
+            activityScore += 10;
+        } else if (activityDays >= 3) {
+            activityScore += 6;
+        }
+
+        if (systemDiversity >= 15) {
+            activityScore += 12;
+        } else if (systemDiversity >= 10) {
+            activityScore += 8;
+        } else if (systemDiversity >= 5) {
+            activityScore += 4;
+        }
+
+        if (fleetVariance > 50) {
+            activityScore += 8;
+        } else if (fleetVariance > 20) {
+            activityScore += 4;
+        }
+
+        const recencyRatio = killsLast14d / Math.max(totalKills, 1);
+        if (recencyRatio < 0.08 && totalKills > 30) {
+            activityScore *= 0.35;
+        } else if (recencyRatio < 0.15 && totalKills > 50) {
+            activityScore *= 0.55;
+        } else if (recencyRatio < 0.25 && totalKills > 100) {
+            activityScore *= 0.7;
+        }
+
+        if (totalKills > 150 && killsLast30d < 8) {
+            activityScore *= 0.4;
+        } else if (totalKills > 80 && killsLast30d < 5) {
+            activityScore *= 0.5;
+        }
+
+        return Math.min(activityScore, 60);
+    }
+
+    detectFleetFightSpike(killsByDay, totalKills) {
+        if (killsByDay.size === 0) return false;
+
+        const killsPerDay = Array.from(killsByDay.values()).map(kills => kills.length);
+        const maxKillsInDay = Math.max(...killsPerDay);
+        const avgKillsPerDay = killsPerDay.reduce((a, b) => a + b, 0) / killsPerDay.length;
+
+        if (maxKillsInDay < 15) return false;
+
+        const daysWithSignificantActivity = killsPerDay.filter(count => count >= 8).length;
+
+        if (maxKillsInDay >= 40 && maxKillsInDay > (avgKillsPerDay * 4) && daysWithSignificantActivity <= 2) {
+            return true;
+        }
+
+        if (maxKillsInDay >= 25 && maxKillsInDay > (avgKillsPerDay * 5) && daysWithSignificantActivity <= 1) {
+            return true;
+        }
+
+        const topDay = Array.from(killsByDay.entries())
+            .sort((a, b) => b[1].length - a[1].length)[0];
+
+        if (!topDay) return false;
+
+        const topDayKills = topDay[1];
+        const topDayRatio = topDayKills.length / totalKills;
+
+        if (topDayRatio > 0.6 && totalKills > 20) {
+            const uniqueSystems = new Set(topDayKills.map(k => k.systemId).filter(Boolean));
+            const avgFleetSize = topDayKills
+                .map(k => k.attackers || 0)
+                .reduce((a, b) => a + b, 0) / topDayKills.length;
+
+            if (uniqueSystems.size <= 2 && avgFleetSize > 15) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    estimateActivityFromStats(data, totalKills) {
+        const months = data.months || {};
+        const monthEntries = Object.entries(months)
+            .filter(([, monthData]) => (monthData.shipsDestroyed || 0) > 0)
+            .sort(([a], [b]) => b.localeCompare(a));
+
+        if (monthEntries.length === 0) return 0;
+
+        const currentMonth = monthEntries[0]?.[1]?.shipsDestroyed || 0;
+        const lastMonth = monthEntries[1]?.[1]?.shipsDestroyed || 0;
+
+        const activeMonths = monthEntries.slice(0, 6).filter(([, data]) =>
+            (data.shipsDestroyed || 0) > 5
+        ).length;
+
+        let activityScore = 0;
+
+        if (currentMonth >= 20) {
+            activityScore += 20;
+        } else if (currentMonth >= 10) {
+            activityScore += 15;
+        } else if (currentMonth >= 5) {
+            activityScore += 10;
+        } else if (currentMonth >= 2) {
+            activityScore += 5;
+        }
+
+        if (activeMonths >= 5) {
+            activityScore += 15;
+        } else if (activeMonths >= 3) {
+            activityScore += 10;
+        } else if (activeMonths === 1) {
+            activityScore *= 0.7;
+        }
+
+        const monthlyConsistency = lastMonth > 0 ? Math.min(currentMonth / lastMonth, 2) : 1;
+        if (monthlyConsistency > 0.8 && monthlyConsistency < 1.3) {
+            activityScore += 10;
+        }
+
+        return Math.min(activityScore, 40);
+    }
+
+    calculateVariance(numbers) {
+        if (numbers.length < 2) return 0;
+        const mean = numbers.reduce((a, b) => a + b, 0) / numbers.length;
+        const squareDiffs = numbers.map(value => Math.pow(value - mean, 2));
+        return Math.sqrt(squareDiffs.reduce((a, b) => a + b, 0) / numbers.length);
     }
 
     extractActivePeriods(data) {
