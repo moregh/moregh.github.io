@@ -745,30 +745,30 @@ class ZKillStatsCard {
         return `
         <div class="zkill-section">
             <h3 class="zkill-section-title">Last ${totalKillmails} Kills</h3>
-            <div class="zkill-stats-grid">
-                <div class="zkill-stat-item">
+            <div class="zkill-stats-grid zkill-stats-grid-single-row">
+                <div class="zkill-stat-item zkill-stat-item-compact">
                     <div class="zkill-stat-label">Avg Fleet Size</div>
                     <div class="zkill-stat-value">${fleetSize.average}</div>
                 </div>
-                <div class="zkill-stat-item">
+                <div class="zkill-stat-item zkill-stat-item-compact">
                     <div class="zkill-stat-label">Solo Kills</div>
                     <div class="zkill-stat-value">${soloVsFleet.solo.percentage}%</div>
                 </div>
-                <div class="zkill-stat-item">
+                <div class="zkill-stat-item zkill-stat-item-compact">
                     <div class="zkill-stat-label">Small Gang</div>
                     <div class="zkill-stat-value">${soloVsFleet.smallGang.percentage}%</div>
                 </div>
-                <div class="zkill-stat-item">
+                <div class="zkill-stat-item zkill-stat-item-compact">
                     <div class="zkill-stat-label">Fleet Ops</div>
                     <div class="zkill-stat-value">${soloVsFleet.fleet.percentage}%</div>
                 </div>
-                <div class="zkill-stat-item">
+                <div class="zkill-stat-item zkill-stat-item-compact">
                     <div class="zkill-stat-label">Most Expensive Kill</div>
-                    <div class="zkill-stat-value">${(analysis.mostExpensiveKill.value / 1000000).toFixed(1)}M ISK</div>
+                    <div class="zkill-stat-value">${this.formatISK(analysis.mostExpensiveKill.value)}</div>
                 </div>
-                <div class="zkill-stat-item">
+                <div class="zkill-stat-item zkill-stat-item-compact">
                     <div class="zkill-stat-label">Avg Kill Value</div>
-                    <div class="zkill-stat-value">${(analysis.avgValue / 1000000).toFixed(1)}M ISK</div>
+                    <div class="zkill-stat-value">${this.formatISK(analysis.avgValue)}</div>
                 </div>
             </div>
         </div>
@@ -858,10 +858,9 @@ class ZKillStatsCard {
             const cached = await getCachedUniverseName(shipTypeId);
             if (cached && cached.name) return cached.name;
 
-            const response = await fetch(`https://esi.evetech.net/latest/universe/types/${shipTypeId}/`);
-            if (!response.ok) return 'Unknown Ship';
+            const data = await esiClient.get(`/universe/types/${shipTypeId}/`);
+            if (!data) return 'Unknown Ship';
 
-            const data = await response.json();
             await setCachedUniverseName(shipTypeId, data.name);
             return data.name;
         } catch (error) {
@@ -877,10 +876,9 @@ class ZKillStatsCard {
             const cached = await getCachedUniverseName(systemId);
             if (cached && cached.name) return cached;
 
-            const response = await fetch(`https://esi.evetech.net/latest/universe/systems/${systemId}/`);
-            if (!response.ok) return { name: 'Unknown System', security: null };
+            const data = await esiClient.get(`/universe/systems/${systemId}/`);
+            if (!data) return { name: 'Unknown System', security: null };
 
-            const data = await response.json();
             await setCachedUniverseName(systemId, data.name, data.security_status);
             return { name: data.name, security: data.security_status };
         } catch (error) {
@@ -1135,7 +1133,16 @@ class ZKillStatsCard {
 
         const topLocsHTML = topLocations.slice(0, 3).map(loc => {
             const securityFormatted = this.formatSecurity(loc.securityStatus, loc.systemName);
-            const securityClass = securityFormatted === 'WH' ? 'wormhole' : this.getSecurityClass(loc.securityStatus);
+            let securityClass = 'unknown';
+            if (securityFormatted === 'WH') {
+                securityClass = 'wormhole';
+            } else if (loc.securityStatus >= 0.5) {
+                securityClass = 'highsec';
+            } else if (loc.securityStatus > 0.0) {
+                securityClass = 'lowsec';
+            } else if (loc.securityStatus >= -0.99) {
+                securityClass = 'nullsec';
+            }
 
             return `
             <div class="zkill-hot-zone">

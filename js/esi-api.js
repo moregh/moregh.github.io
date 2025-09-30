@@ -55,7 +55,7 @@ export function chunkArray(array, chunkSize) {
     return chunks;
 }
 
-export async function processInChunks(items, processFn, chunkSize = CHUNK_SIZE, delay = CHUNK_DELAY) {
+export async function processInChunks(items, processFn, delay = CHUNK_DELAY) {
     const results = [];
     const totalChunks = items.length;
 

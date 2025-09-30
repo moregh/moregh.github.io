@@ -333,6 +333,8 @@ class ZKillboardClient {
             return stats;
         }
 
+        const zkillRoleAnalysis = this.analyzeZkillStatsForSpecialRoles(stats);
+
         try {
             let kills = [];
             if (entityType === 'characterID') {
@@ -354,19 +356,27 @@ class ZKillboardClient {
             });
 
             if (killmails && killmails.length > 0) {
-                const analysis = analyzeKillmails(killmails);
+                const detailedAnalysis = analyzeKillmails(killmails, entityType, entityId);
                 const recentKills = getRecentKills(killmails, 10);
                 const topValueKills = getTopValueKills(killmails, 5);
 
+                const mergedAnalysis = this.mergeAnalyses(detailedAnalysis, zkillRoleAnalysis);
+
                 stats.killmailData = {
                     totalFetched: killmails.length,
-                    analysis,
+                    analysis: mergedAnalysis,
                     recentKills,
                     topValueKills,
                     hasData: true
                 };
 
-                stats.combatStyle = this.enrichCombatStyleWithKillmails(stats.combatStyle, analysis);
+                stats.combatStyle = this.enrichCombatStyleWithKillmails(stats.combatStyle, mergedAnalysis, stats);
+            } else {
+                const mergedAnalysis = {
+                    blopsAnalysis: zkillRoleAnalysis.blopsAnalysis,
+                    cynoAnalysis: zkillRoleAnalysis.cynoAnalysis
+                };
+                stats.combatStyle = this.enrichCombatStyleWithKillmails(stats.combatStyle, mergedAnalysis, stats);
             }
 
         } catch (error) {
@@ -398,7 +408,8 @@ class ZKillboardClient {
             securityPreference: this.analyzeSecurityPreference(rawData),
             activePeriods: this.extractActivePeriods(rawData),
             activityData: this.extractActivityData(rawData),
-            lastUpdated: Date.now()
+            lastUpdated: Date.now(),
+            _rawData: rawData
         };
 
         return stats;
@@ -763,7 +774,183 @@ class ZKillboardClient {
         return labels[role] || role;
     }
 
-    enrichCombatStyleWithKillmails(existingStyle, killmailAnalysis) {
+    mergeAnalyses(detailedAnalysis, zkillRoleAnalysis) {
+        if (!detailedAnalysis) {
+            return {
+                blopsAnalysis: zkillRoleAnalysis.blopsAnalysis,
+                cynoAnalysis: zkillRoleAnalysis.cynoAnalysis
+            };
+        }
+
+        const mergedBlops = this.mergeSingleAnalysis(
+            detailedAnalysis.blopsAnalysis,
+            zkillRoleAnalysis.blopsAnalysis,
+            'isBlopsUser'
+        );
+
+        const mergedCyno = this.mergeSingleAnalysis(
+            detailedAnalysis.cynoAnalysis,
+            zkillRoleAnalysis.cynoAnalysis,
+            'isCynoPilot'
+        );
+
+        return {
+            ...detailedAnalysis,
+            blopsAnalysis: mergedBlops,
+            cynoAnalysis: mergedCyno
+        };
+    }
+
+    mergeSingleAnalysis(detailedAnalysis, zkillAnalysis, flagField) {
+        console.log('[Merge Analysis]', {
+            flagField,
+            hasZkillAnalysis: !!zkillAnalysis,
+            hasDetailedAnalysis: !!detailedAnalysis,
+            zkillFlag: zkillAnalysis?.[flagField],
+            detailedFlag: detailedAnalysis?.[flagField]
+        });
+
+        if (!zkillAnalysis) return detailedAnalysis;
+        if (!detailedAnalysis) return zkillAnalysis;
+
+        const zkillFlag = zkillAnalysis[flagField];
+        const detailedFlag = detailedAnalysis[flagField];
+
+        if (zkillFlag && !detailedFlag) {
+            console.log(`[Merge Analysis] Using zkill stats for ${flagField} - zkill says true, detailed says false`);
+            return {
+                ...detailedAnalysis,
+                [flagField]: true,
+                zkillStatsFlag: true,
+                zkillData: zkillAnalysis
+            };
+        }
+
+        return detailedAnalysis;
+    }
+
+    analyzeZkillStatsForSpecialRoles(stats) {
+        const rawData = stats._rawData;
+        const totalKills = stats.totalKills || 0;
+
+        if (!rawData || !rawData.topAllTime || totalKills === 0) {
+            console.log('[Cyno/Blops Detection] No raw data or topAllTime available');
+            return { cynoAnalysis: null, blopsAnalysis: null };
+        }
+
+        const topAllTime = rawData.topAllTime || [];
+        const shipData = topAllTime.find(entry => entry.type === 'ship');
+
+        if (!shipData || !shipData.data || !shipData.data.length) {
+            console.log('[Cyno/Blops Detection] No ship data in topAllTime');
+            return { cynoAnalysis: null, blopsAnalysis: null };
+        }
+
+        console.log('[Cyno/Blops Detection] Analyzing zkill stats:', {
+            totalKills,
+            allTimeShipsCount: shipData.data.length,
+            allTimeShips: shipData.data.map(s => ({ id: s.shipTypeID, kills: s.kills }))
+        });
+
+        const CYNO_SHIP_IDS = [670, 33328, 33816, 11129, 11176, 28710, 33470, 11172];
+        const FORCE_RECON_GROUP_ID = 833;
+        const BLACK_OPS_GROUP_ID = 898;
+
+        let cynoKills = 0;
+        let cynoShips = [];
+        let blopsKills = 0;
+        let blopsShips = [];
+
+        shipData.data.forEach(ship => {
+            const shipTypeID = ship.shipTypeID;
+            const kills = ship.kills || 0;
+
+            const groupID = SHIP_TYPE_TO_GROUP[shipTypeID];
+
+            const isCynoShip = CYNO_SHIP_IDS.includes(shipTypeID) || groupID === FORCE_RECON_GROUP_ID;
+            const isBlopsShip = groupID === BLACK_OPS_GROUP_ID;
+
+            console.log('[Cyno/Blops Detection] Checking ship:', {
+                typeID: shipTypeID,
+                groupID: groupID,
+                kills: kills,
+                isCynoShip,
+                isBlopsShip
+            });
+
+            if (isCynoShip) {
+                cynoKills += kills;
+                cynoShips.push({ shipTypeID: shipTypeID, kills: kills });
+            }
+
+            if (isBlopsShip) {
+                blopsKills += kills;
+                blopsShips.push({ shipTypeID: shipTypeID, kills: kills });
+            }
+        });
+
+        const cynoFrequency = cynoKills / totalKills;
+        const blopsFrequency = blopsKills / totalKills;
+
+        const cynoAnalysis = {
+            isCynoPilot: cynoKills >= 10 && cynoFrequency >= 0.15,
+            cynoShipCount: cynoKills,
+            cynoFrequency: Math.round(cynoFrequency * 100),
+            confidence: cynoKills >= 30 ? 'high' : cynoKills >= 10 ? 'medium' : 'low',
+            cynoShips: cynoShips,
+            source: 'zkill_stats'
+        };
+
+        const blopsAnalysis = {
+            isBlopsUser: blopsKills >= 5 && blopsFrequency >= 0.10,
+            blopsCount: blopsKills,
+            blopsFrequency: Math.round(blopsFrequency * 100),
+            confidence: blopsKills >= 20 ? 'high' : blopsKills >= 5 ? 'medium' : 'low',
+            blopsShips: blopsShips,
+            source: 'zkill_stats'
+        };
+
+        console.log('[Cyno/Blops Detection] Analysis results:', {
+            cynoAnalysis,
+            blopsAnalysis
+        });
+
+        return { cynoAnalysis, blopsAnalysis };
+    }
+
+    checkForCapitalShip(stats) {
+        const rawData = stats._rawData;
+        if (!rawData || !rawData.topAllTime) {
+            return false;
+        }
+
+        const topAllTime = rawData.topAllTime || [];
+        const shipData = topAllTime.find(entry => entry.type === 'ship');
+
+        if (!shipData || !shipData.data || !shipData.data.length) {
+            return false;
+        }
+
+        const CAPITAL_GROUP_IDS = [485, 547, 659, 30, 1538, 4594, 883];
+
+        for (const ship of shipData.data) {
+            const shipTypeID = ship.shipTypeID;
+            const groupID = SHIP_TYPE_TO_GROUP[shipTypeID];
+
+            if (groupID && CAPITAL_GROUP_IDS.includes(groupID)) {
+                console.log('[Capital Pilot Detection] Found capital ship:', {
+                    shipTypeID,
+                    groupID,
+                    kills: ship.kills
+                });
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    enrichCombatStyleWithKillmails(existingStyle, killmailAnalysis, stats = null) {
         if (!killmailAnalysis || !existingStyle) {
             return existingStyle;
         }
@@ -771,41 +958,79 @@ class ZKillboardClient {
         const fleetSize = killmailAnalysis.fleetSizeAnalysis;
         const soloVsFleet = killmailAnalysis.soloVsFleet;
         const shipComp = killmailAnalysis.shipComposition;
+        const hvtAnalysis = killmailAnalysis.hvtAnalysis;
+        const targetPrefs = killmailAnalysis.targetPreferences;
+        const engagement = killmailAnalysis.engagementPatterns;
+        const blopsAnalysis = killmailAnalysis.blopsAnalysis;
+        const cynoAnalysis = killmailAnalysis.cynoAnalysis;
 
         let enhancedFleetRole = existingStyle.fleetRole;
         let playstyleDetails = [];
+        let tagScores = {};
+
+        console.log('[Enrich Combat Style] Checking special roles:', {
+            hasBlopsAnalysis: !!blopsAnalysis,
+            isBlopsUser: blopsAnalysis?.isBlopsUser,
+            hasCynoAnalysis: !!cynoAnalysis,
+            isCynoPilot: cynoAnalysis?.isCynoPilot,
+            cynoAnalysis
+        });
+
+        if (blopsAnalysis && blopsAnalysis.isBlopsUser) {
+            playstyleDetails.push('Blops');
+        }
+
+        if (cynoAnalysis && cynoAnalysis.isCynoPilot) {
+            playstyleDetails.push('Cyno');
+        }
+
+        const hasCapitalShip = this.checkForCapitalShip(stats);
+        if (hasCapitalShip) {
+            playstyleDetails.push('Capital');
+        }
 
         if (soloVsFleet.solo.percentage > 50) {
             enhancedFleetRole = 'Lone Wolf';
             playstyleDetails.push('Solo');
-        } else if (soloVsFleet.solo.percentage > 30) {
-            enhancedFleetRole = 'Solo/Small Gang';
-            playstyleDetails.push('Solo/Small');
         } else if (soloVsFleet.smallGang.percentage > 50) {
             enhancedFleetRole = 'Small Gang Specialist';
             playstyleDetails.push('Small Gang');
         } else if (soloVsFleet.fleet.percentage > 60 && fleetSize.average > 15) {
             enhancedFleetRole = 'Fleet Commander';
-            playstyleDetails.push('Fleet FC');
         } else if (soloVsFleet.fleet.percentage > 40) {
             enhancedFleetRole = 'Fleet Fighter';
-            playstyleDetails.push('Fleet');
         } else {
             enhancedFleetRole = 'Adaptable';
-            playstyleDetails.push('Adaptable');
         }
 
-        if (fleetSize.max > 100) {
+        const blobEngagements = soloVsFleet.fleet.count;
+        const totalEngagements = killmailAnalysis.totalKillmails;
+        tagScores.blob = fleetSize.max > 100 ? (blobEngagements / totalEngagements) : 0;
+        if (tagScores.blob > 0.3) {
             playstyleDetails.push('Blob');
         }
 
-        if (killmailAnalysis.mostExpensiveKill.value > 500000000) {
+        if (hvtAnalysis && hvtAnalysis.isHVTHunter) {
+            tagScores.hvtHunter = hvtAnalysis.hvtFrequency / 100;
             playstyleDetails.push('HVT Hunter');
         }
 
-        if (shipComp.uniqueShips > 20) {
-            playstyleDetails.push('Multi-Ship');
-        } else if (shipComp.uniqueShips < 5) {
+        if (targetPrefs) {
+            if (targetPrefs.industrialHunter) {
+                playstyleDetails.push('Industrial Hunter');
+            }
+            if (targetPrefs.capitalHunter) {
+                playstyleDetails.push('Capital Hunter');
+            }
+        }
+
+        if (engagement) {
+            if (engagement.huntingStyle === 'Gate Camp') {
+                playstyleDetails.push('Gate Camper');
+            }
+        }
+
+        if (shipComp.uniqueShips < 5) {
             playstyleDetails.push('Specialist');
         }
 
@@ -818,7 +1043,13 @@ class ZKillboardClient {
                 min: fleetSize.min,
                 max: fleetSize.max,
                 avg: fleetSize.average
-            }
+            },
+            tagScores,
+            hvtAnalysis,
+            targetPreferences: targetPrefs,
+            engagementPatterns: engagement,
+            blopsAnalysis,
+            cynoAnalysis
         };
     }
 

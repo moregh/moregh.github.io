@@ -314,6 +314,11 @@ gap: 1rem;
 margin-bottom: 2rem;
 }
 
+.zkill-stats-grid-single-row {
+grid-template-columns: repeat(6, 1fr);
+gap: 0.75rem;
+}
+
 .zkill-stat-item {
 background: var(--white-03);
 border: 1px solid var(--white-1);
@@ -339,6 +344,9 @@ transform: translateY(-2px);
 background: rgba(255, 255, 255, 0.06);
 border-color: rgba(0, 212, 255, 0.3);
 }
+.zkill-stat-item-compact {
+padding: 0.8rem 0.6rem;
+}
 .zkill-stat-value {
 font-size: 1.8rem;
 font-weight: 800;
@@ -346,12 +354,19 @@ color: var(--primary-color);
 margin-bottom: 0.5rem;
 display: block;
 }
+.zkill-stat-item-compact .zkill-stat-value {
+font-size: 1.3rem;
+margin-bottom: 0.3rem;
+}
 .zkill-stat-label {
 font-size: 0.9rem;
 color: var(--text-secondary);
 text-transform: uppercase;
 letter-spacing: 0.05em;
 font-weight: 500;
+}
+.zkill-stat-item-compact .zkill-stat-label {
+font-size: 0.75rem;
 }
 .zkill-stat-item.kills .zkill-stat-value { color: var(--secondary-color); }
 .zkill-stat-item.losses .zkill-stat-value { color: var(--danger-color); }
@@ -974,6 +989,7 @@ margin: 1rem;
 /* Content */
 .zkill-card-content { padding: 1.5rem; }
 .zkill-stats-grid { grid-template-columns: repeat(2, 1fr); gap: 0.8rem; }
+.zkill-stats-grid-single-row { grid-template-columns: repeat(3, 1fr); gap: 0.6rem; }
 .zkill-entity-info { flex-direction: column; text-align: center; width: 100%; }
 .zkill-entity-affiliations { flex-direction: column; gap: 0.5rem; margin-left: 0; width: 100%; }
 .zkill-affiliation-item { justify-content: center; width: 100%; max-width: 280px; margin: 0 auto; }
@@ -1256,6 +1272,43 @@ REORGANIZED LAYOUT - Tactical Intelligence First
     background: linear-gradient(135deg, #8e44ad, #71368a);
     color: white;
     border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.zkill-tag-capital-hunter {
+    background: linear-gradient(135deg, #c0392b, #8e2de2);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.zkill-tag-industrial-hunter {
+    background: linear-gradient(135deg, #f39c12, #d35400);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.zkill-tag-gate-camper {
+    background: linear-gradient(135deg, #34495e, #2c3e50);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.zkill-tag-blops {
+    background: linear-gradient(135deg, #1a1a1a, #2c003e);
+    color: white;
+    border: 1px solid rgba(138, 43, 226, 0.4);
+}
+
+.zkill-tag-cyno {
+    background: linear-gradient(135deg, #e74c3c, #c0392b);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.zkill-tag-capital-pilot {
+    background: linear-gradient(135deg, #d4af37, #aa8a2e);
+    color: #1a1a1a;
+    border: 1px solid rgba(255, 215, 0, 0.3);
+    font-weight: 600;
 }
 
 /* Ship & Location Preferences */
@@ -2018,6 +2071,7 @@ Enhanced Analysis Sections
 .zkill-close-btn { width: 28px; height: 28px; font-size: 12px; }
 .zkill-back-btn { width: 24px; height: 24px; font-size: 10px; }
 .zkill-stats-grid { grid-template-columns: 1fr; }
+.zkill-stats-grid-single-row { grid-template-columns: repeat(2, 1fr); gap: 0.5rem; }
 .zkill-entity-avatar { width: 48px; height: 48px; }
 .zkill-entity-details h2 { font-size: 1.2rem; flex-direction: column; gap: 0.25rem; }
 
