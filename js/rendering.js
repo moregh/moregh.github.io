@@ -6,21 +6,12 @@
 */
 
 import {
-    CHARACTER_PORTRAIT_SIZE_PX,
-    CORP_LOGO_SIZE_PX,
-    ALLIANCE_LOGO_SIZE_PX,
-    MOUSEOVER_CARD_AVATAR_SIZE_PX,
-    MOUSEOVER_CARD_MAX_ITEMS,
-    SCROLL_STATE_TIMEOUT_MS,
-    SCROLL_THROTTLE_MS,
-    ANIMATION_FRAME_THROTTLE_FPS,
-    POPUP_SHOW_DELAY
+    CHARACTER_PORTRAIT_SIZE_PX, CORP_LOGO_SIZE_PX, ALLIANCE_LOGO_SIZE_PX, MOUSEOVER_CARD_AVATAR_SIZE_PX,
+    MOUSEOVER_CARD_MAX_ITEMS, SCROLL_STATE_TIMEOUT_MS, SCROLL_THROTTLE_MS, ANIMATION_FRAME_THROTTLE_FPS,
+    POPUP_SHOW_DELAY, VIRTUAL_SCROLL_CONFIG, VIEW_DIMENSIONS
 } from './config.js';
 import { ManagedObservers, setImageObserverEnabled } from './observers.js';
-import {
-    sanitizeId,
-    sanitizeAttribute
-} from './xss-protection.js';
+import { sanitizeId, sanitizeAttribute } from './xss-protection.js';
 
 const observerManager = new ManagedObservers();
 
@@ -527,17 +518,14 @@ export function createCharacterItem(character, viewType = 'grid') {
     }
 
     const element = characterElementPool.acquire();
-
     const characterId = sanitizeId(character.character_id);
-    const characterName = character.character_name; // Don't sanitize - textContent is safe
+    const characterName = character.character_name;
     const corporationId = sanitizeId(character.corporation_id);
-    const corporationName = character.corporation_name; // Don't sanitize - textContent is safe
+    const corporationName = character.corporation_name;
     const allianceId = character.alliance_id ? sanitizeId(character.alliance_id) : null;
-    const allianceName = character.alliance_name; // Don't sanitize - textContent is safe
-
+    const allianceName = character.alliance_name;
     element.className = `result-item ${viewType}-view animate-ready ${character.war_eligible ? 'war-eligible' : ''}`;
     element.dataset.characterId = sanitizeAttribute(characterId.toString());
-
     const avatar = element.querySelector('.character-avatar');
     const characterLink = element.querySelector('.character-name .character-link');
 
@@ -639,19 +627,15 @@ export function getPoolStats() {
 
 export function createEntityCard({ id, name, count, type, war_eligible, isDirect }) {
     const sanitizedId = sanitizeId(id);
-    const sanitizedName = name; // Don't escape the name for display
+    const sanitizedName = name;
     const sanitizedCount = Math.max(0, Math.floor(count || 0));
     const allowedTypes = ['corporation', 'alliance'];
     const sanitizedType = allowedTypes.includes(type) ? type : 'corporation';
-
     const template = document.createElement('template');
     const placeholder = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3C/svg%3E";
-
-    const warEligibleBadge = war_eligible ?
-        '<span class="war-eligible-badge">WAR</span>' : '';
-
+    const warEligibleBadge = war_eligible ? '<span class="war-eligible-badge">WAR</span>' : '';
     const entityIcon = sanitizedType === 'alliance' ? '🏛️' : '🏢';
-    const logoSize = 64; // Larger logo for card format
+    const logoSize = 64;
 
     template.innerHTML = `
         <div class="result-item entity-card ${sanitizedType}-card ${war_eligible ? 'war-eligible' : ''}"
@@ -689,16 +673,14 @@ export function createEntityCard({ id, name, count, type, war_eligible, isDirect
     `;
 
     const item = template.content.firstElementChild;
-
     const nameLink = item.querySelector('.character-link');
+
     if (nameLink) {
-        nameLink.textContent = name; // Use original unsanitized name
+        nameLink.textContent = name;
     }
 
     const mouseoverCard = createMouseoverCard({ id: sanitizedId, name: name, count: sanitizedCount, war_eligible, isDirect }, sanitizedType);
-
     item._mouseoverCard = mouseoverCard;
-
 
     requestAnimationFrame(() => {
         const entityLogo = item.querySelector('.entity-logo');
@@ -709,7 +691,6 @@ export function createEntityCard({ id, name, count, type, war_eligible, isDirect
 
     return item;
 }
-
 
 export function renderGrid(containerId, items, type = 'character') {
     const container = document.getElementById(containerId);
@@ -742,29 +723,6 @@ export function renderGrid(containerId, items, type = 'character') {
     }
 }
 
-const VIRTUAL_SCROLL_CONFIG = {
-    CONTAINER_HEIGHT: '75vh',
-    MIN_HEIGHT: '720px',
-    MAX_HEIGHT: '900px',
-    BUFFER_SIZE: 5, // Increased to ensure smooth scrolling and full initial render
-    GRID_GAP: '1.35rem',
-    CONTENT_PADDING: '1.8rem',
-    MIN_ITEM_WIDTH: 252,
-    CONTAINER_MIN_WIDTH: 270,
-    CONTAINER_PADDING: 60,
-    SCROLL_DEBOUNCE_MS: 8,
-    MAX_RENDERED_ELEMENTS: 200, // Limit total rendered elements
-    MIN_INITIAL_ROWS: 6 // Ensure at least 6 rows rendered initially (4 visible + 2 buffer)
-};
-
-const VIEW_DIMENSIONS = {
-    list: { height: 90, itemsPerRow: 1 },
-    grid: { height: 150, itemsPerRow: null } // calculated dynamically
-};
-
-/**
- * Setup scrolling for entity cards (corporations and alliances)
- */
 export function setupEntityScrolling(containerId, items, type) {
     const container = document.getElementById(containerId);
     if (!validateScrollingPreconditions(container, items, containerId)) {
@@ -787,14 +745,12 @@ export function setupEntityScrolling(containerId, items, type) {
     });
 
     container.className = 'virtual-scroll-container';
-
     const spacer = document.createElement('div');
     spacer.className = 'virtual-scroll-spacer';
-
     const content = document.createElement('div');
     content.className = 'virtual-scroll-content';
-
     const minWidth = type === 'alliance' || type === 'corporation' ? '300px' : '252px';
+
     Object.assign(content.style, {
         position: 'absolute',
         top: '0',
@@ -805,20 +761,16 @@ export function setupEntityScrolling(containerId, items, type) {
         padding: VIRTUAL_SCROLL_CONFIG.CONTENT_PADDING,
         gridTemplateColumns: `repeat(auto-fill, minmax(${minWidth}, 1fr))`
     });
+    
     const elements = items.map(item => createEntityCard(item));
-
     elements.forEach(element => content.appendChild(element));
-
-    const itemHeight = 150; // Approximate height per item for entities
+    const itemHeight = 150;
     const itemsPerRow = Math.max(1, Math.floor((container.clientWidth - 60) / 300));
     const totalRows = Math.ceil(elements.length / itemsPerRow);
     spacer.style.height = `${totalRows * itemHeight}px`;
-
     spacer.appendChild(content);
-
     container.innerHTML = "";
     container.appendChild(spacer);
-
     const summaryColumn = container.closest('.summary-column');
     const tabContent = container.closest('.tab-content');
     const parentContainer = summaryColumn || tabContent || container.parentElement;
@@ -841,9 +793,6 @@ export function setupEntityScrolling(containerId, items, type) {
     });
 }
 
-/**
- * Virtual scrolling implementation for performance with large lists
- */
 export function setupVirtualScrolling(containerId, items) {
     const container = document.getElementById(containerId);
     if (!validateScrollingPreconditions(container, items, containerId)) {
@@ -858,9 +807,6 @@ export function setupVirtualScrolling(containerId, items) {
     });
 }
 
-/**
- * Validates preconditions for virtual scrolling setup
- */
 function validateScrollingPreconditions(container, items, containerId) {
     if (!container) {
         console.warn(`Cannot setup virtual scrolling: container "${containerId}" not found`);
@@ -875,25 +821,19 @@ function validateScrollingPreconditions(container, items, containerId) {
     return true;
 }
 
-/**
- * Manages virtual scrolling for a single container
- */
 class VirtualScrollManager {
     constructor(container, items) {
         this.container = container;
         this.items = items;
         this.parentGrid = this.findParentGrid();
-
         this.viewConfig = this.calculateViewConfig();
         this.dimensions = this.calculateDimensions();
-
         this.renderedElements = new Map();
         this.visibleRange = { start: -1, end: -1 };
         this.isUpdating = false;
         this.animationFrame = null;
         this.scrollTimeout = null;
         this.lastScrollTime = 0;
-
         this.spacer = null;
         this.content = null;
         this.scrollListener = null;
@@ -917,7 +857,7 @@ class VirtualScrollManager {
         let parentWidth = this.parentGrid.clientWidth;
         if (parentWidth === 0) {
             const computedStyle = window.getComputedStyle(this.parentGrid);
-            parentWidth = parseInt(computedStyle.width) || 800; // fallback to 800px
+            parentWidth = parseInt(computedStyle.width) || 800;
         }
 
         const containerWidth = Math.max(
@@ -991,7 +931,6 @@ class VirtualScrollManager {
     createContentContainer() {
         const content = document.createElement('div');
         const isListView = getCurrentView() === 'list';
-
         content.className = `virtual-scroll-content ${isListView ? 'list-view' : ''}`;
 
         Object.assign(content.style, {
@@ -1151,7 +1090,7 @@ class VirtualScrollManager {
         const scrollTop = this.container.scrollTop;
         const containerHeight = this.container.clientHeight;
         const currentCenterRow = Math.floor((scrollTop + containerHeight / 2) / this.dimensions.itemHeight);
-        const keepDistance = VIRTUAL_SCROLL_CONFIG.BUFFER_SIZE * 3; // Keep elements within 3x buffer distance
+        const keepDistance = VIRTUAL_SCROLL_CONFIG.BUFFER_SIZE * 3;
 
         const elementsToRemove = [];
         for (const [index] of this.renderedElements) {
@@ -1186,7 +1125,6 @@ class VirtualScrollManager {
     createElement(index) {
         const isListView = getCurrentView() === 'list';
         const element = createCharacterItem(this.items[index], isListView ? 'list' : 'grid');
-
         element.style.position = 'relative';
         element.dataset.index = index;
 
@@ -1293,6 +1231,7 @@ class VirtualScrollManager {
 
     clearReferences() {
         this.renderedElements.clear();
+
         delete this.container._cleanup;
 
         this.container = null;
@@ -1309,12 +1248,12 @@ export function addScrollStateDetection() {
     document.addEventListener('scroll', (e) => {
         if (e.target && e.target.classList && e.target.classList.contains('virtual-scroll-container')) {
             e.target.classList.add('scrolling');
-            setImageObserverEnabled(false); // Pause image loading during scroll
-
+            setImageObserverEnabled(false);
             clearTimeout(scrollTimeout);
+            
             scrollTimeout = setTimeout(() => {
                 e.target.classList.remove('scrolling');
-                setImageObserverEnabled(true); // Resume image loading
+                setImageObserverEnabled(true);
             }, SCROLL_STATE_TIMEOUT_MS);
         }
     }, { passive: true, capture: true });

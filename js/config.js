@@ -7,14 +7,16 @@
 
 export const CACHE_EXPIRY_HOURS = 12;
 export const LONG_CACHE_EXPIRY_HOURS = 168;
+export const ZKILL_KILLS_CACHE_HOURS = 3;
+export const ESI_KILLMAILS_CACHE_HOURS = 168;
 export const MAX_ESI_CALL_SIZE = 100;
 export const MAX_CONCURRENT_IMAGES = 4;
 export const CHUNK_SIZE = 50;
 export const CHUNK_DELAY = 25;
 export const STATS_UPDATE_DELAY = 100;
 export const DB_NAME = 'EVETargetIntelDB';
-export const DB_VERSION = 1;
-export const VERSION = "0.7.3";
+export const DB_VERSION = 2;
+export const VERSION = "0.8.0";
 
 export const PROGRESS_UPDATE_THROTTLE_MS = 50;
 export const TIMER_UPDATE_INTERVAL_MS = 100;
@@ -25,7 +27,7 @@ export const CHARACTER_COUNT_DEBOUNCE_MS = 150;
 export const SCROLL_STATE_TIMEOUT_MS = 150;
 export const SCROLL_THROTTLE_MS = 8;
 export const ANIMATION_FRAME_THROTTLE_FPS = 16;
-export const POPUP_SHOW_DELAY = 200;
+export const POPUP_SHOW_DELAY = 400;
 
 export const MIN_CHARACTER_NAME_LENGTH = 3;
 export const MAX_CHARACTER_NAME_LENGTH = 37;
@@ -55,6 +57,7 @@ export const PERFORMANCE_CONFIG = {
 
 export const ESI_BASE = "https://esi.evetech.net/latest";
 export const USER_AGENT = `WarTargetFinder/${VERSION} (+https://github.com/moregh/moregh.github.io/)`;
+export const ALLOWED_IMAGE_URLS = ['images.evetech.net', 'imageserver.eveonline.com'];
 export const ESI_HEADERS = {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
@@ -65,3 +68,26 @@ export const ESI_HEADERS = {
 export const ZKILL_CARD_ANIMATION_DURATION_MS = 300;
 export const ZKILL_CARD_BACKDROP_BLUR = '12px';
 export const ZKILL_DATA_CACHE_DURATION_MS = 30 * 60 * 1000;
+export const MAX_KILLMAILS_TO_FETCH = 100;
+export const KILLMAIL_BATCH_SIZE = 10;
+export const KILLMAIL_FETCH_DELAY_MS = 100;
+
+export const VIRTUAL_SCROLL_CONFIG = {
+    CONTAINER_HEIGHT: '75vh',
+    MIN_HEIGHT: '720px',
+    MAX_HEIGHT: '900px',
+    BUFFER_SIZE: 5,
+    GRID_GAP: '1.35rem',
+    CONTENT_PADDING: '1.8rem',
+    MIN_ITEM_WIDTH: 252,
+    CONTAINER_MIN_WIDTH: 270,
+    CONTAINER_PADDING: 60,
+    SCROLL_DEBOUNCE_MS: 8,
+    MAX_RENDERED_ELEMENTS: 200,
+    MIN_INITIAL_ROWS: 6
+};
+
+export const VIEW_DIMENSIONS = {
+    list: { height: 90, itemsPerRow: 1 },
+    grid: { height: 150, itemsPerRow: null }
+};

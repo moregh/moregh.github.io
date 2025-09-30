@@ -5,23 +5,20 @@
     Licensed under AGPL License.
 */
 
-import { USER_AGENT } from './config.js';
+import { USER_AGENT, MAX_KILLMAILS_TO_FETCH, KILLMAIL_BATCH_SIZE, KILLMAIL_FETCH_DELAY_MS } from './config.js';
 import { showWarning } from './ui.js';
-import { getShipClassification, SHIP_GROUP_CLASSIFICATIONS, SHIP_TYPE_TO_GROUP } from './eve-ship-data.js';
+import { getShipClassification, SHIP_TYPE_TO_GROUP } from './eve-ship-data.js';
+import { get_zkill_character_kills, get_zkill_corporation_kills, get_zkill_alliance_kills } from './zkill-kills-api.js';
+import { fetchKillmailsBatch } from './esi-killmails.js';
+import { analyzeKillmails, getRecentKills, getTopValueKills } from './killmail-analysis.js';
 
 const ZKILL_CONFIG = {
-    // PROXY_URLS: [
-    //     'https://zkillproxy.zkillproxy.workers.dev/',
-    //     'https://your-project-name.vercel.app/api/zkill',
-    // ],
-
-    // PROXY_BASE_URL: 'https://zkill-proxy.vercel.app/api/zkill',
     PROXY_BASE_URL: 'https://zkill2.zkillproxy.workers.dev/',
-    POW_DIFFICULTY: 12, // bitsize, 16 = 4 zeros, 12 = 3 zeros
+    POW_DIFFICULTY: 12,
     USER_AGENT: USER_AGENT,
-    // Reduced intervals since we're using our own proxy
-    REQUEST_INTERVAL_MS: 2000, // 2 seconds between requests
-    CACHE_DURATION_MS: 30 * 60 * 1000, // 30 minutes
+
+    REQUEST_INTERVAL_MS: 2000,
+    CACHE_DURATION_MS: 30 * 60 * 1000,
     REQUEST_TIMEOUT_MS: 15000,
     MAX_RETRIES: 3,
     MAX_CONCURRENT_REQUESTS: 1,
@@ -150,7 +147,7 @@ class ZKillboardClient {
     async computePoW(id, difficulty = ZKILL_CONFIG.POW_DIFFICULTY) {
         const ts = Math.floor(Date.now() / 1000);
         let nonce = 0;
-        const targetPrefix = '0'.repeat(difficulty / 4); // 16 bits = 4 hex chars
+        const targetPrefix = '0'.repeat(difficulty / 4);
 
         while (true) {
             const input = `${id}|${nonce}|${ts}`;
@@ -164,7 +161,7 @@ class ZKillboardClient {
             }
             nonce++;
 
-            // Prevent infinite loops
+
             if (nonce > 1000000) {
                 throw new ZKillError('Proof-of-work computation failed - too many iterations', 500);
             }
@@ -257,7 +254,7 @@ class ZKillboardClient {
             (ZKILL_CONFIG.CURRENT_PROXY_INDEX + 1) % ZKILL_CONFIG.CORS_PROXIES.length;
 
         const newProxy = ZKILL_CONFIG.CORS_PROXIES[ZKILL_CONFIG.CURRENT_PROXY_INDEX];
-        
+
     }
 
     getCurrentProxyInfo() {
@@ -267,7 +264,7 @@ class ZKillboardClient {
             availableProxies: ZKILL_CONFIG.CORS_PROXIES.length
         };
     }
-        getStats() {
+    getStats() {
         return {
             requests: this.requestCount,
             cache: this.cache.getStats(),
@@ -277,7 +274,7 @@ class ZKillboardClient {
     }
 
     async getEntityStats(entityType, entityId) {
-        // Validate inputs
+
         if (!entityType || !['characterID', 'corporationID', 'allianceID'].includes(entityType)) {
             throw new ZKillError('Invalid entity type. Must be characterID, corporationID, or allianceID', 400, entityType, entityId);
         }
@@ -324,14 +321,69 @@ class ZKillboardClient {
         }
     }
 
+    async getEntityStatsWithKillmails(entityType, entityId, options = {}) {
+        const {
+            maxKillmails = MAX_KILLMAILS_TO_FETCH,
+            fetchKillmails = true
+        } = options;
+
+        const stats = await this.getEntityStats(entityType, entityId);
+
+        if (!fetchKillmails || stats.totalKills === 0) {
+            return stats;
+        }
+
+        try {
+            let kills = [];
+            if (entityType === 'characterID') {
+                kills = await get_zkill_character_kills(entityId);
+            } else if (entityType === 'corporationID') {
+                kills = await get_zkill_corporation_kills(entityId);
+            } else if (entityType === 'allianceID') {
+                kills = await get_zkill_alliance_kills(entityId);
+            }
+
+            if (!kills || kills.length === 0) {
+                return stats;
+            }
+
+            const killmails = await fetchKillmailsBatch(kills, {
+                maxConcurrency: KILLMAIL_BATCH_SIZE,
+                batchDelay: KILLMAIL_FETCH_DELAY_MS,
+                maxKillmails: maxKillmails
+            });
+
+            if (killmails && killmails.length > 0) {
+                const analysis = analyzeKillmails(killmails);
+                const recentKills = getRecentKills(killmails, 10);
+                const topValueKills = getTopValueKills(killmails, 5);
+
+                stats.killmailData = {
+                    totalFetched: killmails.length,
+                    analysis,
+                    recentKills,
+                    topValueKills,
+                    hasData: true
+                };
+
+                stats.combatStyle = this.enrichCombatStyleWithKillmails(stats.combatStyle, analysis);
+            }
+
+        } catch (error) {
+            console.error('Error fetching killmail data:', error);
+        }
+
+        return stats;
+    }
+
     processStatsData(rawData, entityType, entityId) {
         const stats = {
             entityType: entityType,
             entityId: parseInt(entityId),
             totalKills: this.safeGet(rawData, 'shipsDestroyed', 0),
-            totalLosses: this.safeGet(rawData, 'shipsLost', 0), // This is correct
+            totalLosses: this.safeGet(rawData, 'shipsLost', 0),
             soloKills: this.safeGet(rawData, 'soloKills', 0),
-            soloLosses: this.safeGet(rawData, 'soloLosses', 0), // Add solo losses
+            soloLosses: this.safeGet(rawData, 'soloLosses', 0),
             iskDestroyed: this.safeGet(rawData, 'iskDestroyed', 0),
             iskLost: this.safeGet(rawData, 'iskLost', 0),
             efficiency: this.calculateEfficiency(rawData),
@@ -405,7 +457,7 @@ class ZKillboardClient {
         if (lost === 0) return 100.00;
 
         const efficiency = (destroyed / (destroyed + lost)) * 100;
-        return Math.round(efficiency * 100) / 100; // 2 decimal places
+        return Math.round(efficiency * 100) / 100;
     }
 
     calculateDangerRatio(data) {
@@ -428,7 +480,7 @@ class ZKillboardClient {
     extractRecentActivity(data) {
         const activepvp = data.activepvp || {};
 
-        const characters = activepvp.characters?.count || 1;  // default to 1 in case it's a character lookup
+        const characters = activepvp.characters?.count || 1;
         const ships = activepvp.ships?.count || 0;
         const systems = activepvp.systems?.count || 0;
         const regions = activepvp.regions?.count || 0;
@@ -540,7 +592,7 @@ class ZKillboardClient {
             roleBreakdown,
             specialization,
             totalShipTypes: ships.length,
-            topShips: ships.slice(0, 8) // Limit to top 8 for display
+            topShips: ships.slice(0, 8)
         };
     }
 
@@ -631,29 +683,50 @@ class ZKillboardClient {
 
     analyzeCombatStyle(data) {
         const ships = this.extractTopShips(data);
-        const groups = data.groups || {};
-
         if (!ships.length) return null;
 
-        let longRangeShips = 0;
-        let brawlingShips = 0;
-        let totalKills = 0;
+        const totalKills = ships.reduce((sum, ship) => sum + ship.kills, 0);
+        if (totalKills === 0) return null;
+
+        const roleKills = {
+            dps: 0,
+            tackle: 0,
+            support: 0,
+            logistics: 0,
+            ewar: 0,
+            scout: 0
+        };
 
         ships.forEach(ship => {
+            const category = ship.classification.category.toLowerCase();
             const groupName = ship.groupName.toLowerCase();
-            totalKills += ship.kills;
+            const kills = ship.kills;
 
-            if (groupName.includes('interceptor') || groupName.includes('assault') ||
-                groupName.includes('destroyer') || groupName.includes('covert')) {
-                brawlingShips += ship.kills;
-            } else if (groupName.includes('cruiser') || groupName.includes('battleship') ||
-                      groupName.includes('battlecruiser')) {
-                longRangeShips += ship.kills;
+            if (category.includes('logistics') || groupName.includes('logistics')) {
+                roleKills.logistics += kills;
+            } else if (category.includes('interceptor')) {
+                roleKills.tackle += kills;
+            } else if (category.includes('electronic attack') || category.includes('recon') ||
+                       groupName.includes('electronic') || groupName.includes('recon')) {
+                roleKills.ewar += kills;
+            } else if (category.includes('covert ops') || category.includes('stealth bomber')) {
+                roleKills.scout += kills;
+            } else if (category.includes('command') || groupName.includes('command') ||
+                       category.includes('carrier') || category.includes('force auxiliary')) {
+                roleKills.support += kills;
+            } else if (ship.classification.role === 'Combat') {
+                roleKills.dps += kills;
             }
         });
 
-        const engagementStyle = brawlingShips > longRangeShips ? 'Close-range Brawler' :
-                              longRangeShips > brawlingShips ? 'Long-range Kiter' : 'Versatile';
+        const rolePercentages = Object.entries(roleKills).map(([role, kills]) => ({
+            role,
+            kills,
+            percentage: Math.round((kills / totalKills) * 100)
+        })).sort((a, b) => b.kills - a.kills);
+
+        const primaryRole = rolePercentages[0].percentage > 0 ? rolePercentages[0] : null;
+        const secondaryRole = rolePercentages[1]?.percentage >= 15 ? rolePercentages[1] : null;
 
         const soloKills = this.safeGet(data, 'soloKills', 0);
         const totalKillsData = this.safeGet(data, 'shipsDestroyed', 0);
@@ -661,18 +734,91 @@ class ZKillboardClient {
             Math.round(((totalKillsData - soloKills) / totalKillsData) * 100) : 0;
 
         const fleetRole = gangPreference > 70 ? 'Fleet Fighter' :
-                         gangPreference < 30 ? 'Solo Hunter' : 'Flexible';
-
-        const avgGangSize = this.safeGet(data, 'avgGangSize', 1);
-        const riskTolerance = avgGangSize > 5 ? 'Conservative' :
-                             avgGangSize < 3 ? 'High Risk' : 'Moderate';
+            gangPreference < 30 ? 'Solo Hunter' : 'Flexible';
 
         return {
-            engagementStyle,
+            primaryRole: primaryRole ? {
+                role: this.getRoleLabel(primaryRole.role),
+                percentage: primaryRole.percentage
+            } : null,
+            secondaryRole: secondaryRole ? {
+                role: this.getRoleLabel(secondaryRole.role),
+                percentage: secondaryRole.percentage
+            } : null,
             fleetRole,
-            riskTolerance,
             gangPreference,
-            avgGangSize: Math.round(avgGangSize * 10) / 10
+            roleBreakdown: rolePercentages.filter(r => r.percentage > 0)
+        };
+    }
+
+    getRoleLabel(role) {
+        const labels = {
+            'dps': 'DPS',
+            'tackle': 'Tackle',
+            'support': 'Fleet Support',
+            'logistics': 'Logistics',
+            'ewar': 'EWAR',
+            'scout': 'Scout/Bomber'
+        };
+        return labels[role] || role;
+    }
+
+    enrichCombatStyleWithKillmails(existingStyle, killmailAnalysis) {
+        if (!killmailAnalysis || !existingStyle) {
+            return existingStyle;
+        }
+
+        const fleetSize = killmailAnalysis.fleetSizeAnalysis;
+        const soloVsFleet = killmailAnalysis.soloVsFleet;
+        const shipComp = killmailAnalysis.shipComposition;
+
+        let enhancedFleetRole = existingStyle.fleetRole;
+        let playstyleDetails = [];
+
+        if (soloVsFleet.solo.percentage > 50) {
+            enhancedFleetRole = 'Lone Wolf';
+            playstyleDetails.push('Solo');
+        } else if (soloVsFleet.solo.percentage > 30) {
+            enhancedFleetRole = 'Solo/Small Gang';
+            playstyleDetails.push('Solo/Small');
+        } else if (soloVsFleet.smallGang.percentage > 50) {
+            enhancedFleetRole = 'Small Gang Specialist';
+            playstyleDetails.push('Small Gang');
+        } else if (soloVsFleet.fleet.percentage > 60 && fleetSize.average > 15) {
+            enhancedFleetRole = 'Fleet Commander';
+            playstyleDetails.push('Fleet FC');
+        } else if (soloVsFleet.fleet.percentage > 40) {
+            enhancedFleetRole = 'Fleet Fighter';
+            playstyleDetails.push('Fleet');
+        } else {
+            enhancedFleetRole = 'Adaptable';
+            playstyleDetails.push('Adaptable');
+        }
+
+        if (fleetSize.max > 100) {
+            playstyleDetails.push('Blob');
+        }
+
+        if (killmailAnalysis.mostExpensiveKill.value > 500000000) {
+            playstyleDetails.push('HVT Hunter');
+        }
+
+        if (shipComp.uniqueShips > 20) {
+            playstyleDetails.push('Multi-Ship');
+        } else if (shipComp.uniqueShips < 5) {
+            playstyleDetails.push('Specialist');
+        }
+
+        return {
+            ...existingStyle,
+            fleetRole: enhancedFleetRole,
+            playstyleDetails: playstyleDetails.slice(0, 3),
+            enrichedWithKillmails: true,
+            fleetSizeRange: {
+                min: fleetSize.min,
+                max: fleetSize.max,
+                avg: fleetSize.average
+            }
         };
     }
 
@@ -696,8 +842,8 @@ class ZKillboardClient {
 
         const activeMonths = monthEntries.length;
         const consistency = activeMonths >= 6 ? 'Very Consistent' :
-                           activeMonths >= 3 ? 'Moderately Active' :
-                           activeMonths >= 1 ? 'Sporadic' : 'Inactive';
+            activeMonths >= 3 ? 'Moderately Active' :
+                activeMonths >= 1 ? 'Sporadic' : 'Inactive';
 
         let primeTime = 'Unknown';
         if (activity.max) {
@@ -725,19 +871,51 @@ class ZKillboardClient {
     }
 
     analyzeSecurityPreference(data) {
-        const labels = data.labels || {};
+        const topLists = data.topLists || [];
+        const systemList = topLists.find(list => list.type === 'solarSystem' || list.type === 'system');
 
-        const highsec = labels['loc:highsec'] || {};
-        const lowsec = labels['loc:lowsec'] || {};
-        const nullsec = labels['loc:nullsec'] || {};
-        const wspace = labels['loc:w-space'] || {};
+        let highsecKills = 0;
+        let lowsecKills = 0;
+        let nullsecKills = 0;
+        let wspaceKills = 0;
 
-        const highsecKills = this.safeGet(highsec, 'shipsDestroyed', 0);
-        const lowsecKills = this.safeGet(lowsec, 'shipsDestroyed', 0);
-        const nullsecKills = this.safeGet(nullsec, 'shipsDestroyed', 0);
-        const wspaceKills = this.safeGet(wspace, 'shipsDestroyed', 0);
+        if (systemList && systemList.values && systemList.values.length > 0) {
+            systemList.values.forEach(system => {
+                const kills = system.kills || 0;
+                const sec = system.solarSystemSecurity;
 
-        const total = highsecKills + lowsecKills + nullsecKills + wspaceKills;
+                if (sec === undefined || sec === null) {
+                    return;
+                }
+
+                if (sec >= 0.5) {
+                    highsecKills += kills;
+                } else if (sec > 0.0) {
+                    lowsecKills += kills;
+                } else if (sec >= -0.99) {
+                    nullsecKills += kills;
+                } else {
+                    wspaceKills += kills;
+                }
+            });
+        }
+
+        let total = highsecKills + lowsecKills + nullsecKills + wspaceKills;
+
+        if (total === 0) {
+            const labels = data.labels || {};
+            const highsec = labels['loc:highsec'] || {};
+            const lowsec = labels['loc:lowsec'] || {};
+            const nullsec = labels['loc:nullsec'] || {};
+            const wspace = labels['loc:w-space'] || {};
+
+            highsecKills = this.safeGet(highsec, 'shipsDestroyed', 0);
+            lowsecKills = this.safeGet(lowsec, 'shipsDestroyed', 0);
+            nullsecKills = this.safeGet(nullsec, 'shipsDestroyed', 0);
+            wspaceKills = this.safeGet(wspace, 'shipsDestroyed', 0);
+
+            total = highsecKills + lowsecKills + nullsecKills + wspaceKills;
+        }
 
         if (total === 0) {
             return {
@@ -756,9 +934,9 @@ class ZKillboardClient {
 
         const primary = breakdown[0]?.space || 'Unknown';
 
-        let riskProfile = 'Moderate';
-        if (highsecKills > total * 0.6) riskProfile = 'Risk Averse';
-        else if (nullsecKills > total * 0.5 || wspaceKills > total * 0.3) riskProfile = 'High Risk';
+        let riskProfile = 'Moderate Risk';
+        if (total > 50) riskProfile = 'High Risk';
+        else if (total < 5) riskProfile = 'Risk Averse';
 
         return {
             primary,
@@ -767,15 +945,15 @@ class ZKillboardClient {
         };
     }
 
-        extractActivePeriods(data) {
+    extractActivePeriods(data) {
         const months = data.months || {};
 
         return Object.entries(months)
             .filter(([, monthData]) =>
                 (monthData.shipsDestroyed || 0) > 0 || (monthData.shipsLost || 0) > 0
             )
-            .sort(([a], [b]) => b.localeCompare(a)) // Sort by YYYYMM desc
-            .slice(0, 6) // Last 6 active months
+            .sort(([a], [b]) => b.localeCompare(a))
+            .slice(0, 6)
             .map(([monthKey, monthData]) => {
                 const year = monthKey.substring(0, 4);
                 const month = monthKey.substring(4, 6);
@@ -865,13 +1043,11 @@ class ZKillboardClient {
 const zkillClient = new ZKillboardClient();
 
 
-/**
- * Get zKillboard stats for a character
- * @param {number|string} charId - Character ID
- * @returns {Promise<Object>} Character stats object
- */
-export async function get_zkill_character_stats(charId) {
+export async function get_zkill_character_stats(charId, options = {}) {
     try {
+        if (options.includeKillmails) {
+            return await zkillClient.getEntityStatsWithKillmails('characterID', charId, options);
+        }
         return await zkillClient.getEntityStats('characterID', charId);
     } catch (error) {
         console.error(`Failed to get character stats for ${charId}:`, error);
@@ -886,13 +1062,11 @@ export async function get_zkill_character_stats(charId) {
     }
 }
 
-/**
- * Get zKillboard stats for a corporation
- * @param {number|string} corpId - Corporation ID
- * @returns {Promise<Object>} Corporation stats object
- */
-export async function get_zkill_corporation_stats(corpId) {
+export async function get_zkill_corporation_stats(corpId, options = {}) {
     try {
+        if (options.includeKillmails) {
+            return await zkillClient.getEntityStatsWithKillmails('corporationID', corpId, options);
+        }
         return await zkillClient.getEntityStats('corporationID', corpId);
     } catch (error) {
         console.error(`Failed to get corporation stats for ${corpId}:`, error);
@@ -907,13 +1081,11 @@ export async function get_zkill_corporation_stats(corpId) {
     }
 }
 
-/**
- * Get zKillboard stats for an alliance
- * @param {number|string} allianceId - Alliance ID
- * @returns {Promise<Object>} Alliance stats object
- */
-export async function get_zkill_alliance_stats(allianceId) {
+export async function get_zkill_alliance_stats(allianceId, options = {}) {
     try {
+        if (options.includeKillmails) {
+            return await zkillClient.getEntityStatsWithKillmails('allianceID', allianceId, options);
+        }
         return await zkillClient.getEntityStats('allianceID', allianceId);
     } catch (error) {
         console.error(`Failed to get alliance stats for ${allianceId}:`, error);
@@ -928,13 +1100,6 @@ export async function get_zkill_alliance_stats(allianceId) {
     }
 }
 
-/**
- * Batch get stats for multiple entities of the same type
- * @param {string} entityType - 'characterID', 'corporationID', or 'allianceID'
- * @param {Array<number|string>} entityIds - Array of entity IDs
- * @param {Function} onProgress - Optional progress callback
- * @returns {Promise<Array<Object>>} Array of stats objects
- */
 export async function get_zkill_batch_stats(entityType, entityIds, onProgress = null) {
     const results = [];
 
@@ -958,17 +1123,10 @@ export async function get_zkill_batch_stats(entityType, entityIds, onProgress = 
     return results;
 }
 
-/**
- * Get client statistics and performance info
- * @returns {Object} Performance statistics
- */
 export function get_zkill_stats() {
     return zkillClient.getStats();
 }
 
-/**
- * Clear zKillboard cache
- */
 export function clear_zkill_cache() {
     zkillClient.clearCache();
 }

@@ -7,9 +7,6 @@
     Licensed under AGPL License.
 */
 
-/**
- * Ship Group Classifications
- */
 export const SHIP_GROUP_CLASSIFICATIONS = {
     // ===== SMALL SHIPS =====
 

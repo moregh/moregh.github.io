@@ -5,31 +5,13 @@
     Licensed under AGPL License.
 */
 
-import {
-    get_zkill_character_stats,
-    get_zkill_corporation_stats,
-    get_zkill_alliance_stats
-} from './zkillboard-api.js';
-import {
-    CHARACTER_PORTRAIT_SIZE_PX,
-    CORP_LOGO_SIZE_PX,
-    ALLIANCE_LOGO_SIZE_PX,
-    ZKILL_CARD_ANIMATION_DURATION_MS
-} from './config.js';
+import { get_zkill_character_stats, get_zkill_corporation_stats, get_zkill_alliance_stats } from './zkillboard-api.js';
+import { CHARACTER_PORTRAIT_SIZE_PX, CORP_LOGO_SIZE_PX, ALLIANCE_LOGO_SIZE_PX, ZKILL_CARD_ANIMATION_DURATION_MS } from './config.js';
 import { getEntityMaps } from './rendering.js';
 import { esiClient } from './esi-client.js';
-import {
-    sanitizeCharacterName,
-    sanitizeCorporationName,
-    sanitizeAllianceName,
-    sanitizeId,
-    sanitizeAttribute,
-    escapeHtml
-} from './xss-protection.js';
+import { sanitizeCharacterName, sanitizeCorporationName, sanitizeAllianceName, sanitizeId, sanitizeAttribute, escapeHtml } from './xss-protection.js';
+import { getCachedUniverseName, setCachedUniverseName } from './database.js';
 
-/**
- * zKillboard Stats Card Manager
- */
 class ZKillStatsCard {
     constructor() {
         this.currentModal = null;
@@ -39,7 +21,7 @@ class ZKillStatsCard {
         this.setupEventListeners();
         this.updateEntityMaps();
     }
-    
+
     updateEntityMaps() {
         const maps = getEntityMaps();
         this.corpToCharactersMap = maps.corpToCharactersMap;
@@ -65,14 +47,12 @@ class ZKillStatsCard {
     }
 
     setupEventListeners() {
-        // Close modal on Escape key
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && this.isVisible) {
                 this.close();
             }
         });
 
-        // Close modal on backdrop click
         document.addEventListener('click', (e) => {
             if (e.target && e.target.classList.contains('zkill-modal-backdrop')) {
                 this.close();
@@ -80,57 +60,38 @@ class ZKillStatsCard {
         });
     }
 
-    /**
-     * Show stats card for a character
-     */
     async showCharacterStats(characterId, characterName) {
         await this.showStats('character', characterId, characterName, 'characterID');
     }
 
-    /**
-     * Show stats card for a corporation
-     */
     async showCorporationStats(corporationId, corporationName) {
         await this.showStats('corporation', corporationId, corporationName, 'corporationID');
     }
 
-    /**
-     * Show stats card for an alliance
-     */
     async showAllianceStats(allianceId, allianceName) {
         await this.showStats('alliance', allianceId, allianceName, 'allianceID');
     }
 
-    /**
-     * Generic method to show stats card
-     */
     async showStats(entityType, entityId, entityName, apiType) {
-        // Close existing modal if any
         if (this.isVisible) {
             this.close();
         }
 
-        // Create modal structure
         this.currentModal = this.createModalStructure(entityType, entityId, entityName);
         document.body.appendChild(this.currentModal);
-
-        // Update back button visibility
         this.updateBackButtonVisibility();
 
-        // Show modal with animation
         requestAnimationFrame(() => {
             this.currentModal.classList.add('show');
             this.isVisible = true;
         });
 
-        // Load stats data and affiliations in parallel
         try {
             const [stats, affiliationData] = await Promise.all([
                 this.loadStats(apiType, entityId),
                 this.fetchEntityAffiliations(entityType, entityId)
             ]);
 
-            // Fetch entity names if we have affiliation data
             let corporationName = null;
             let allianceName = null;
 
@@ -157,32 +118,25 @@ class ZKillStatsCard {
         }
     }
 
-    /**
-     * Load stats from appropriate API
-     */
     async loadStats(apiType, entityId) {
+        const options = { includeKillmails: true };
         switch (apiType) {
             case 'characterID':
-                return await get_zkill_character_stats(entityId);
+                return await get_zkill_character_stats(entityId, options);
             case 'corporationID':
-                return await get_zkill_corporation_stats(entityId);
+                return await get_zkill_corporation_stats(entityId, options);
             case 'allianceID':
-                return await get_zkill_alliance_stats(entityId);
+                return await get_zkill_alliance_stats(entityId, options);
             default:
                 throw new Error(`Unknown API type: ${apiType}`);
         }
     }
 
-    /**
-     * FIXED: Use ESI client instead of direct fetch calls
-     * Fetch entity affiliations using the existing ESI infrastructure
-     */
     async fetchEntityAffiliations(entityType, entityId) {
         try {
             let affiliationData = null;
 
             if (entityType === 'character') {
-                // Use ESI client for character data
                 const charData = await esiClient.get(`/characters/${entityId}/`);
                 if (charData) {
                     affiliationData = {
@@ -191,7 +145,6 @@ class ZKillStatsCard {
                     };
                 }
             } else if (entityType === 'corporation') {
-                // Use ESI client for corporation data
                 const corpData = await esiClient.get(`/corporations/${entityId}/`);
                 if (corpData) {
                     affiliationData = {
@@ -207,17 +160,12 @@ class ZKillStatsCard {
         }
     }
 
-    /**
-     * FIXED: Use ESI client instead of direct fetch calls
-     * Fetch entity names using the existing ESI infrastructure
-     */
     async fetchEntityNames(corporationId, allianceId) {
         const names = {};
 
         try {
-            // Use Promise.all to fetch both names concurrently
             const promises = [];
-            
+
             if (corporationId) {
                 promises.push(
                     esiClient.get(`/corporations/${corporationId}/`)
@@ -246,12 +194,11 @@ class ZKillStatsCard {
                 );
             }
 
-            // Wait for all requests to complete
+
             await Promise.all(promises);
         } catch (error) {
             console.warn('Failed to fetch entity names:', error);
         }
-
         return names;
     }
 
@@ -291,17 +238,18 @@ class ZKillStatsCard {
                 <div class="zkill-affiliation-info">
                     <div class="zkill-affiliation-label">Alliance</div>
                     <div class="zkill-affiliation-link" 
-     data-entity-type="alliance" 
-     data-entity-id="${allianceId}"
-     data-entity-name="${sanitizeAttribute(allianceName)}"
-     style="cursor: pointer;">${sanitizeAllianceName(allianceName)}</div>
+                                data-entity-type="alliance" 
+                                data-entity-id="${allianceId}"
+                                data-entity-name="${sanitizeAttribute(allianceName)}"
+                                style="cursor: pointer;">${sanitizeAllianceName(allianceName)}
+                    </div>
                 </div>
             </div>
         `;
         }
 
         affiliationsContainer.innerHTML = affiliationsHTML;
-        // Add individual click handlers to prevent conflicts
+
         const affiliationLinks = affiliationsContainer.querySelectorAll('.zkill-affiliation-link');
         affiliationLinks.forEach(link => {
             link.addEventListener('click', (e) => {
@@ -312,10 +260,10 @@ class ZKillStatsCard {
                 const entityId = link.dataset.entityId;
                 const entityName = link.dataset.entityName;
 
-                // Add current card to history before navigating
+
                 const currentEntityType = this.currentModal.querySelector('.zkill-entity-type').textContent;
                 const currentEntityName = this.currentModal.querySelector('.zkill-entity-details h2').textContent.replace(' ⚔️', '');
-                const currentEntityId = this.getCurrentEntityId(); // We'll need to store this
+                const currentEntityId = this.getCurrentEntityId();
 
                 this.navigationHistory.push({
                     entityType: currentEntityType,
@@ -324,7 +272,7 @@ class ZKillStatsCard {
                     apiType: currentEntityType + 'ID'
                 });
 
-                // Limit history to 2 items (character -> corp -> alliance)
+
                 if (this.navigationHistory.length > 2) {
                     this.navigationHistory.shift();
                 }
@@ -342,38 +290,31 @@ class ZKillStatsCard {
         });
     }
 
-    /**
-     * Create a bar chart SVG
-     */
     createBarChart(data, title, maxValue) {
         if (!data || data.length === 0) {
-            return `<div class="zkill-chart-empty">No activity data available</div>`;
+            return ``;
         }
 
         const width = 320;
         const height = 180;
-        const margin = { top: 20, right: 20, bottom: 40, left: 40 };
+        const margin = { top: 20, right: 10, bottom: 40, left: 50 };
         const chartWidth = width - margin.left - margin.right;
         const chartHeight = height - margin.top - margin.bottom;
-
-        // Calculate bar width and spacing
         const barSpacing = 2;
         const barWidth = Math.max(1, (chartWidth - (data.length - 1) * barSpacing) / data.length);
 
-        // Create bars
         const bars = data.map((item, index) => {
             const barHeight = maxValue > 0 ? (item.value / maxValue) * chartHeight : 0;
             const x = margin.left + index * (barWidth + barSpacing);
             const y = margin.top + chartHeight - barHeight;
 
-            // Color based on activity level
             let fillColor = 'rgba(0, 212, 255, 0.3)';
             if (item.value > maxValue * 0.7) {
-                fillColor = 'rgba(248, 113, 113, 0.8)'; // High activity - red
+                fillColor = 'rgba(248, 113, 113, 0.8)';
             } else if (item.value > maxValue * 0.4) {
-                fillColor = 'rgba(251, 191, 36, 0.8)'; // Medium activity - yellow
+                fillColor = 'rgba(251, 191, 36, 0.8)';
             } else if (item.value > 0) {
-                fillColor = 'rgba(74, 222, 128, 0.8)'; // Low activity - green
+                fillColor = 'rgba(74, 222, 128, 0.8)';
             }
 
             return `
@@ -385,7 +326,7 @@ class ZKillStatsCard {
         `;
         }).join('');
 
-        // Create x-axis labels (show every nth label to avoid crowding)
+
         const labelInterval = Math.ceil(data.length / 8);
         const labels = data.map((item, index) => {
             if (index % labelInterval === 0 || index === data.length - 1) {
@@ -401,7 +342,7 @@ class ZKillStatsCard {
             return '';
         }).join('');
 
-        // Create y-axis labels
+
         const yAxisLabels = [];
         const steps = 4;
         for (let i = 0; i <= steps; i++) {
@@ -427,17 +368,11 @@ class ZKillStatsCard {
             return `<line x1="${margin.left}" y1="${y}" x2="${margin.left + chartWidth}" y2="${y}" 
                                   stroke="rgba(255, 255, 255, 0.1)" stroke-width="1"/>`;
         }).join('')}
-                
-                <!-- Bars -->
                 ${bars}
-                
-                <!-- Axes -->
                 <line x1="${margin.left}" y1="${margin.top}" x2="${margin.left}" y2="${margin.top + chartHeight}" 
                       stroke="rgba(255, 255, 255, 0.3)" stroke-width="2"/>
                 <line x1="${margin.left}" y1="${margin.top + chartHeight}" x2="${margin.left + chartWidth}" y2="${margin.top + chartHeight}" 
                       stroke="rgba(255, 255, 255, 0.3)" stroke-width="2"/>
-                
-                <!-- Labels -->
                 ${labels}
                 ${yAxisLabels.join('')}
             </svg>
@@ -450,7 +385,6 @@ class ZKillStatsCard {
         const avatar = this.currentModal.querySelector('.zkill-entity-avatar');
         if (!avatar) return null;
 
-        // Extract ID from the image src URL
         const src = avatar.src;
         const matches = src.match(/\/(\d+)\//);
         return matches ? matches[1] : null;
@@ -458,7 +392,7 @@ class ZKillStatsCard {
 
     createActivityChartsHTML(activityData) {
         if (!activityData || !activityData.hasData) {
-            return '<div class="zkill-charts-empty"><div class="zkill-empty-text">No activity data available</div></div>';
+            return '';
         }
 
         const hourlyChart = this.createBarChart(
@@ -481,23 +415,17 @@ class ZKillStatsCard {
         `;
     }
 
-    /**
-     * Create modal DOM structure
-     */
     createModalStructure(entityType, entityId, entityName) {
         const modal = document.createElement('div');
         modal.className = 'zkill-modal-backdrop';
-
-        // Sanitize input data
         const allowedTypes = ['character', 'corporation', 'alliance'];
         const sanitizedType = allowedTypes.includes(entityType) ? entityType : 'character';
         const sanitizedId = sanitizeId(entityId);
-        // For header, escape only dangerous chars but leave apostrophes
+
         const headerName = entityName.replace(/[<>&"]/g, (match) => {
-            return {'<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;'}[match];
+            return { '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[match];
         });
 
-        // For other contexts that need full sanitization, keep the sanitized version
         const sanitizedName = sanitizedType === 'character' ?
             sanitizeCharacterName(entityName) :
             sanitizedType === 'corporation' ?
@@ -544,15 +472,11 @@ class ZKillStatsCard {
         </div>
     `;
 
-        // Add close button functionality
         const closeBtn = modal.querySelector('.zkill-close-btn');
         closeBtn.addEventListener('click', () => this.close());
-
-        // Add back button functionality
         const backBtn = modal.querySelector('.zkill-back-btn');
         backBtn.addEventListener('click', () => this.goBack());
 
-        // Add dropdown toggle functionality
         modal.addEventListener('click', (e) => {
             if (e.target.closest('[data-action="toggle-members"]')) {
                 e.preventDefault();
@@ -564,37 +488,30 @@ class ZKillStatsCard {
             }
         });
 
-        // Add member click functionality
         modal.addEventListener('click', (e) => {
             const memberItem = e.target.closest('[data-click-action]');
             if (memberItem) {
                 e.preventDefault();
                 e.stopPropagation();
-                
+
                 const action = memberItem.dataset.clickAction;
-                
+
                 if (action === 'show-character') {
                     const characterId = memberItem.dataset.characterId;
                     const characterName = memberItem.dataset.characterName;
-                    
-                    // Add current card to history
                     this.addToNavigationHistory();
-                    
-                    // Close current modal and show character
                     this.close();
+
                     setTimeout(() => {
                         this.showCharacterStats(characterId, characterName);
                     }, 350);
-                    
+
                 } else if (action === 'show-corporation') {
                     const corporationId = memberItem.dataset.corporationId;
                     const corporationName = memberItem.dataset.corporationName;
-                    
-                    // Add current card to history
                     this.addToNavigationHistory();
-                    
-                    // Close current modal and show corporation
                     this.close();
+
                     setTimeout(() => {
                         this.showCorporationStats(corporationId, corporationName);
                     }, 350);
@@ -604,14 +521,14 @@ class ZKillStatsCard {
 
         return modal;
     }
-    
+
     addToNavigationHistory() {
         if (!this.currentModal) return;
-        
+
         const currentEntityType = this.currentModal.querySelector('.zkill-entity-type').textContent;
         const currentEntityName = this.currentModal.querySelector('.zkill-entity-details h2').textContent.replace(' ⚔️', '');
         const currentEntityId = this.getCurrentEntityId();
-        
+
         if (currentEntityId) {
             this.navigationHistory.push({
                 entityType: currentEntityType,
@@ -619,38 +536,31 @@ class ZKillStatsCard {
                 entityName: currentEntityName,
                 apiType: currentEntityType + 'ID'
             });
-            
-            // Limit history to 3 items (character -> corp -> alliance)
+
             if (this.navigationHistory.length > 3) {
                 this.navigationHistory.shift();
             }
         }
     }
 
-    // Navigate back to previous card
     goBack() {
         if (this.navigationHistory.length > 0) {
             const previous = this.navigationHistory.pop();
             this.close();
 
             setTimeout(() => {
-                // Don't add to history when going back
                 this.showStatsWithoutHistory(previous.entityType, previous.entityId, previous.entityName, previous.apiType);
             }, 350);
         }
     }
 
-    // Show stats without adding to navigation history (for back navigation)
     async showStatsWithoutHistory(entityType, entityId, entityName, apiType) {
-        // Same as showStats but without history tracking
         if (this.isVisible) {
             this.close();
         }
 
         this.currentModal = this.createModalStructure(entityType, entityId, entityName);
         document.body.appendChild(this.currentModal);
-
-        // Update back button visibility
         this.updateBackButtonVisibility();
 
         requestAnimationFrame(() => {
@@ -690,7 +600,6 @@ class ZKillStatsCard {
         }
     }
 
-    // Update back button visibility
     updateBackButtonVisibility() {
         const backBtn = document.getElementById('zkill-back-btn');
         if (backBtn) {
@@ -704,10 +613,7 @@ class ZKillStatsCard {
         return ratio.toFixed(2);
     }
 
-    /**
-     * Populate modal with stats data
-     */
-    populateStatsData(stats, entityType, entityId, entityName) {
+    async populateStatsData(stats, entityType, entityId, entityName) {
         if (!this.currentModal) return;
 
         const content = this.currentModal.querySelector('.zkill-card-content');
@@ -716,19 +622,15 @@ class ZKillStatsCard {
             content.innerHTML = this.createEmptyStateHTML(entityName);
             return;
         }
-
-        content.innerHTML = this.createStatsHTML(stats, entityType, entityId);
+        content.innerHTML = await this.createStatsHTML(stats, entityType, entityId);
     }
 
-    /**
-     * Create main stats HTML
-     */
-    // Add this method to the ZKillStatsCard class
+
     createMembersDropdownHTML(entityType, entityId) {
         if (entityType === 'corporation') {
             const characters = this.corpToCharactersMap.get(parseInt(entityId)) || [];
             if (characters.length === 0) return '';
-            
+
             const membersHTML = characters.map(character => `
                 <div class="zkill-member-item" 
                      data-click-action="show-character" 
@@ -744,7 +646,7 @@ class ZKillStatsCard {
                     </div>
                 </div>
             `).join('');
-            
+
             return `
                 <div class="zkill-members-section">
                     <div class="zkill-members-dropdown" id="zkill-members-dropdown">
@@ -767,7 +669,7 @@ class ZKillStatsCard {
         } else if (entityType === 'alliance') {
             const corps = this.allianceToCorpsMap.get(parseInt(entityId)) || [];
             if (corps.length === 0) return '';
-            
+
             const membersHTML = corps.map(corp => `
                 <div class="zkill-member-item" 
                      data-click-action="show-corporation" 
@@ -783,7 +685,7 @@ class ZKillStatsCard {
                     </div>
                 </div>
             `).join('');
-            
+
             return `
                 <div class="zkill-members-section">
                     <div class="zkill-members-dropdown" id="zkill-members-dropdown">
@@ -807,33 +709,22 @@ class ZKillStatsCard {
         return '';
     }
 
-    createStatsHTML(stats, entityType, entityId) {
+    async createStatsHTML(stats, entityType, entityId) {
+        const recentKillsHTML = await this.createRecentKillsHTML(stats.killmailData, entityType, entityId);
+
         return `
-        <!-- Members Dropdown -->
         ${this.createMembersDropdownHTML(entityType, entityId)}
-
-        <!-- TACTICAL OVERVIEW - Critical at-a-glance intel -->
         ${this.createTacticalOverviewHTML(stats)}
-
-        <!-- THREAT ASSESSMENT - Risk profile and combat style -->
         ${this.createThreatAssessmentHTML(stats.securityPreference, stats.combatStyle, stats.activityInsights)}
-
-        <!-- SHIP PREFERENCES - What they fly and where -->
+        ${this.createKillmailInsightsHTML(stats.killmailData)}
         ${this.createShipPreferencesHTML(stats.shipAnalysis, stats.topLocations)}
-
-        <!-- ACTIVITY PATTERNS - When and how they operate -->
         ${this.createActivityPatternsHTML(stats.activityInsights, stats.recentActivity.activePvPData, stats.activityData)}
-
-        <!-- DETAILED STATISTICS - Full breakdown for analysis -->
         ${this.createDetailedStatsHTML(stats)}
-
-        <!-- TOP SHIPS - Specific ship usage -->
         ${this.createTopShipsHTML(stats.topShips)}
-
-        <!-- Footer -->
+        ${recentKillsHTML}
         <div style="text-align: center; padding: 1rem; border-top: 1px solid rgba(255, 255, 255, 0.1); margin-top: 1rem;">
-            <a href="https://zkillboard.com/${entityType}/${entityId}/" 
-               target="_blank" 
+            <a href="https://zkillboard.com/${entityType}/${entityId}/"
+               target="_blank"
                style="color: var(--primary-color); text-decoration: none; font-weight: 600;">
                 View full stats on zKillboard →
             </a>
@@ -841,14 +732,187 @@ class ZKillStatsCard {
     `;
     }
 
+    createKillmailInsightsHTML(killmailData) {
+        if (!killmailData || !killmailData.hasData || !killmailData.analysis) {
+            return '';
+        }
+
+        const analysis = killmailData.analysis;
+        const fleetSize = analysis.fleetSizeAnalysis;
+        const soloVsFleet = analysis.soloVsFleet;
+        const totalKillmails = killmailData.totalFetched || analysis.totalKillmails;
+
+        return `
+        <div class="zkill-section">
+            <h3 class="zkill-section-title">Last ${totalKillmails} Kills</h3>
+            <div class="zkill-stats-grid">
+                <div class="zkill-stat-item">
+                    <div class="zkill-stat-label">Avg Fleet Size</div>
+                    <div class="zkill-stat-value">${fleetSize.average}</div>
+                </div>
+                <div class="zkill-stat-item">
+                    <div class="zkill-stat-label">Solo Kills</div>
+                    <div class="zkill-stat-value">${soloVsFleet.solo.percentage}%</div>
+                </div>
+                <div class="zkill-stat-item">
+                    <div class="zkill-stat-label">Small Gang</div>
+                    <div class="zkill-stat-value">${soloVsFleet.smallGang.percentage}%</div>
+                </div>
+                <div class="zkill-stat-item">
+                    <div class="zkill-stat-label">Fleet Ops</div>
+                    <div class="zkill-stat-value">${soloVsFleet.fleet.percentage}%</div>
+                </div>
+                <div class="zkill-stat-item">
+                    <div class="zkill-stat-label">Most Expensive Kill</div>
+                    <div class="zkill-stat-value">${(analysis.mostExpensiveKill.value / 1000000).toFixed(1)}M ISK</div>
+                </div>
+                <div class="zkill-stat-item">
+                    <div class="zkill-stat-label">Avg Kill Value</div>
+                    <div class="zkill-stat-value">${(analysis.avgValue / 1000000).toFixed(1)}M ISK</div>
+                </div>
+            </div>
+        </div>
+        `;
+    }
+
+    async createRecentKillsHTML(killmailData, entityType, entityId) {
+        if (!killmailData || !killmailData.hasData || !killmailData.recentKills || killmailData.recentKills.length === 0) {
+            return '';
+        }
+
+        const killsWithNames = await Promise.all(killmailData.recentKills.slice(0, 5).map(async kill => {
+            const [shipName, systemData] = await Promise.all([
+                this.getShipName(kill.victimShipTypeId),
+                this.getSystemName(kill.systemId)
+            ]);
+
+            return {
+                ...kill,
+                shipName,
+                systemName: systemData.name,
+                systemSecurity: systemData.security !== undefined ? systemData.security : kill.systemSecurity
+            };
+        }));
+
+        const killsHTML = killsWithNames.map(kill => {
+            const date = new Date(kill.time);
+            const relativeTime = this.getRelativeTime(date);
+            const iskValue = (kill.value / 1000000).toFixed(1);
+
+            const secStatus = kill.systemSecurity !== undefined && kill.systemSecurity !== null
+                ? kill.systemSecurity.toFixed(1)
+                : '?';
+            const secClass = this.getSecurityClass(kill.systemSecurity);
+
+            return `
+                <div class="zkill-kill-item">
+                    <div class="zkill-kill-ship">
+                        <img src="https://images.evetech.net/types/${kill.victimShipTypeId}/icon?size=32"
+                             alt="${kill.shipName}"
+                             class="zkill-kill-icon"
+                             loading="lazy">
+                        <div class="zkill-kill-ship-info">
+                            <div class="zkill-kill-ship-name">${kill.shipName}</div>
+                            <div class="zkill-kill-value">${iskValue}M ISK</div>
+                        </div>
+                    </div>
+                    <div class="zkill-kill-details">
+                        <div class="zkill-kill-meta">
+                            <span class="zkill-kill-system">
+                                <span class="zkill-kill-sec ${secClass}">${secStatus}</span>
+                                <span class="zkill-kill-system-name">${kill.systemName}</span>
+                            </span>
+                            <span class="zkill-kill-attackers">${kill.attackers} pilot${kill.attackers !== 1 ? 's' : ''}</span>
+                            <span class="zkill-kill-time">${relativeTime}</span>
+                        </div>
+                        <a href="https://zkillboard.com/kill/${kill.killmailId}/"
+                           target="_blank"
+                           class="zkill-kill-link">View</a>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        return `
+        <div class="zkill-section">
+            <h3 class="zkill-section-title">Recent Kills</h3>
+            <div class="zkill-kills-list">
+                ${killsHTML}
+            </div>
+        </div>
+        `;
+    }
+
+    getSecurityClass(security) {
+        if (security === undefined || security === null) return 'sec-unknown';
+        if (security >= 0.5) return 'sec-high';
+        if (security > 0.0) return 'sec-low';
+        if (security >= -0.99) return 'sec-null';
+        return 'sec-wspace';
+    }
+
+    async getShipName(shipTypeId) {
+        if (!shipTypeId) return 'Unknown Ship';
+
+        try {
+            const cached = await getCachedUniverseName(shipTypeId);
+            if (cached && cached.name) return cached.name;
+
+            const response = await fetch(`https://esi.evetech.net/latest/universe/types/${shipTypeId}/`);
+            if (!response.ok) return 'Unknown Ship';
+
+            const data = await response.json();
+            await setCachedUniverseName(shipTypeId, data.name);
+            return data.name;
+        } catch (error) {
+            console.error('Error fetching ship name:', error);
+            return 'Unknown Ship';
+        }
+    }
+
+    async getSystemName(systemId) {
+        if (!systemId) return { name: 'Unknown System', security: null };
+
+        try {
+            const cached = await getCachedUniverseName(systemId);
+            if (cached && cached.name) return cached;
+
+            const response = await fetch(`https://esi.evetech.net/latest/universe/systems/${systemId}/`);
+            if (!response.ok) return { name: 'Unknown System', security: null };
+
+            const data = await response.json();
+            await setCachedUniverseName(systemId, data.name, data.security_status);
+            return { name: data.name, security: data.security_status };
+        } catch (error) {
+            console.error('Error fetching system name:', error);
+            return { name: 'Unknown System', security: null };
+        }
+    }
+
+    getRelativeTime(date) {
+        const now = new Date();
+        const diffMs = now - date;
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMs / 3600000);
+        const diffDays = Math.floor(diffMs / 86400000);
+
+        if (diffMins < 60) {
+            return `${diffMins}m ago`;
+        } else if (diffHours < 24) {
+            return `${diffHours}h ago`;
+        } else {
+            return `${diffDays}d ago`;
+        }
+    }
+
     createRecentActivityHtml(activePvPData) {
-        if (activePvPData.characters === 1 && 
+        if (activePvPData.characters === 1 &&
             activePvPData.ships === 0 &&
             activePvPData.totalKills === 0 &&
             activePvPData.systems === 0 &&
             activePvPData.regions === 0) {
-                return '';
-            }
+            return '';
+        }
         return `
         <div class="zkill-section">
             <h3 class="zkill-section-title">
@@ -885,9 +949,6 @@ class ZKillStatsCard {
         `;
     }
 
-    /**
-     * Create top ships HTML
-     */
     createTopShipsHTML(ships) {
         if (!ships || ships.length === 0) {
             return '';
@@ -928,9 +989,6 @@ class ZKillStatsCard {
     `;
     }
 
-    /**
-     * Create top locations HTML
-     */
     createTopLocationsHTML(locations) {
         if (!locations || locations.length === 0) {
             return '';
@@ -967,11 +1025,7 @@ class ZKillStatsCard {
     `;
     }
 
-    /**
-     * Create tactical overview - critical at-a-glance intel
-     */
     createTacticalOverviewHTML(stats) {
-        // Key tactical metrics in a compact format
         return `
         <div class="zkill-section zkill-tactical-overview">
             <h3 class="zkill-section-title">
@@ -1004,14 +1058,11 @@ class ZKillStatsCard {
         `;
     }
 
-    /**
-     * Create threat assessment - risk profile and combat style
-     */
     createThreatAssessmentHTML(securityPreference, combatStyle, activityInsights) {
         if (!securityPreference || !combatStyle) return '';
 
         const riskLevel = securityPreference.riskProfile === 'High Risk' ? 'high' :
-                         securityPreference.riskProfile === 'Risk Averse' ? 'low' : 'moderate';
+            securityPreference.riskProfile === 'Risk Averse' ? 'low' : 'moderate';
 
         return `
         <div class="zkill-section zkill-threat-assessment">
@@ -1029,13 +1080,21 @@ class ZKillStatsCard {
                 </div>
                 <div class="zkill-threat-details">
                     <div class="zkill-threat-item">
-                        <span class="zkill-threat-label">Combat Style:</span>
-                        <span class="zkill-threat-value">${combatStyle.engagementStyle}</span>
+                        <span class="zkill-threat-label">Primary Role:</span>
+                        <span class="zkill-threat-value">${combatStyle.primaryRole?.role || 'Unknown'}</span>
                     </div>
                     <div class="zkill-threat-item">
-                        <span class="zkill-threat-label">Fleet Role:</span>
+                        <span class="zkill-threat-label">Playstyle:</span>
                         <span class="zkill-threat-value">${combatStyle.fleetRole}</span>
                     </div>
+                    ${combatStyle.playstyleDetails && combatStyle.playstyleDetails.length > 0 ? `
+                    <div class="zkill-threat-item">
+                        <span class="zkill-threat-label">Tags:</span>
+                        <div class="zkill-threat-tags-container">
+                            ${combatStyle.playstyleDetails.map(tag => `<span class="zkill-tag zkill-tag-${tag.toLowerCase().replace(/[\/\s]/g, '-')}">${tag}</span>`).join('')}
+                        </div>
+                    </div>
+                    ` : ''}
                     <div class="zkill-threat-item">
                         <span class="zkill-threat-label">Activity Trend:</span>
                         <span class="zkill-threat-value ${activityInsights?.trend?.toLowerCase()}">${activityInsights?.trend || 'Unknown'}</span>
@@ -1046,9 +1105,6 @@ class ZKillStatsCard {
         `;
     }
 
-    /**
-     * Create ship preferences - what they fly and where
-     */
     createShipPreferencesHTML(shipAnalysis, topLocations) {
         if (!shipAnalysis) return '';
 
@@ -1130,9 +1186,6 @@ class ZKillStatsCard {
         `;
     }
 
-    /**
-     * Create activity patterns section
-     */
     createActivityPatternsHTML(activityInsights, activePvPData, activityData) {
         if (!activityInsights) return '';
 
@@ -1174,9 +1227,6 @@ class ZKillStatsCard {
         `;
     }
 
-    /**
-     * Create detailed statistics section (compact)
-     */
     createDetailedStatsHTML(stats) {
         return `
         <div class="zkill-section zkill-detailed-stats">
@@ -1220,9 +1270,6 @@ class ZKillStatsCard {
         `;
     }
 
-    /**
-     * Create enhanced ship analysis HTML
-     */
     createShipAnalysisHTML(shipAnalysis) {
         if (!shipAnalysis || !shipAnalysis.topShips.length) return '';
 
@@ -1292,11 +1339,15 @@ class ZKillStatsCard {
         `;
     }
 
-    /**
-     * Create combat style analysis HTML
-     */
     createCombatStyleHTML(combatStyle) {
         if (!combatStyle) return '';
+
+        const secondaryRoleHTML = combatStyle.secondaryRole ? `
+                <div class="zkill-combat-card">
+                    <div class="zkill-combat-icon">🎯</div>
+                    <div class="zkill-combat-label">Secondary Role</div>
+                    <div class="zkill-combat-value">${combatStyle.secondaryRole.role} (${combatStyle.secondaryRole.percentage}%)</div>
+                </div>` : '';
 
         return `
         <div class="zkill-section">
@@ -1306,19 +1357,15 @@ class ZKillStatsCard {
             </h3>
             <div class="zkill-combat-grid">
                 <div class="zkill-combat-card">
-                    <div class="zkill-combat-icon">🎯</div>
-                    <div class="zkill-combat-label">Engagement Style</div>
-                    <div class="zkill-combat-value">${combatStyle.engagementStyle}</div>
-                </div>
+                    <div class="zkill-combat-icon">⚔️</div>
+                    <div class="zkill-combat-label">Primary Role</div>
+                    <div class="zkill-combat-value">${combatStyle.primaryRole?.role || 'Unknown'} (${combatStyle.primaryRole?.percentage || 0}%)</div>
+                </div>${secondaryRoleHTML}
                 <div class="zkill-combat-card">
                     <div class="zkill-combat-icon">👥</div>
-                    <div class="zkill-combat-label">Fleet Preference</div>
+                    <div class="zkill-combat-label">Playstyle</div>
                     <div class="zkill-combat-value">${combatStyle.fleetRole}</div>
-                </div>
-                <div class="zkill-combat-card">
-                    <div class="zkill-combat-icon">⚠️</div>
-                    <div class="zkill-combat-label">Risk Tolerance</div>
-                    <div class="zkill-combat-value">${combatStyle.riskTolerance}</div>
+                    ${combatStyle.fleetSizeRange ? `<div class="zkill-combat-subtext">${combatStyle.fleetSizeRange.avg.toFixed(1)} avg fleet size</div>` : ''}
                 </div>
                 <div class="zkill-combat-card">
                     <div class="zkill-combat-icon">📊</div>
@@ -1330,9 +1377,6 @@ class ZKillStatsCard {
         `;
     }
 
-    /**
-     * Create activity insights HTML
-     */
     createActivityInsightsHTML(activityInsights) {
         if (!activityInsights) return '';
 
@@ -1370,9 +1414,6 @@ class ZKillStatsCard {
         `;
     }
 
-    /**
-     * Create security preference HTML
-     */
     createSecurityPreferenceHTML(securityPreference) {
         if (!securityPreference || !securityPreference.breakdown.length) return '';
 
@@ -1406,9 +1447,6 @@ class ZKillStatsCard {
         `;
     }
 
-    /**
-     * Create empty state HTML
-     */
     createEmptyStateHTML(entityName) {
         return `
             <div class="zkill-empty">
@@ -1421,9 +1459,6 @@ class ZKillStatsCard {
         `;
     }
 
-    /**
-     * Show error state
-     */
     showError(message) {
         if (!this.currentModal) return;
 
@@ -1437,9 +1472,6 @@ class ZKillStatsCard {
         `;
     }
 
-    /**
-     * Close modal
-     */
     close() {
         if (this.currentModal) {
             this.currentModal.removeEventListener('click', this.affiliationClickHandler);
@@ -1457,9 +1489,6 @@ class ZKillStatsCard {
         }, ZKILL_CARD_ANIMATION_DURATION_MS);
     }
 
-    /**
-     * Utility functions
-     */
     formatNumber(num) {
         if (num >= 1000000) {
             return (num / 1000000).toFixed(1) + 'M';
@@ -1487,7 +1516,6 @@ class ZKillStatsCard {
             return 'Unknown';
         }
 
-        // Handle string security values
         if (typeof security === 'string') {
             const numSec = parseFloat(security);
             if (isNaN(numSec)) {
@@ -1510,35 +1538,11 @@ class ZKillStatsCard {
         }
     }
 
-    getSecurityClass(security) {
-        if (security === null || security === undefined) {
-            return 'unknown';
-        }
-
-        // Handle string security values
-        if (typeof security === 'string') {
-            const numSec = parseFloat(security);
-            if (isNaN(numSec)) {
-                return 'unknown';
-            }
-            security = numSec;
-        }
-
-        if (security >= 0.5) {
-            return 'highsec';
-        } else if (security > 0.0) {
-            return 'lowsec';
-        } else {
-            return 'nullsec';
-        }
-    }
 
 }
 
-// Create singleton instance
 const zkillStatsCard = new ZKillStatsCard();
 
-// Export functions for use in other modules
 export function showCharacterStats(characterId, characterName) {
     return zkillStatsCard.showCharacterStats(characterId, characterName);
 }
@@ -1555,7 +1559,6 @@ export function closeStatsCard() {
     zkillStatsCard.close();
 }
 
-// Export the singleton instance for external access
 export function getZkillCardInstance() {
     return zkillStatsCard;
 }

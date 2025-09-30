@@ -4,15 +4,8 @@
     Copyright (C) 2025 moregh (https://github.com/moregh/)
     Licensed under AGPL License.
 */
+import { ALLOWED_IMAGE_URLS } from './config.js';
 
-/**
- * Comprehensive XSS protection utilities for sanitizing untrusted data
- * from ESI and zKillboard APIs
- */
-
-/**
- * HTML entity encoding map for XSS prevention
- */
 const HTML_ENTITIES = {
     '&': '&amp;',
     '<': '&lt;',
@@ -24,16 +17,8 @@ const HTML_ENTITIES = {
     '=': '&#x3D;'
 };
 
-/**
- * Regular expression to match HTML entities that need encoding
- */
 const HTML_ENTITY_REGEX = /[&<>"'`=\/]/g;
 
-/**
- * Escapes HTML entities in a string to prevent XSS attacks
- * @param {string} str - The string to escape
- * @returns {string} - The escaped string safe for HTML insertion
- */
 export function escapeHtml(str) {
     if (typeof str !== 'string') {
         return '';
@@ -41,13 +26,6 @@ export function escapeHtml(str) {
     return str.replace(HTML_ENTITY_REGEX, (match) => HTML_ENTITIES[match]);
 }
 
-/**
- * Generic function to sanitize entity names from ESI API
- * @param {string} name - Entity name from ESI
- * @param {string} entityType - Type of entity (character, corporation, alliance)
- * @param {number} maxLength - Maximum length for the name
- * @returns {string} - Sanitized entity name
- */
 function sanitizeEntityName(name, entityType, maxLength) {
     if (!name || typeof name !== 'string') {
         const defaults = {
@@ -62,75 +40,39 @@ function sanitizeEntityName(name, entityType, maxLength) {
     return escapeHtml(trimmed);
 }
 
-/**
- * Sanitizes a character name from ESI API
- * @param {string} name - Character name from ESI
- * @returns {string} - Sanitized character name
- */
 export function sanitizeCharacterName(name) {
     return sanitizeEntityName(name, 'character', 37);
 }
 
-/**
- * Sanitizes a corporation name from ESI API
- * @param {string} name - Corporation name from ESI
- * @returns {string} - Sanitized corporation name
- */
 export function sanitizeCorporationName(name) {
     return sanitizeEntityName(name, 'corporation', 50);
 }
 
-/**
- * Sanitizes an alliance name from ESI API
- * @param {string} name - Alliance name from ESI
- * @returns {string} - Sanitized alliance name
- */
 export function sanitizeAllianceName(name) {
     return sanitizeEntityName(name, 'alliance', 50);
 }
 
-/**
- * Sanitizes numeric IDs from ESI API
- * @param {number|string} id - ID from ESI
- * @returns {number} - Sanitized numeric ID
- */
 export function sanitizeId(id) {
     const numId = parseInt(id, 10);
     if (isNaN(numId) || numId <= 0) {
         return 0;
     }
-    // EVE IDs are typically 32-bit integers
+
     return Math.min(numId, 2147483647);
 }
 
-/**
- * Sanitizes a generic text field that may contain user-controllable content
- * @param {string} text - Text to sanitize
- * @param {number} maxLength - Maximum allowed length (default: 255)
- * @returns {string} - Sanitized text
- */
 export function sanitizeText(text, maxLength = 255) {
     if (!text || typeof text !== 'string') {
         return '';
     }
-
-    // Trim whitespace and limit length
     const trimmed = text.trim().substring(0, maxLength);
-
-    // Escape HTML entities
     return escapeHtml(trimmed);
 }
 
-/**
- * Sanitizes an entire character object from ESI API
- * @param {Object} character - Character data from ESI
- * @returns {Object} - Sanitized character object
- */
 export function sanitizeCharacterData(character) {
     if (!character || typeof character !== 'object') {
         return {};
     }
-
     return {
         character_id: sanitizeId(character.character_id),
         character_name: sanitizeCharacterName(character.character_name),
@@ -142,49 +84,31 @@ export function sanitizeCharacterData(character) {
     };
 }
 
-/**
- * Sanitizes corporation data from ESI API
- * @param {Object} corp - Corporation data from ESI
- * @returns {Object} - Sanitized corporation object
- */
 export function sanitizeCorporationData(corp) {
     if (!corp || typeof corp !== 'object') {
         return {};
     }
-
     return {
         corporation_id: sanitizeId(corp.corporation_id),
         name: sanitizeCorporationName(corp.name),
-        ticker: sanitizeText(corp.ticker, 5), // EVE corp tickers are max 5 chars
+        ticker: sanitizeText(corp.ticker, 5),
         alliance_id: corp.alliance_id ? sanitizeId(corp.alliance_id) : null,
         war_eligible: Boolean(corp.war_eligible)
     };
 }
 
-/**
- * Sanitizes alliance data from ESI API
- * @param {Object} alliance - Alliance data from ESI
- * @returns {Object} - Sanitized alliance object
- */
 export function sanitizeAllianceData(alliance) {
     if (!alliance || typeof alliance !== 'object') {
         return {};
     }
-
     return {
         alliance_id: sanitizeId(alliance.alliance_id),
         name: sanitizeAllianceName(alliance.name),
-        ticker: sanitizeText(alliance.ticker, 5), // EVE alliance tickers are max 5 chars
+        ticker: sanitizeText(alliance.ticker, 5),
         war_eligible: Boolean(alliance.war_eligible)
     };
 }
 
-/**
- * Sanitizes URL parameters for zkillboard links
- * @param {string|number} id - Entity ID for zkillboard URL
- * @param {string} type - Entity type (character, corporation, alliance)
- * @returns {Object} - Sanitized URL parameters
- */
 export function sanitizeZkillParams(id, type) {
     const sanitizedId = sanitizeId(id);
     const allowedTypes = ['character', 'corporation', 'alliance'];
@@ -196,81 +120,46 @@ export function sanitizeZkillParams(id, type) {
     };
 }
 
-/**
- * Creates a safe HTML attribute value
- * @param {string} value - The attribute value to sanitize
- * @returns {string} - Safe attribute value
- */
 export function sanitizeAttribute(value) {
     if (typeof value !== 'string') {
         return '';
     }
-
-    // Remove quotes and other potentially dangerous characters from attributes
     return value.replace(/['"<>&]/g, '');
 }
 
-/**
- * Decodes HTML entities for display purposes
- * @param {string} str - String with HTML entities
- * @returns {string} - Decoded string
- */
 export function decodeHtmlEntities(str) {
     if (typeof str !== 'string') {
         return '';
     }
-
-    // Handle double-escaping: &amp;#x27; -> &#x27; -> '
     let decoded = str;
-
-    // First decode &amp; back to &
     decoded = decoded.replace(/&amp;/g, '&');
-
-    // Then use textarea to decode all HTML entities
     const textarea = document.createElement('textarea');
     textarea.innerHTML = decoded;
     return textarea.value;
 }
 
-/**
- * Validates and sanitizes an EVE image URL from CCP's CDN
- * @param {string} url - Image URL to validate
- * @returns {string} - Safe image URL or empty string if invalid
- */
 export function sanitizeImageUrl(url) {
     if (typeof url !== 'string') {
         return '';
     }
 
-    // Only allow images from CCP's official CDN
-    const allowedDomains = [
-        'images.evetech.net',
-        'imageserver.eveonline.com'
-    ];
-
     try {
         const urlObj = new URL(url);
-        if (!allowedDomains.includes(urlObj.hostname)) {
+        if (!ALLOWED_IMAGE_URLS.includes(urlObj.hostname)) {
             return '';
         }
 
-        // Ensure HTTPS
         if (urlObj.protocol !== 'https:') {
             return '';
         }
 
         return url;
     } catch (e) {
+        console.warn(`Unable to sanitize image URL: ${e}`);
         return '';
     }
 }
 
-/**
- * Comprehensive sanitization for any untrusted data before DOM insertion
- * @param {any} data - Data to sanitize
- * @param {string} context - Context hint for sanitization ('name', 'id', 'url', etc.)
- * @returns {string} - Sanitized string safe for DOM insertion
- */
 export function sanitizeForDOM(data, context = 'text') {
     switch (context) {
         case 'character_name':

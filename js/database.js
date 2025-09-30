@@ -5,7 +5,7 @@
     Licensed under AGPL License.
 */
 
-import { DB_NAME, DB_VERSION, CACHE_EXPIRY_HOURS, LONG_CACHE_EXPIRY_HOURS } from './config.js';
+import { DB_NAME, DB_VERSION, CACHE_EXPIRY_HOURS, LONG_CACHE_EXPIRY_HOURS, ZKILL_KILLS_CACHE_HOURS, ESI_KILLMAILS_CACHE_HOURS } from './config.js';
 import { showError } from './ui.js';
 
 let dbInstance = null;
@@ -55,13 +55,24 @@ export async function initDB() {
                 const allianceStore = db.createObjectStore('alliances', { keyPath: 'alliance_id' });
                 allianceStore.createIndex('timestamp', 'timestamp');
             }
+
+            if (!db.objectStoreNames.contains('zkill_kills')) {
+                const killsStore = db.createObjectStore('zkill_kills', { keyPath: 'cache_key' });
+                killsStore.createIndex('timestamp', 'timestamp');
+                killsStore.createIndex('entity_type', 'entity_type');
+            }
+
+            if (!db.objectStoreNames.contains('esi_killmails')) {
+                const killmailStore = db.createObjectStore('esi_killmails', { keyPath: 'killmail_id' });
+                killmailStore.createIndex('timestamp', 'timestamp');
+            }
         };
     });
 }
 
-export function isExpired(timestamp) {
+export function isExpired(timestamp, expiryHours = CACHE_EXPIRY_HOURS) {
     const now = Date.now();
-    const expiryTime = timestamp + (CACHE_EXPIRY_HOURS * 60 * 60 * 1000);
+    const expiryTime = timestamp + (expiryHours * 60 * 60 * 1000);
     return now > expiryTime;
 }
 
@@ -308,9 +319,9 @@ export async function clearExpiredCache() {
                     const warExpired = isExpired(record.war_eligible_timestamp || record.timestamp, false);
 
                     if (nameExpired) {
-                            cursor.delete();
+                        cursor.delete();
                     } else if (warExpired && record.war_eligible_timestamp) {
-                            const updatedRecord = { ...record };
+                        const updatedRecord = { ...record };
                         delete updatedRecord.war_eligible;
                         delete updatedRecord.war_eligible_timestamp;
                         cursor.update(updatedRecord);
@@ -328,5 +339,175 @@ export async function clearExpiredCache() {
 
     } catch (e) {
         console.warn('Error during cache cleanup:', e);
+    }
+}
+
+export async function getCachedKills(entityType, entityId) {
+    const cacheKey = `${entityType}:${entityId}`;
+    return getCachedData('zkill_kills', cacheKey, result => {
+        if (isExpired(result.timestamp, ZKILL_KILLS_CACHE_HOURS)) {
+            return null;
+        }
+        return {
+            kills: result.kills,
+            fetchedAt: result.timestamp
+        };
+    });
+}
+
+export async function setCachedKills(entityType, entityId, kills) {
+    const cacheKey = `${entityType}:${entityId}`;
+    return setCachedData('zkill_kills', {
+        cache_key: cacheKey,
+        entity_type: entityType,
+        entity_id: parseInt(entityId),
+        kills: kills
+    });
+}
+
+export async function getCachedKillmail(killmailId) {
+    return getCachedData('esi_killmails', parseInt(killmailId), result => {
+        if (isExpired(result.timestamp, ESI_KILLMAILS_CACHE_HOURS)) {
+            return null;
+        }
+        return {
+            killmailId: result.killmail_id,
+            hash: result.hash,
+            zkbData: result.zkb_data,
+            killmail: result.killmail_data,
+            fetchedAt: result.timestamp
+        };
+    });
+}
+
+export async function setCachedKillmail(killmailId, hash, zkbData, killmailData) {
+    return setCachedData('esi_killmails', {
+        killmail_id: parseInt(killmailId),
+        hash: hash,
+        zkb_data: zkbData,
+        killmail_data: killmailData
+    });
+}
+
+export async function getCachedKillmailsBatch(killmailIds) {
+    if (!Array.isArray(killmailIds) || killmailIds.length === 0) {
+        return [];
+    }
+
+    try {
+        const db = await initDB();
+        const transaction = db.transaction(['esi_killmails'], 'readonly');
+        const store = transaction.objectStore('esi_killmails');
+
+        const promises = killmailIds.map(killmailId => {
+            return new Promise((resolve) => {
+                const request = store.get(parseInt(killmailId));
+
+                request.onsuccess = () => {
+                    const result = request.result;
+                    if (!result || isExpired(result.timestamp, ESI_KILLMAILS_CACHE_HOURS)) {
+                        resolve(null);
+                        return;
+                    }
+                    resolve({
+                        killmailId: result.killmail_id,
+                        hash: result.hash,
+                        zkbData: result.zkb_data,
+                        killmail: result.killmail_data,
+                        fetchedAt: result.timestamp
+                    });
+                };
+
+                request.onerror = () => {
+                    console.warn(`Error reading killmail ${killmailId}:`, request.error);
+                    resolve(null);
+                };
+            });
+        });
+
+        return await Promise.all(promises);
+    } catch (e) {
+        console.warn('Error batch reading killmails:', e);
+        return killmailIds.map(() => null);
+    }
+}
+
+export async function setCachedKillmailsBatch(killmails) {
+    if (!Array.isArray(killmails) || killmails.length === 0) {
+        return;
+    }
+
+    try {
+        const db = await initDB();
+        const transaction = db.transaction(['esi_killmails'], 'readwrite');
+        const store = transaction.objectStore('esi_killmails');
+
+        const timestamp = Date.now();
+
+        killmails.forEach(km => {
+            if (km && km.killmailId && km.killmail) {
+                store.put({
+                    killmail_id: parseInt(km.killmailId),
+                    hash: km.hash,
+                    zkb_data: km.zkbData,
+                    killmail_data: km.killmail,
+                    timestamp: timestamp
+                });
+            }
+        });
+
+        return new Promise((resolve, reject) => {
+            transaction.oncomplete = () => resolve();
+            transaction.onerror = () => {
+                console.warn('Error batch writing killmails:', transaction.error);
+                reject(transaction.error);
+            };
+        });
+    } catch (e) {
+        console.warn('Error batch writing killmails:', e);
+    }
+}
+
+export async function getCachedUniverseName(typeId) {
+    try {
+        const db = await initDB();
+        const transaction = db.transaction(['entity_names'], 'readonly');
+        const store = transaction.objectStore('entity_names');
+        const cacheKey = `universe_${typeId}`.toLowerCase();
+        const result = await store.get(cacheKey);
+
+        if (!result) return null;
+
+        if (isExpired(result.timestamp, LONG_CACHE_EXPIRY_HOURS)) {
+            return null;
+        }
+
+        return {
+            name: result.entity_name,
+            security: result.security_status
+        };
+    } catch (e) {
+        console.warn('Error reading universe name from cache:', e);
+        return null;
+    }
+}
+
+export async function setCachedUniverseName(typeId, name, securityStatus = null) {
+    try {
+        const db = await initDB();
+        const transaction = db.transaction(['entity_names'], 'readwrite');
+        const store = transaction.objectStore('entity_names');
+        const cacheKey = `universe_${typeId}`.toLowerCase();
+
+        await store.put({
+            name_lower: cacheKey,
+            entity_id: parseInt(typeId),
+            entity_name: name,
+            security_status: securityStatus,
+            entity_type: 'universe',
+            timestamp: Date.now()
+        });
+    } catch (e) {
+        console.warn('Error writing universe name to cache:', e);
     }
 }

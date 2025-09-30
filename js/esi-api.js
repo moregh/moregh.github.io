@@ -6,22 +6,14 @@
 */
 
 import { MAX_ESI_CALL_SIZE, CHUNK_SIZE, CHUNK_DELAY } from './config.js';
-import { sanitizeCharacterData, sanitizeCorporationData, sanitizeAllianceData, sanitizeId, sanitizeCharacterName, sanitizeCorporationName, sanitizeAllianceName } from './xss-protection.js';
+import { sanitizeId } from './xss-protection.js';
 import {
-    getCachedNameToId,
-    setCachedNameToId,
-    getCachedAffiliation,
-    setCachedAffiliation,
-    getCachedCorporationInfo,
-    setCachedCorporationInfo,
-    getCachedAllianceInfo,
-    setCachedAllianceInfo,
-    getCachedEntityName,
-    setCachedEntityName
+    getCachedNameToId, setCachedNameToId, getCachedAffiliation, setCachedAffiliation, getCachedCorporationInfo,
+    setCachedCorporationInfo, getCachedAllianceInfo, setCachedAllianceInfo, getCachedEntityName, setCachedEntityName
 } from './database.js';
 import { updateProgress, showWarning, showError } from './ui.js';
 import { esiClient } from './esi-client.js';
-import { validateEntityName, classifyEntityType } from './validation.js';
+import { validateEntityName } from './validation.js';
 
 const corporationInfoCache = new Map();
 const allianceInfoCache = new Map();
@@ -84,17 +76,15 @@ export async function processInChunks(items, processFn, chunkSize = CHUNK_SIZE, 
             console.error(`Error processing chunk ${i + 1}/${totalChunks}:`, e);
 
             if (e.message.includes('character IDs') || e.message.includes('character names')) {
-                results.push([]); // Empty array for failed character lookups
+                results.push([]);
             } else {
                 results.push(null);
             }
         }
-
         if (i + 1 < items.length && delay > 0) {
             await new Promise(resolve => setTimeout(resolve, delay));
         }
     }
-
     return results;
 }
 
@@ -294,7 +284,7 @@ export async function getCharacterAffiliations(characterIds) {
             CHUNK_DELAY
         );
 
-        // Flatten the results (each chunk returns an array of affiliations)
+
         fetchedAffiliations = fetchedAffiliations.flat().filter(affiliation => affiliation !== null);
     }
 
@@ -442,12 +432,12 @@ async function processUncachedCorporations(uncachedIds, corpMap, startingCount, 
         const batchRequests = chunk.map(corpId => ({
             method: 'GET',
             endpoint: `/corporations/${corpId}/`,
-            corpId // Add corpId for reference in results
+            corpId
         }));
 
         try {
             const chunkResults = await esiClient.batchRequests(batchRequests, {
-                maxConcurrency: 8, // Conservative concurrency for corporation requests
+                maxConcurrency: 8,
                 chunkDelay: CHUNK_DELAY,
                 onProgress: (completed, total) => {
                     const overallCompleted = processedCorps + completed;
@@ -511,12 +501,12 @@ async function processUncachedAlliances(uncachedIds, allianceMap, startingCount,
         const batchRequests = chunk.map(allianceId => ({
             method: 'GET',
             endpoint: `/alliances/${allianceId}/`,
-            allianceId // Add allianceId for reference in results
+            allianceId
         }));
 
         try {
             const chunkResults = await esiClient.batchRequests(batchRequests, {
-                maxConcurrency: 8, // Conservative concurrency for alliance requests
+                maxConcurrency: 8,
                 chunkDelay: CHUNK_DELAY,
                 onProgress: (completed, total) => {
                     const overallCompleted = processedAlliances + completed;
@@ -551,7 +541,7 @@ async function processUncachedAlliances(uncachedIds, allianceMap, startingCount,
         } catch (error) {
             console.error(`Failed to process alliance chunk ${i + 1}:`, error);
 
-            // Fallback: create entries for all alliances in this chunk
+
             chunk.forEach(allianceId => {
                 const fallbackInfo = { name: 'Unknown Alliance' };
                 allianceInfoCache.set(allianceId, fallbackInfo);
@@ -761,7 +751,7 @@ export async function mixedValidator(names) {
                         corporation_id: null,
                         alliance_name: alliance.name,
                         alliance_id: sanitizeId(alliance.id),
-                        war_eligible: true, // Alliances are always war eligible
+                        war_eligible: true,
                         character_name: null,
                         character_id: null
                     });

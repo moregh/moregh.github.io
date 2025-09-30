@@ -29,14 +29,13 @@ export class ManagedObservers {
                             imageLoadQueue.push(img);
                             this.imageObserver.unobserve(img);
                             this.observedImages.delete(img);
-
                             this.scheduleImageProcessing();
                         }
                     }
                 });
             }, {
-                rootMargin: '20px', // Reduced from 50px for more aggressive throttling
-                threshold: 0.2 // Increased threshold for better performance
+                rootMargin: '20px',
+                threshold: 0.2
             });
         }
         return this.imageObserver;
@@ -94,6 +93,7 @@ export class ManagedObservers {
 
     processBatches() {
         const imageBatches = this.chunkArray(this.pendingImageObservations, PERFORMANCE_CONFIG.BATCH_SIZE);
+
         imageBatches.forEach(batch => {
             batch.forEach(img => {
                 if (document.contains(img) && !this.observedImages.has(img)) {
@@ -156,7 +156,6 @@ export class ManagedObservers {
 
         this.imageObserver?.disconnect();
         this.animationObserver?.disconnect();
-
         this.imageObserver = null;
         this.animationObserver = null;
         this.observedImages.clear();
@@ -183,14 +182,14 @@ export class ManagedObservers {
 }
 
 let imageLoadQueue = [];
-let priorityImageQueue = []; // For above-the-fold images
+let priorityImageQueue = [];
 let currentlyLoading = 0;
 let imageObserverEnabled = true;
 let lastScrollTime = 0;
 
 export function processImageQueue() {
     const now = Date.now();
-    const isScrolling = (now - lastScrollTime) < 150; // Check if user was scrolling recently
+    const isScrolling = (now - lastScrollTime) < 150;
 
     while (priorityImageQueue.length > 0 && currentlyLoading < MAX_CONCURRENT_IMAGES && imageObserverEnabled) {
         const img = priorityImageQueue.shift();
@@ -222,11 +221,11 @@ function loadSingleImage(img) {
     if (!realSrc || img.src === realSrc) return;
 
     currentlyLoading++;
-    img.style.opacity = '0.3'; // Show loading state
+    img.style.opacity = '0.3';
 
     const onLoad = () => {
         currentlyLoading--;
-        img.style.opacity = '1'; // Show loaded state
+        img.style.opacity = '1';
         img.removeEventListener('load', onLoad);
         img.removeEventListener('error', onError);
         delete img.dataset.loading;
@@ -236,7 +235,7 @@ function loadSingleImage(img) {
 
     const onError = () => {
         currentlyLoading--;
-        img.style.opacity = '0.5'; // Show error state
+        img.style.opacity = '0.5';
         img.removeEventListener('load', onLoad);
         img.removeEventListener('error', onError);
         delete img.dataset.loading;

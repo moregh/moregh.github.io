@@ -1,56 +1,31 @@
 /*
     EVE Target Intel - Main Application Logic
     
-    Copyright (C) 2025 moregh (https://github.com/moregh/)
+    Copyright (C) 2025 moregh (https://github.com/moregh)
     Licensed under AGPL License.
 */
 
-import {
-    STATS_UPDATE_DELAY,
-    CHARACTER_COUNT_DEBOUNCE_MS
-} from './config.js';
+import { STATS_UPDATE_DELAY, CHARACTER_COUNT_DEBOUNCE_MS } from './config.js';
 import { initDB, clearExpiredCache } from './database.js';
 import { showCharacterStats, showCorporationStats, showAllianceStats } from './zkill-card.js';
 import { clientValidate, validateEntityName } from './validation.js';
 import { mixedValidator } from './esi-api.js';
 import { initializeFilters, setResultsData, getFilteredResults, getFilteredAlliances, getFilteredCorporations } from './filters.js';
-import {
-    startLoading,
-    stopLoading,
-    showError,
-    updateStats,
-    updatePerformanceStats,
-    updateVersionDisplay,
-    expandInputSection
-} from './ui.js';
-import {
-    renderGrid,
-    buildEntityMaps,
-    getObserverManager,
-    addScrollStateDetection
-} from './rendering.js';
+import { startLoading, stopLoading, showError, updateStats, updatePerformanceStats, updateVersionDisplay, expandInputSection } from './ui.js';
+import { renderGrid, buildEntityMaps, getObserverManager, addScrollStateDetection } from './rendering.js';
 import { getZkillCardInstance } from './zkill-card.js'
 
-// Application state
-let currentView = 'grid'; // Fixed to grid view only
+
+let currentView = 'grid';
 let allResults = [];
-
-// Summary data and display tracking
 let allSummaryData = { alliance: [], corporation: [] };
-
-// Tabbed interface state
 let currentTab = 'characters';
-
-// Store complete results
 let completeResults = [];
 
-// Make currentView available to rendering module
 window.currentView = currentView;
 
 function setupCollapsedIndicatorClick() {
     const inputSection = document.getElementById('input-section');
-
-    // The click is already handled by event delegation, just add hover behavior
     let hoverTimeout;
 
     inputSection.addEventListener('mouseenter', () => {
@@ -72,9 +47,8 @@ function setupCollapsedIndicatorClick() {
     });
 }
 
-// Event delegation handler
+
 document.addEventListener('click', function (event) {
-    // Check for zkill card items FIRST (prevent event bubbling)
     const zkillCardItem = event.target.closest('.zkill-card-clickable');
     if (zkillCardItem) {
         event.preventDefault();
@@ -83,14 +57,12 @@ document.addEventListener('click', function (event) {
         return;
     }
 
-    // Check for zkill stats clicks SECOND (before checking for data-action)
     const clickableElement = event.target.closest('[data-clickable]');
     if (clickableElement) {
         handleZkillStatsClick(clickableElement);
         return;
     }
 
-    // Check for tab button clicks
     const tabButton = event.target.closest('.tab-btn');
     if (tabButton) {
         const tabName = tabButton.dataset.tab;
@@ -98,7 +70,6 @@ document.addEventListener('click', function (event) {
         return;
     }
 
-    // Existing logic for data-action elements
     const target = event.target.closest('[data-action]');
     if (!target) return;
 
@@ -119,103 +90,72 @@ document.addEventListener('click', function (event) {
     }
 });
 
-function summarizeEntities(results) {
+function summariseEntities(results) {
     const corpCounts = new Map();
     const allianceCounts = new Map();
 
+    const updateCounts = (map, id, name, type, war_eligible, isDirect) => {
+        const existing = map.get(id);
+        map.set(id, {
+            id,
+            name,
+            count: (existing?.count || 0) + 1,
+            type,
+            war_eligible: existing?.war_eligible || war_eligible,
+            isDirect: existing?.isDirect || isDirect
+        });
+    };
+
     results.forEach(result => {
-        // Handle direct corporation entities from mixed search
         if (result.corporation_name && !result.character_name) {
-            corpCounts.set(result.corporation_id, {
-                id: result.corporation_id,
-                name: result.corporation_name,
-                count: 1, // Direct corporations always have count of 1
-                type: 'corporation',
-                war_eligible: result.war_eligible,
-                isDirect: true // Flag to indicate this was searched directly
-            });
+            updateCounts(corpCounts, result.corporation_id, result.corporation_name, 'corporation', result.war_eligible, true);
         }
-        // Handle direct alliance entities from mixed search
         else if (result.alliance_name && !result.character_name) {
-            allianceCounts.set(result.alliance_id, {
-                id: result.alliance_id,
-                name: result.alliance_name,
-                count: 1, // Direct alliances always have count of 1
-                type: 'alliance',
-                war_eligible: result.war_eligible,
-                isDirect: true // Flag to indicate this was searched directly
-            });
+            updateCounts(allianceCounts, result.alliance_id, result.alliance_name, 'alliance', result.war_eligible, true);
         }
-        // Handle character affiliations (existing logic)
         else if (result.character_name) {
             if (result.corporation_id) {
-                const existing = corpCounts.get(result.corporation_id);
-                corpCounts.set(result.corporation_id, {
-                    id: result.corporation_id,
-                    name: result.corporation_name,
-                    count: (existing?.count || 0) + 1,
-                    type: 'corporation',
-                    war_eligible: existing?.war_eligible || result.war_eligible,
-                    isDirect: existing?.isDirect || false
-                });
+                updateCounts(corpCounts, result.corporation_id, result.corporation_name, 'corporation', result.war_eligible, false);
             }
             if (result.alliance_id) {
-                const existing = allianceCounts.get(result.alliance_id);
-                allianceCounts.set(result.alliance_id, {
-                    id: result.alliance_id,
-                    name: result.alliance_name,
-                    count: (existing?.count || 0) + 1,
-                    type: 'alliance',
-                    war_eligible: existing?.war_eligible || result.war_eligible,
-                    isDirect: existing?.isDirect || false
-                });
+                updateCounts(allianceCounts, result.alliance_id, result.alliance_name, 'alliance', result.war_eligible, false);
             }
         }
     });
 
-    // Sort with direct entities first, then by count
-    const allCorps = Array.from(corpCounts.values())
-        .sort((a, b) => {
-            if (a.isDirect && !b.isDirect) return -1;
-            if (!a.isDirect && b.isDirect) return 1;
-            return b.count - a.count || a.name.localeCompare(b.name);
-        });
-    const allAlliances = Array.from(allianceCounts.values())
-        .sort((a, b) => {
-            if (a.isDirect && !b.isDirect) return -1;
-            if (!a.isDirect && b.isDirect) return 1;
-            return b.count - a.count || a.name.localeCompare(b.name);
-        });
+    const sortFn = (a, b) => {
+        if (a.isDirect !== b.isDirect) return a.isDirect ? -1 : 1;
+        return b.count - a.count || a.name.localeCompare(b.name);
+    };
 
-    return { allCorps, allAlliances };
+    return {
+        allCorps: Array.from(corpCounts.values()).sort(sortFn),
+        allAlliances: Array.from(allianceCounts.values()).sort(sortFn)
+    };
 }
-// Tab functionality
+
+
 function switchTab(tabName) {
-    // Update active tab
+
     currentTab = tabName;
 
-    // Update tab buttons
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.classList.remove('active');
     });
     document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
 
-    // Update tab content
     document.querySelectorAll('.tab-content').forEach(content => {
         content.classList.remove('active');
     });
     document.getElementById(`${tabName}-tab`).classList.add('active');
 
-    // Update the tab counts
     updateTabCounts();
-
-    // Update the display for the current tab
     updateTabDisplay();
 }
 
 function updateTabDisplay() {
     if (currentTab === 'characters') {
-        // Clean up previous results first
+
         getObserverManager().cleanupDeadElements();
 
         const filteredResults = getFilteredResults();
@@ -270,7 +210,7 @@ function updateCharacterCount() {
         .map(n => n.trim())
         .filter(n => n && (clientValidate(n) || validateEntityName(n)));
 
-    // Deduplicate
+
     const uniqueNames = [...new Set(names.map(n => n.toLowerCase()))];
     const count = uniqueNames.length;
 
@@ -283,7 +223,6 @@ function updateCharacterCount() {
         countElement.textContent = `${count} entities entered`;
     }
 
-    // Update button text
     const button = document.getElementById('checkButton');
     const buttonText = button.querySelector('.button-text');
     if (count > 0) {
@@ -298,7 +237,6 @@ export async function validateNames() {
         .map(n => n.trim())
         .filter(n => n && (clientValidate(n) || validateEntityName(n)));
 
-    // Deduplicate names (case-insensitive)
     const seenNames = new Set();
     const names = rawNames.filter(name => {
         const lowerName = name.toLowerCase();
@@ -318,38 +256,23 @@ export async function validateNames() {
 
     try {
         const results = await mixedValidator(names);
-
-        // Store complete results and build entity maps
         completeResults = results;
         buildEntityMaps(results);
 
         results.sort((a, b) => {
-            // Sort by entity name (character, corp, or alliance name)
             const nameA = a.character_name || a.corporation_name || a.alliance_name || '';
             const nameB = b.character_name || b.corporation_name || b.alliance_name || '';
             return nameA.localeCompare(nameB);
         });
 
         allResults = results;
-
-        // Update filters with new results data
         setResultsData(results);
-
-        const { allCorps, allAlliances } = summarizeEntities(results);
-
-        // Store all summary data
+        const { allCorps, allAlliances } = summariseEntities(results);
         allSummaryData.alliance = allAlliances;
         allSummaryData.corporation = allCorps;
-
-        // No state initialization needed - always show all results
-
-        // Update tab counts
         updateTabCounts();
-    
-        // Update the display for the current tab
         updateTabDisplay();
 
-        // Wait for results section to be shown before updating stats
         setTimeout(() => {
             updateStats(allResults);
             updatePerformanceStats();
@@ -379,8 +302,6 @@ export async function validateNames() {
 
 function handleZkillStatsClick(element) {
     const clickableType = element.dataset.clickable;
-
-    // Update entity maps and complete results before showing zkill cards
     const zkillCard = getZkillCardInstance();
     zkillCard.updateEntityMaps();
     zkillCard.setCompleteResults(completeResults);
@@ -405,7 +326,6 @@ function handleZkillCardLinkClick(element) {
     const entityId = element.dataset.entityId;
     const entityName = element.dataset.entityName;
 
-    // Update entity maps and complete results before showing zkill cards
     const zkillCard = getZkillCardInstance();
     zkillCard.updateEntityMaps();
     zkillCard.setCompleteResults(completeResults);
@@ -419,9 +339,8 @@ function handleZkillCardLinkClick(element) {
     }
 }
 
-// Event listeners
+
 document.addEventListener('DOMContentLoaded', function () {
-    // Initialize IndexedDB
     initDB().then(() => {
         clearExpiredCache();
     }).catch(err => {
@@ -429,11 +348,10 @@ document.addEventListener('DOMContentLoaded', function () {
         console.error('Failed to initialize IndexedDB:', err);
     });
 
-    // Initialize filters system
     initializeFilters(() => {
-            updateTabCounts();
-            updateTabDisplay();
-        });
+        updateTabCounts();
+        updateTabDisplay();
+    });
 
     const textarea = document.getElementById('names');
     textarea.addEventListener('input', debouncedUpdateCharacterCount);
@@ -443,29 +361,20 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    // Make validateNames available globally for the HTML onclick handler
     window.validateNames = validateNames;
 
     window.addEventListener('beforeunload', () => {
         getObserverManager().cleanup();
     });
 
-    // Cleanup on page visibility change (mobile optimization)
     document.addEventListener('visibilitychange', () => {
         if (document.hidden) {
             getObserverManager().cleanupDeadElements();
         }
     });
 
-    // Initialize character count
     updateCharacterCount();
-
-    // Setup collapsed indicator click functionality
     setupCollapsedIndicatorClick();
-
-    // update version
     updateVersionDisplay();
-
-    // Scroll state detection
     addScrollStateDetection();
 });

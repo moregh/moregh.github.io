@@ -5,14 +5,13 @@
     Licensed under AGPL License.
 */
 
-
 let filterState = {
     warEligibleOnly: false,
     nameSearch: '',
     minCorpSize: 1,
-    maxCorpSize: 500, // Will be updated from actual data
+    maxCorpSize: 500,
     minAllianceSize: 1,
-    maxAllianceSize: 10000, // Will be updated from actual data
+    maxAllianceSize: 10000,
     selectedCorporation: '',
     selectedAlliance: '',
     isCollapsed: true
@@ -21,9 +20,7 @@ let filterState = {
 let filterElements = null;
 let allResults = [];
 let filteredResults = [];
-
 let onFiltersChangeCallback = null;
-
 let corpSizeCache = new Map();
 let allianceSizeCache = new Map();
 let characterSearchCache = new Map();
@@ -72,20 +69,14 @@ function buildSearchCache() {
     });
 }
 
-/**
- * Initialize filter system
- */
 export function initializeFilters(onChangeCallback) {
     onFiltersChangeCallback = onChangeCallback;
     cacheFilterElements();
     setupEventListeners();
     updateRangeValues();
-    collapseFilters(); // Start collapsed
+    collapseFilters();
 }
 
-/**
- * Cache DOM elements for performance
- */
 function cacheFilterElements() {
     filterElements = {
         section: document.getElementById('filters-section'),
@@ -94,7 +85,6 @@ function cacheFilterElements() {
         toggleText: document.querySelector('#filter-toggle .toggle-text'),
         toggleIcon: document.querySelector('#filter-toggle .toggle-icon'),
         clearBtn: document.getElementById('filter-clear'),
-
         warEligibleOnly: document.getElementById('filter-war-eligible-only'),
         nameSearch: document.getElementById('filter-name'),
         minCorpSize: document.getElementById('filter-min-corp-size'),
@@ -103,7 +93,6 @@ function cacheFilterElements() {
         maxAllianceSize: document.getElementById('filter-max-alliance-size'),
         corporationSelect: document.getElementById('filter-corporation'),
         allianceSelect: document.getElementById('filter-alliance'),
-
         minCorpSizeValue: document.getElementById('min-corp-size-value'),
         maxCorpSizeValue: document.getElementById('max-corp-size-value'),
         minAllianceSizeValue: document.getElementById('min-alliance-size-value'),
@@ -112,31 +101,21 @@ function cacheFilterElements() {
     };
 }
 
-/**
- * Setup all event listeners
- */
 function setupEventListeners() {
     if (!filterElements) return;
 
     filterElements.toggleBtn?.addEventListener('click', toggleFilters);
     filterElements.clearBtn?.addEventListener('click', clearAllFilters);
-
     filterElements.warEligibleOnly?.addEventListener('change', handleFilterChange);
-
     filterElements.nameSearch?.addEventListener('input', debounce(handleFilterChange, 300));
-
     filterElements.minCorpSize?.addEventListener('input', handleMinCorpSizeChange);
     filterElements.maxCorpSize?.addEventListener('input', handleMaxCorpSizeChange);
     filterElements.minAllianceSize?.addEventListener('input', handleMinAllianceSizeChange);
     filterElements.maxAllianceSize?.addEventListener('input', handleMaxAllianceSizeChange);
-
     filterElements.corporationSelect?.addEventListener('change', handleFilterChange);
     filterElements.allianceSelect?.addEventListener('change', handleAllianceChange);
 }
 
-/**
- * Handle filter changes
- */
 function handleFilterChange() {
     updateFilterState();
     applyFilters();
@@ -147,9 +126,6 @@ function handleFilterChange() {
     }
 }
 
-/**
- * Handle min corp size change with validation
- */
 function handleMinCorpSizeChange() {
     filterState.minCorpSize = parseInt(filterElements.minCorpSize.value);
     filterElements.minCorpSizeValue.textContent = filterState.minCorpSize;
@@ -167,9 +143,6 @@ function handleMinCorpSizeChange() {
     }
 }
 
-/**
- * Handle max corp size change with validation
- */
 function handleMaxCorpSizeChange() {
     filterState.maxCorpSize = parseInt(filterElements.maxCorpSize.value);
     filterElements.maxCorpSizeValue.textContent = filterState.maxCorpSize;
@@ -187,9 +160,6 @@ function handleMaxCorpSizeChange() {
     }
 }
 
-/**
- * Handle min alliance size change with validation
- */
 function handleMinAllianceSizeChange() {
     filterState.minAllianceSize = parseInt(filterElements.minAllianceSize.value);
     filterElements.minAllianceSizeValue.textContent = filterState.minAllianceSize;
@@ -207,9 +177,6 @@ function handleMinAllianceSizeChange() {
     }
 }
 
-/**
- * Handle max alliance size change with validation
- */
 function handleMaxAllianceSizeChange() {
     filterState.maxAllianceSize = parseInt(filterElements.maxAllianceSize.value);
     filterElements.maxAllianceSizeValue.textContent = filterState.maxAllianceSize;
@@ -227,9 +194,6 @@ function handleMaxAllianceSizeChange() {
     }
 }
 
-/**
- * Handle alliance change and update corporation dropdown
- */
 function handleAllianceChange() {
     const currentCorpSelection = filterElements.corporationSelect.value;
 
@@ -247,18 +211,14 @@ function handleAllianceChange() {
     handleFilterChange();
 }
 
-/**
- * Populate corporation dropdown based on selected alliance
- */
 function populateCorporationDropdown() {
     if (!filterElements.corporationSelect || !allResults.length) return;
 
     const corpSelect = filterElements.corporationSelect;
     const selectedAllianceId = filterElements.allianceSelect?.value;
-
     corpSelect.innerHTML = '<option value="">All Corporations</option>';
-
     const corporations = new Map();
+
     allResults.forEach(character => {
         if (character.corporation_id && character.corporation_name) {
             if (selectedAllianceId) {
@@ -280,9 +240,6 @@ function populateCorporationDropdown() {
     });
 }
 
-/**
- * Update filter state from UI
- */
 function updateFilterState() {
     if (!filterElements) return;
 
@@ -299,9 +256,6 @@ function updateFilterState() {
     };
 }
 
-/**
- * Apply filters to results with memoization
- */
 function applyFilters() {
     if (!allResults.length) {
         filteredResults = [];
@@ -320,7 +274,6 @@ function applyFilters() {
     const corpFilterId = filterState.selectedCorporation;
     const hasAllianceFilter = !!filterState.selectedAlliance;
     const allianceFilterId = filterState.selectedAlliance;
-
     const characterResults = allResults.filter(result => result.character_name);
 
     filteredResults = characterResults.filter(character => {
@@ -359,9 +312,6 @@ function applyFilters() {
     }
 }
 
-/**
- * Update range value displays
- */
 function updateRangeValues() {
     if (!filterElements) return;
 
@@ -382,9 +332,6 @@ function updateRangeValues() {
     }
 }
 
-/**
- * Update results display with filter information
- */
 function updateResultsDisplay() {
     if (!filterElements) return;
 
@@ -393,17 +340,13 @@ function updateResultsDisplay() {
 
     if (filterElements.resultsCount) {
         if (filteredCount === totalResults) {
-            filterElements.resultsCount.textContent = 'Showing all results';
+            filterElements.resultsCount.textContent = `Showing ${totalResults} results`;
         } else {
             filterElements.resultsCount.textContent = `Showing ${filteredCount} of ${totalResults} results`;
         }
     }
-
 }
 
-/**
- * Toggle filters section
- */
 function toggleFilters() {
     if (!filterElements?.section) return;
 
@@ -416,9 +359,6 @@ function toggleFilters() {
     }
 }
 
-/**
- * Collapse filters section
- */
 function collapseFilters() {
     if (!filterElements) return;
 
@@ -428,9 +368,6 @@ function collapseFilters() {
     }
 }
 
-/**
- * Expand filters section
- */
 function expandFilters() {
     if (!filterElements) return;
 
@@ -440,68 +377,56 @@ function expandFilters() {
     }
 }
 
-/**
- * Clear all filters
- */
 function clearAllFilters() {
     if (!filterElements) return;
 
     filterElements.warEligibleOnly.checked = false;
-
     filterElements.nameSearch.value = '';
-
     filterElements.minCorpSize.value = 1;
     filterElements.maxCorpSize.value = filterElements.maxCorpSize.max;
     filterElements.minAllianceSize.value = 1;
     filterElements.maxAllianceSize.value = filterElements.maxAllianceSize.max;
-
     filterElements.allianceSelect.value = '';
     filterElements.corporationSelect.value = '';
 
     populateCorporationDropdown();
-
     updateRangeValues();
     handleFilterChange();
 }
 
-/**
- * Set results data for filtering
- */
 export function setResultsData(results) {
     allResults = results || [];
-
     filteredResultsCache.clear();
     lastFilterHash = '';
 
     buildSizeCaches();
     buildSearchCache();
-
     updateSliderMaximums(results);
     populateDropdowns(results);
     applyFilters();
     updateResultsDisplay();
 }
 
-/**
- * Update slider maximum values based on actual data
- */
 function updateSliderMaximums(results) {
     if (!results || !results.length || !filterElements) return;
 
     const corpSizes = new Map();
+
     results.forEach(char => {
         const corpId = char.corporation_id;
         corpSizes.set(corpId, (corpSizes.get(corpId) || 0) + 1);
     });
-    const maxCorpSize = Math.max(...corpSizes.values());
 
+    const maxCorpSize = Math.max(...corpSizes.values());
     const allianceSizes = new Map();
+
     results.forEach(char => {
         if (char.alliance_id) {
             const allianceId = char.alliance_id;
             allianceSizes.set(allianceId, (allianceSizes.get(allianceId) || 0) + 1);
         }
     });
+
     const maxAllianceSize = allianceSizes.size > 0 ? Math.max(...allianceSizes.values()) : 1;
 
     if (filterElements.minCorpSize && filterElements.maxCorpSize) {
@@ -525,9 +450,6 @@ function updateSliderMaximums(results) {
     }
 }
 
-/**
- * Populate corporation and alliance dropdowns
- */
 function populateDropdowns(results) {
     if (!filterElements || !results.length) return;
 
@@ -547,11 +469,9 @@ function populateDropdowns(results) {
 
     if (filterElements.allianceSelect) {
         const allianceSelect = filterElements.allianceSelect;
-
-        // Clear existing options except "All Alliances"
         allianceSelect.innerHTML = '<option value="">All Alliances</option>';
-
         const sortedAlliances = Array.from(alliances.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+
         sortedAlliances.forEach(([id, name]) => {
             const option = document.createElement('option');
             option.value = id.toString();
@@ -561,16 +481,10 @@ function populateDropdowns(results) {
     }
 }
 
-/**
- * Get filtered results
- */
 export function getFilteredResults() {
     return filteredResults;
 }
 
-/**
- * Get filtered alliance results
- */
 export function getFilteredAlliances(allAlliances) {
     if (!allAlliances || !allAlliances.length) return [];
 
@@ -604,9 +518,6 @@ export function getFilteredAlliances(allAlliances) {
     });
 }
 
-/**
- * Get filtered corporation results
- */
 export function getFilteredCorporations(allCorporations) {
     if (!allCorporations || !allCorporations.length) return [];
 
@@ -637,21 +548,15 @@ export function getFilteredCorporations(allCorporations) {
     });
 }
 
-/**
- * Check if any filters are active
- */
 export function hasActiveFilters() {
     return filterState.nameSearch ||
-           filterState.warEligibleOnly ||
-           filterState.minCorpSize > 1 ||
-           filterState.minAllianceSize > 1 ||
-           filterState.selectedCorporation ||
-           filterState.selectedAlliance;
+        filterState.warEligibleOnly ||
+        filterState.minCorpSize > 1 ||
+        filterState.minAllianceSize > 1 ||
+        filterState.selectedCorporation ||
+        filterState.selectedAlliance;
 }
 
-/**
- * Debounce function for performance
- */
 function debounce(func, wait) {
     let timeout;
     return function executedFunction(...args) {

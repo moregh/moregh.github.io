@@ -8,9 +8,6 @@
 import { ESI_BASE, ESI_HEADERS, USER_AGENT } from './config.js';
 import { showError, showWarning, clearErrorMessage } from './ui.js';
 
-/**
- * ESI Error types for better error handling
- */
 class ESIError extends Error {
     constructor(message, status, response, retryAfter = null) {
         super(message);
@@ -35,13 +32,10 @@ class ESIServerError extends ESIError {
     }
 }
 
-/**
- * Sophisticated ESI HTTP Client with proper caching and error handling
- */
 export class ESIClient {
     constructor() {
         this.requestCount = 0;
-        this.cacheHeaders = new Map(); // Store cache headers by endpoint
+        this.cacheHeaders = new Map();
         this.rateLimitState = {
             remaining: null,
             reset: null,
@@ -49,9 +43,6 @@ export class ESIClient {
         };
     }
 
-    /**
-     * Get current request statistics
-     */
     getStats() {
         return {
             requests: this.requestCount,
@@ -60,16 +51,10 @@ export class ESIClient {
         };
     }
 
-    /**
-     * Reset request counter
-     */
     resetStats() {
         this.requestCount = 0;
     }
 
-    /**
-     * Parse ESI cache headers for intelligent caching
-     */
     parseCacheHeaders(response, endpoint) {
         const cacheControl = response.headers.get('cache-control');
         const expires = response.headers.get('expires');
@@ -97,33 +82,27 @@ export class ESIClient {
         return cacheInfo;
     }
 
-    /**
-     * Check if cached response is still valid
-     */
     isCacheValid(endpoint) {
         const cacheInfo = this.cacheHeaders.get(endpoint);
         if (!cacheInfo) return false;
 
         const now = new Date();
 
-        // Check max-age first (most reliable)
+
         if (cacheInfo.maxAge !== null) {
             const expiresAt = new Date(cacheInfo.cachedAt.getTime() + (cacheInfo.maxAge * 1000));
             return now < expiresAt;
         }
 
-        // Fallback to expires header
+
         if (cacheInfo.expires) {
             return now < cacheInfo.expires;
         }
 
-        // No cache info, assume invalid
+
         return false;
     }
 
-    /**
-     * Update rate limit state from response headers
-     */
     updateRateLimitState(response) {
         const remaining = response.headers.get('x-esi-error-limit-remain');
         const reset = response.headers.get('x-esi-error-limit-reset');
@@ -137,9 +116,6 @@ export class ESIClient {
         this.rateLimitState.lastUpdate = Date.now();
     }
 
-    /**
-     * Check if we should wait due to rate limiting
-     */
     shouldWaitForRateLimit() {
         const { remaining, reset, lastUpdate } = this.rateLimitState;
 
@@ -147,7 +123,7 @@ export class ESIClient {
             return { shouldWait: false };
         }
 
-        // If we have very few requests remaining, be cautious
+
         if (remaining < 10) {
             const now = Date.now();
             const resetTime = lastUpdate + (reset * 1000);
@@ -161,19 +137,16 @@ export class ESIClient {
         return { shouldWait: false };
     }
 
-    /**
-     * Handle ESI response and extract relevant data
-     */
     async handleResponse(response, endpoint) {
-        // Update rate limit tracking
+
         this.updateRateLimitState(response);
 
-        // Parse cache headers for future requests
+
         this.parseCacheHeaders(response, endpoint);
 
-        // Handle different status codes
+
         if (response.ok) {
-            // Success - return parsed JSON
+
             try {
                 const data = await response.json();
                 return data;
@@ -182,7 +155,7 @@ export class ESIClient {
             }
         }
 
-        // Handle error responses
+
         let errorBody;
         try {
             errorBody = await response.json();
@@ -198,12 +171,12 @@ export class ESIClient {
                 throw new ESIError(`Bad Request: ${errorMessage}`, 400, response);
 
             case 404:
-                // For 404s, we often want to continue (character not found, etc.)
+
                 console.warn(`ESI 404 for ${endpoint}:`, errorMessage);
                 return null;
 
             case 420:
-                // Error limited
+
                 const retryAfter = parseInt(response.headers.get('retry-after') || '60');
                 throw new ESIRateLimitError(
                     `Rate limited: ${errorMessage}. Retry after ${retryAfter}s`,
@@ -212,7 +185,7 @@ export class ESIClient {
                 );
 
             case 429:
-                // Too many requests
+
                 const retryAfterTooMany = parseInt(response.headers.get('retry-after') || '60');
                 throw new ESIRateLimitError(
                     `Too many requests: ${errorMessage}. Retry after ${retryAfterTooMany}s`,
@@ -235,13 +208,10 @@ export class ESIClient {
         }
     }
 
-    /**
-     * Execute HTTP request with retry logic and rate limiting
-     */
     async executeRequest(url, options = {}, retryCount = 0, maxRetries = 3) {
         const endpoint = url.replace(ESI_BASE, '');
 
-        // Check rate limiting
+
         const rateLimitCheck = this.shouldWaitForRateLimit();
         if (rateLimitCheck.shouldWait && retryCount === 0) {
             showWarning(`Rate limit approaching, waiting ${rateLimitCheck.waitTime}ms`);
@@ -262,7 +232,7 @@ export class ESIClient {
 
             const result = await this.handleResponse(response, endpoint);
 
-            // Clear any warning messages if this was a retry that succeeded
+
             if (retryCount > 0) {
                 clearErrorMessage();
             }
@@ -270,14 +240,14 @@ export class ESIClient {
             return result;
 
         } catch (error) {
-            // Handle retryable errors
+
             if (error instanceof ESIRateLimitError || error instanceof ESIServerError) {
                 if (retryCount < maxRetries) {
                     const baseDelay = error instanceof ESIRateLimitError ?
                         (error.retryAfter * 1000) :
-                        (1000 * Math.pow(2, retryCount)); // Exponential backoff for server errors
+                        (1000 * Math.pow(2, retryCount));
 
-                    const jitter = Math.random() * 1000; // Add jitter
+                    const jitter = Math.random() * 1000;
                     const delay = baseDelay + jitter;
 
 
@@ -289,14 +259,11 @@ export class ESIClient {
                 }
             }
 
-            // Re-throw for non-retryable errors or exhausted retries
+
             throw error;
         }
     }
 
-    /**
-     * Perform GET request to ESI
-     */
     async get(endpoint, options = {}) {
         const url = `${ESI_BASE}${endpoint}`;
 
@@ -312,9 +279,6 @@ export class ESIClient {
         }
     }
 
-    /**
-     * Perform POST request to ESI
-     */
     async post(endpoint, data, options = {}) {
         const url = `${ESI_BASE}${endpoint}`;
 
@@ -331,16 +295,13 @@ export class ESIClient {
         }
     }
 
-    /**
-     * Handle and log errors appropriately
-     */
     handleError(error, context) {
         if (error instanceof ESIRateLimitError) {
             showWarning(`ESI Rate Limited: ${context}. Please wait ${error.retryAfter}s before retrying.`);
         } else if (error instanceof ESIServerError) {
             showError(`ESI Server Error: ${context}. ${error.message}`);
         } else if (error instanceof ESIError) {
-            if (error.status !== 404) { // Don't show errors for expected 404s
+            if (error.status !== 404) {
                 showError(`ESI Error: ${context}. ${error.message}`);
             }
         } else {
@@ -350,9 +311,6 @@ export class ESIClient {
         console.error(`ESI Client Error [${context}]:`, error);
     }
 
-    /**
-     * Batch multiple requests with intelligent chunking and concurrency control
-     */
     async batchRequests(requests, {
         maxConcurrency = 10,
         chunkDelay = 50,
@@ -373,26 +331,26 @@ export class ESIClient {
                         }
                     } catch (error) {
                         console.warn(`Batch request failed:`, error);
-                        return null; // Return null for failed requests
+                        return null;
                     }
                 });
 
                 const chunkResults = await Promise.all(chunkPromises);
                 results.push(...chunkResults);
 
-                // Progress callback
+
                 if (onProgress) {
                     onProgress(i + chunk.length, requests.length);
                 }
 
-                // Delay between chunks to be nice to ESI
+
                 if (i + maxConcurrency < requests.length && chunkDelay > 0) {
                     await new Promise(resolve => setTimeout(resolve, chunkDelay));
                 }
 
             } catch (error) {
                 console.error('Batch chunk failed completely:', error);
-                // Fill with nulls for this chunk
+
                 results.push(...new Array(chunk.length).fill(null));
             }
         }
@@ -401,5 +359,5 @@ export class ESIClient {
     }
 }
 
-// Export singleton instance
+
 export const esiClient = new ESIClient();
