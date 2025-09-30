@@ -1480,9 +1480,6 @@ class ZKillStatsCard {
     }
 
     close() {
-        if (this.currentModal) {
-            this.currentModal.removeEventListener('click', this.affiliationClickHandler);
-        }
         if (!this.currentModal || !this.isVisible) return;
 
         this.currentModal.classList.remove('show');

@@ -5,7 +5,7 @@
     Licensed under AGPL License.
 */
 
-import { ESI_BASE, ESI_HEADERS, USER_AGENT } from './config.js';
+import { ESI_BASE, ESI_HEADERS } from './config.js';
 import { showError, showWarning, clearErrorMessage } from './ui.js';
 
 class ESIError extends Error {

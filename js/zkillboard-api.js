@@ -244,26 +244,6 @@ class ZKillboardClient {
         }
     }
 
-    buildProxyUrl(originalUrl) {
-        const currentProxy = ZKILL_CONFIG.CORS_PROXIES[ZKILL_CONFIG.CURRENT_PROXY_INDEX];
-        return currentProxy + encodeURIComponent(originalUrl);
-    }
-
-    switchToNextProxy() {
-        ZKILL_CONFIG.CURRENT_PROXY_INDEX =
-            (ZKILL_CONFIG.CURRENT_PROXY_INDEX + 1) % ZKILL_CONFIG.CORS_PROXIES.length;
-
-        const newProxy = ZKILL_CONFIG.CORS_PROXIES[ZKILL_CONFIG.CURRENT_PROXY_INDEX];
-
-    }
-
-    getCurrentProxyInfo() {
-        return {
-            currentIndex: ZKILL_CONFIG.CURRENT_PROXY_INDEX,
-            currentProxy: ZKILL_CONFIG.CORS_PROXIES[ZKILL_CONFIG.CURRENT_PROXY_INDEX],
-            availableProxies: ZKILL_CONFIG.CORS_PROXIES.length
-        };
-    }
     getStats() {
         return {
             requests: this.requestCount,

@@ -5,6 +5,8 @@
     Licensed under AGPL License.
 */
 
+import { SHIP_TYPE_TO_GROUP } from './eve-ship-data.js';
+
 export function analyzeKillmails(killmails, entityType = null, entityId = null) {
     if (!Array.isArray(killmails) || killmails.length === 0) {
         return null;
@@ -382,13 +384,15 @@ function categorizeShipSizes(victims) {
 }
 
 function isCapitalShip(shipTypeId) {
-    const capitalGroupIds = [547, 485, 883, 659, 30];
-    return false;
+    const capitalGroupIds = [547, 485, 883, 659, 30, 1538, 4594];
+    const groupId = SHIP_TYPE_TO_GROUP[shipTypeId];
+    return groupId && capitalGroupIds.includes(groupId);
 }
 
 function isIndustrialShip(shipTypeId) {
-    const industrialGroupIds = [28, 941, 380, 543];
-    return false;
+    const industrialGroupIds = [28, 941, 380, 543, 513, 902, 463];
+    const groupId = SHIP_TYPE_TO_GROUP[shipTypeId];
+    return groupId && industrialGroupIds.includes(groupId);
 }
 
 function analyzeEngagementPatterns(killmails) {
@@ -658,7 +662,8 @@ function analyzeCynoActivity(killmails, entityType = null, entityId = null) {
 
 function isCapitalShipType(shipTypeId) {
     const CAPITAL_GROUP_IDS = [485, 547, 659, 30, 1538, 4594, 883];
-    return false;
+    const groupId = SHIP_TYPE_TO_GROUP[shipTypeId];
+    return groupId && CAPITAL_GROUP_IDS.includes(groupId);
 }
 
 function isBlackOpsShipType(shipTypeId) {

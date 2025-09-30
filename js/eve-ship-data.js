@@ -162,8 +162,7 @@ export const SHIP_GROUP_CLASSIFICATIONS = {
     2001: { size: 'Special', role: 'Special', category: 'Citizen Ships' }
 };
 
-export function getShipClassification(shipTypeID, groupID, shipName = '', groupName = '') {
-    // Try direct group ID lookup first (most accurate)
+export function getShipClassification(groupID) {
     if (groupID && SHIP_GROUP_CLASSIFICATIONS[groupID]) {
         return SHIP_GROUP_CLASSIFICATIONS[groupID];
     }
