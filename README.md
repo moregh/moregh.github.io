@@ -118,7 +118,7 @@ This project is licensed under the AGPL License - see the [LICENSE](LICENSE) fil
 - [x] **zKillboard Integration**: Pull character/corporation/alliance data from zKillboard for display within results
 - [x] **Advanced Filtering**: Multi-criteria filtering by war eligibility, corporation, alliance, and organization size
 - [x] **Real-time Search**: Search results by character, corporation, and alliance names
-- [ ] **Expand Input Types**: Allow users to paste in corporation and alliance names in addition to characters
+- [x] **Expand Input Types**: Allow users to paste in corporation and alliance names in addition to characters
 - [ ] **Historical Data**: Track changes in war eligibility and organization membership over time
 - [ ] **Export Capabilities**: Export filtered results to CSV or other formats
 - [ ] **Saved Searches**: Save and recall frequently used filter combinations
