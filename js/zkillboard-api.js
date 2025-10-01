@@ -5,31 +5,18 @@
     Licensed under AGPL License.
 */
 
-import { USER_AGENT, MAX_KILLMAILS_TO_FETCH, KILLMAIL_BATCH_SIZE, KILLMAIL_FETCH_DELAY_MS } from './config.js';
+import { USER_AGENT, MAX_KILLMAILS_TO_FETCH, KILLMAIL_BATCH_SIZE, KILLMAIL_FETCH_DELAY_MS, ZKILL_CONFIG } from './config.js';
 import { showWarning } from './ui.js';
 import { getShipClassification, SHIP_TYPE_TO_GROUP } from './eve-ship-data.js';
 import { get_zkill_character_kills, get_zkill_corporation_kills, get_zkill_alliance_kills } from './zkill-kills-api.js';
 import { fetchKillmailsBatch } from './esi-killmails.js';
 import { analyzeKillmails, getRecentKills, getTopValueKills } from './killmail-analysis.js';
+import { APIError } from './errors.js';
 
-const ZKILL_CONFIG = {
-    PROXY_BASE_URL: 'https://zkill2.zkillproxy.workers.dev/',
-    POW_DIFFICULTY: 12,
-    USER_AGENT: USER_AGENT,
-
-    REQUEST_INTERVAL_MS: 2000,
-    CACHE_DURATION_MS: 30 * 60 * 1000,
-    REQUEST_TIMEOUT_MS: 15000,
-    MAX_RETRIES: 3,
-    MAX_CONCURRENT_REQUESTS: 1,
-    BATCH_DELAY_MS: 2500
-};
-
-class ZKillError extends Error {
+class ZKillError extends APIError {
     constructor(message, status, entityType, entityId) {
-        super(message);
+        super(message, status, null, { entityType, entityId });
         this.name = 'ZKillError';
-        this.status = status;
         this.entityType = entityType;
         this.entityId = entityId;
     }
@@ -843,14 +830,6 @@ class ZKillboardClient {
             const isCynoShip = CYNO_SHIP_IDS.includes(shipTypeID) || groupID === FORCE_RECON_GROUP_ID;
             const isBlopsShip = groupID === BLACK_OPS_GROUP_ID;
 
-            console.log('[Cyno/Blops Detection] Checking ship:', {
-                typeID: shipTypeID,
-                groupID: groupID,
-                kills: kills,
-                isCynoShip,
-                isBlopsShip
-            });
-
             if (isCynoShip) {
                 cynoKills += kills;
                 cynoShips.push({ shipTypeID: shipTypeID, kills: kills });
@@ -1556,35 +1535,4 @@ export async function get_zkill_alliance_stats(allianceId, options = {}) {
 
         return zkillClient.createEmptyStats('allianceID', allianceId);
     }
-}
-
-export async function get_zkill_batch_stats(entityType, entityIds, onProgress = null) {
-    const results = [];
-
-    for (let i = 0; i < entityIds.length; i++) {
-        const entityId = entityIds[i];
-
-        try {
-            const stats = await zkillClient.getEntityStats(entityType, entityId);
-            results.push(stats);
-
-            if (onProgress) {
-                onProgress(i + 1, entityIds.length, `Getting ${entityType} stats...`);
-            }
-
-        } catch (error) {
-            console.error(`Failed to get stats for ${entityType} ${entityId}:`, error);
-            results.push(zkillClient.createEmptyStats(entityType, entityId));
-        }
-    }
-
-    return results;
-}
-
-export function get_zkill_stats() {
-    return zkillClient.getStats();
-}
-
-export function clear_zkill_cache() {
-    zkillClient.clearCache();
 }

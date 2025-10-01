@@ -15,6 +15,7 @@ import {
 } from './config.js';
 import { getCacheRecordCount } from './database.js';
 import { getCounters } from './esi-api.js';
+import { domCache } from './dom-cache.js';
 
 let timerInterval = null;
 let startTime = 0;
@@ -31,11 +32,11 @@ let lastTimerUpdate = 0;
 function getUIElements() {
     if (!uiElements) {
         uiElements = {
-            timer: document.getElementById("timer"),
-            headerStats: document.getElementById('header-stats'),
-            inputSection: document.getElementById('input-section'),
-            errorContainer: document.getElementById('error-container'),
-            versionDisplay: document.getElementById('version-display')
+            timer: domCache.get("timer"),
+            headerStats: domCache.get('header-stats'),
+            inputSection: domCache.get('input-section'),
+            errorContainer: domCache.get('error-container'),
+            versionDisplay: domCache.get('version-display')
         };
     }
     return uiElements;
@@ -44,9 +45,9 @@ function getUIElements() {
 function getLoadingElements() {
     if (!loadingElements) {
         loadingElements = {
-            container: document.getElementById("loading-container"),
-            resultsSection: document.getElementById("results-section"),
-            checkButton: document.getElementById("checkButton")
+            container: domCache.get("loading-container"),
+            resultsSection: domCache.get("results-section"),
+            checkButton: domCache.get("checkButton")
         };
     }
     return loadingElements;
@@ -65,8 +66,8 @@ export function expandInputSection() {
 function getProgressElements() {
     if (!progressElements) {
         progressElements = {
-            bar: document.getElementById('progressBar'),
-            text: document.getElementById('progressText')
+            bar: domCache.get('progressBar'),
+            text: domCache.get('progressText')
         };
     }
     return progressElements;
@@ -159,8 +160,11 @@ export function stopLoading() {
     if (loadingElements.container) {
         loadingElements.container.classList.remove("show");
     }
-    if (loadingElements.checkButton) {
-        loadingElements.checkButton.disabled = false;
+
+    const button = loadingElements.checkButton || domCache.get("checkButton");
+    if (button) {
+        button.disabled = false;
+        button.removeAttribute('disabled');
     }
 
     if (timerInterval) {
@@ -189,22 +193,6 @@ export function stopLoading() {
             }
         }, LOADING_HIDE_DELAY_MS);
     }, LOADING_DISPLAY_DELAY_MS);
-}
-
-export function showInformation(message) {
-    const elements = getUIElements();
-    if (elements.errorContainer) {
-        elements.errorContainer.innerHTML = `
-            <div class="info-message glass-card">
-            <div class="information-icon">
-            <div class="info-icon">✅</div>
-            <div class="info-content">
-                <div class="info-title">Info</div>
-                <div class="info-text">${message}</div>
-            </div>
-            </div>
-        `;
-    }
 }
 
 export function showWarning(message) {
@@ -247,11 +235,11 @@ export function clearErrorMessage() {
 function getStatsElements() {
     if (!statsElements) {
         statsElements = {
-            allianceCount: document.getElementById("alliance-count"),
-            corporationCount: document.getElementById("corporation-count"),
-            totalCount: document.getElementById("total-count"),
-            allianceTotal: document.getElementById("alliance-total"),
-            corporationTotal: document.getElementById("corporation-total")
+            allianceCount: domCache.get("alliance-count"),
+            corporationCount: domCache.get("corporation-count"),
+            totalCount: domCache.get("total-count"),
+            allianceTotal: domCache.get("alliance-total"),
+            corporationTotal: domCache.get("corporation-total")
         };
     }
     return statsElements;
@@ -291,10 +279,10 @@ export async function updatePerformanceStats() {
 
     if (!uiElements) getUIElements();
     const performanceElements = {
-        queryTime: document.getElementById("query-time"),
-        esiLookups: document.getElementById("esi-lookups"),
-        cacheInfo: document.getElementById("cache-info"),
-        cacheSize: document.getElementById("cache-size")
+        queryTime: domCache.get("query-time"),
+        esiLookups: domCache.get("esi-lookups"),
+        cacheInfo: domCache.get("cache-info"),
+        cacheSize: domCache.get("cache-size")
     };
 
     requestAnimationFrame(() => {

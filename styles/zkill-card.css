@@ -3,24 +3,6 @@ Copyright (C) 2025 moregh (https://github.com/moregh/)
 Licensed under AGPL License.
 */
 
-/* zkill card war eligibility badges */
-.zkill-war-badge {
-    display: inline-block;
-    background: linear-gradient(135deg, var(--war-color), var(--war-color-dark));
-    color: white;
-    padding: 2px 6px;
-    border-radius: var(--radius-medium);
-    font-size: 0.7rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-left: 8px;
-    box-shadow: 0 2px 6px rgba(255, 71, 87, 0.3);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    animation: warPulse 2s infinite;
-    vertical-align: middle;
-}
-
 /* Highlight war-eligible zkill cards */
 .zkill-stats-card.war-eligible {
     border: 2px solid rgba(255, 71, 87, 0.4);
@@ -64,7 +46,7 @@ border-radius: 20px;
 box-shadow:
 0 25px 80px rgba(0, 0, 0, 0.5),
 0 0 0 1px var(--white-1),
-inset 0 1px 0 rgba(255, 255, 255, 0.2);
+inset 0 1px 0 var(--white-2);
 max-width: 900px;
 width: 100%;
 max-height: 90vh;
@@ -124,7 +106,7 @@ Entity (avatar, details, affiliations)
 width: 60px;
 height: 60px;
 border-radius: var(--radius-large);
-border: 2px solid rgba(255, 255, 255, 0.2);
+border: 2px solid var(--white-2);
 object-fit: cover;
 background: var(--gradient-highlight);
 }
@@ -180,7 +162,7 @@ transition: all 0.2s ease;
 white-space: nowrap;
 }
 .zkill-affiliation-item:hover {
-background: rgba(255, 255, 255, 0.06);
+background: var(--white-06);
 border-color: rgba(0, 212, 255, 0.3);
 transform: translateY(-1px);
 }
@@ -341,7 +323,7 @@ opacity: 0.6;
 }
 .zkill-stat-item:hover {
 transform: translateY(-2px);
-background: rgba(255, 255, 255, 0.06);
+background: var(--white-06);
 border-color: rgba(0, 212, 255, 0.3);
 }
 .zkill-stat-item-compact {
@@ -411,7 +393,7 @@ border-left: 3px solid var(--primary-color);
 transition: all 0.2s ease;
 }
 .zkill-activity-period:hover {
-background: rgba(255, 255, 255, 0.06);
+background: var(--white-06);
 transform: translateY(-1px);
 }
 .zkill-activity-period-label {
@@ -457,7 +439,7 @@ opacity: 0.6;
 }
 .zkill-activity-card:hover {
 transform: translateY(-2px);
-background: rgba(255, 255, 255, 0.06);
+background: var(--white-06);
 border-color: rgba(0, 212, 255, 0.3);
 }
 .zkill-activity-icon {
@@ -502,7 +484,7 @@ justify-content: space-between;
 gap: 0.8rem;
 }
 .zkill-ship-card:hover {
-background: rgba(255, 255, 255, 0.06);
+background: var(--white-06);
 transform: translateY(-1px);
 border-left-color: var(--secondary-color);
 }
@@ -571,7 +553,7 @@ flex-direction: column;
 justify-content: space-between;
 }
 .zkill-location-card:hover {
-background: rgba(255, 255, 255, 0.06);
+background: var(--white-06);
 transform: translateY(-1px);
 border-left-color: var(--primary-color);
 }
@@ -595,17 +577,14 @@ font-size: 0.7rem;
 font-weight: 600;
 flex-shrink: 0;
 }
-.zkill-location-security.highsec,
 .zkill-location-security.sec-high {
 background: rgba(74, 222, 128, 0.2);
 color: var(--secondary-color);
 }
-.zkill-location-security.lowsec,
 .zkill-location-security.sec-low {
 background: rgba(251, 191, 36, 0.2);
 color: var(--warning-color);
 }
-.zkill-location-security.nullsec,
 .zkill-location-security.sec-null {
 background: rgba(248, 113, 113, 0.2);
 color: var(--danger-color);
@@ -614,7 +593,6 @@ color: var(--danger-color);
 background: rgba(155, 89, 182, 0.2);
 color: #9b59b6;
 }
-.zkill-location-security.unknown,
 .zkill-location-security.sec-unknown {
 background: rgba(128, 128, 128, 0.2);
 color: var(--text-muted);
@@ -715,7 +693,7 @@ cursor: pointer;
 transition: all 0.2s ease;
 border-bottom: 1px solid var(--white-1);
 }
-.zkill-members-header:hover { background: rgba(255, 255, 255, 0.08); }
+.zkill-members-header:hover { background: var(--white-08); }
 
 .zkill-members-title {
 font-size: 1rem;
@@ -809,98 +787,6 @@ height: 60px;
 display: flex;
 align-items: center;
 justify-content: center;
-}
-.zkill-loading-spinner {
-width: 60px;
-height: 60px;
-border: 3px solid rgba(0, 212, 255, 0.2);
-border-radius: 50%;
-border-top-color: var(--primary-color);
-animation: spin 1s linear infinite;
-position: relative;
-z-index: 2;
-}
-.zkill-pulse-ring {
-position: absolute;
-width: 60px;
-height: 60px;
-border: 3px solid var(--primary-color);
-border-radius: 50%;
-animation: pulse 2s ease-out infinite;
-z-index: 1;
-}
-.zkill-loading-title {
-color: var(--text-primary);
-font-size: 1.3rem;
-font-weight: 600;
-margin: 0;
-}
-.zkill-loading-subtitle {
-color: var(--text-secondary);
-font-size: 0.9rem;
-margin: 0;
-}
-.zkill-progress-container {
-width: 100%;
-max-width: 400px;
-height: 6px;
-background: rgba(255, 255, 255, 0.05);
-border-radius: 10px;
-overflow: hidden;
-position: relative;
-}
-.zkill-progress-bar {
-height: 100%;
-background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
-border-radius: 10px;
-width: 0%;
-transition: width 0.3s ease;
-position: relative;
-z-index: 2;
-}
-.zkill-progress-glow {
-position: absolute;
-top: 0;
-left: 0;
-right: 0;
-bottom: 0;
-background: linear-gradient(90deg, transparent, rgba(0, 212, 255, 0.3), transparent);
-animation: shimmer 2s infinite;
-z-index: 1;
-}
-.zkill-loading-stats {
-display: flex;
-justify-content: space-between;
-width: 100%;
-max-width: 400px;
-font-size: 0.85rem;
-}
-.zkill-progress-text {
-color: var(--text-secondary);
-}
-.zkill-timer {
-color: var(--primary-color);
-font-weight: 600;
-}
-
-@keyframes pulse {
-0% {
-transform: scale(1);
-opacity: 1;
-}
-100% {
-transform: scale(1.5);
-opacity: 0;
-}
-}
-
-@keyframes shimmer {
-0% {
-transform: translateX(-100%);
-}
-100% {
-transform: translateX(100%);
-}
 }
 
 .zkill-error {
@@ -1354,56 +1240,56 @@ REORGANIZED LAYOUT - Tactical Intelligence First
 .zkill-tag-solo {
     background: linear-gradient(135deg, #e74c3c, #c0392b);
     color: white;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    border: 1px solid var(--white-2);
 }
 
 .zkill-tag-solo-small {
     background: linear-gradient(135deg, #e67e22, #d35400);
     color: white;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    border: 1px solid var(--white-2);
 }
 
 .zkill-tag-small-gang {
     background: linear-gradient(135deg, #f39c12, #e67e22);
     color: white;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    border: 1px solid var(--white-2);
 }
 
 .zkill-tag-fleet-fc,
 .zkill-tag-fleet {
     background: linear-gradient(135deg, #3498db, #2980b9);
     color: white;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    border: 1px solid var(--white-2);
 }
 
 .zkill-tag-adaptable {
     background: linear-gradient(135deg, #9b59b6, #8e44ad);
     color: white;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    border: 1px solid var(--white-2);
 }
 
 .zkill-tag-blob {
     background: linear-gradient(135deg, #34495e, #2c3e50);
     color: white;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    border: 1px solid var(--white-2);
 }
 
 .zkill-tag-hvt-hunter {
     background: linear-gradient(135deg, #16a085, #1abc9c);
     color: white;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    border: 1px solid var(--white-2);
 }
 
 .zkill-tag-multi-ship {
     background: linear-gradient(135deg, #27ae60, #229954);
     color: white;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    border: 1px solid var(--white-2);
 }
 
 .zkill-tag-specialist {
     background: linear-gradient(135deg, #8e44ad, #71368a);
     color: white;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    border: 1px solid var(--white-2);
 }
 
 .zkill-tag-capital {
@@ -1418,19 +1304,19 @@ REORGANIZED LAYOUT - Tactical Intelligence First
     background: #e74c3c;
     background: linear-gradient(135deg, #e74c3c, #9b59b6);
     color: white;
-    border: 1px solid rgba(255, 255, 255, 0.3);
+    border: 1px solid var(--white-3);
 }
 
 .zkill-tag-industrial-hunter {
     background: linear-gradient(135deg, #f39c12, #d35400);
     color: white;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    border: 1px solid var(--white-2);
 }
 
 .zkill-tag-gate-camper {
     background: linear-gradient(135deg, #34495e, #2c3e50);
     color: white;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    border: 1px solid var(--white-2);
 }
 
 .zkill-tag-blops {
@@ -1442,7 +1328,7 @@ REORGANIZED LAYOUT - Tactical Intelligence First
 .zkill-tag-cyno {
     background: linear-gradient(135deg, #e74c3c, #c0392b);
     color: white;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    border: 1px solid var(--white-2);
 }
 
 .zkill-tag-capital-pilot {
@@ -1564,7 +1450,7 @@ REORGANIZED LAYOUT - Tactical Intelligence First
 }
 
 .zkill-fav-ship:hover {
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--white-06);
     transform: translateY(-1px);
 }
 
@@ -1602,7 +1488,7 @@ REORGANIZED LAYOUT - Tactical Intelligence First
 }
 
 .zkill-hot-zone:hover {
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--white-06);
     transform: translateY(-1px);
 }
 
@@ -1625,7 +1511,7 @@ REORGANIZED LAYOUT - Tactical Intelligence First
     font-size: 0.7rem;
     font-weight: 700;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-    border: 2px solid rgba(255, 255, 255, 0.2);
+    border: 2px solid var(--white-2);
     position: relative;
     overflow: hidden;
 }
@@ -1642,36 +1528,35 @@ REORGANIZED LAYOUT - Tactical Intelligence First
     background: radial-gradient(circle at center, var(--white-3), transparent);
 }
 
-.zkill-system-sec.highsec {
+.zkill-system-sec.sec-high {
     background: linear-gradient(135deg, #10b981, #065f46);
     color: white;
     border-color: rgba(16, 185, 129, 0.4);
     box-shadow: 0 0 12px rgba(16, 185, 129, 0.3);
 }
 
-.zkill-system-sec.lowsec {
+.zkill-system-sec.sec-low {
     background: linear-gradient(135deg, #f59e0b, #92400e);
     color: white;
     border-color: rgba(245, 158, 11, 0.4);
     box-shadow: 0 0 12px rgba(245, 158, 11, 0.3);
 }
 
-.zkill-system-sec.nullsec {
+.zkill-system-sec.sec-null {
     background: linear-gradient(135deg, #ef4444, #991b1b);
     color: white;
     border-color: rgba(239, 68, 68, 0.4);
     box-shadow: 0 0 12px rgba(239, 68, 68, 0.3);
 }
 
-.zkill-system-sec.unknown {
+.zkill-system-sec.sec-unknown {
     background: linear-gradient(135deg, #6b7280, #374151);
     color: white;
     border-color: rgba(107, 114, 128, 0.4);
     box-shadow: 0 0 12px rgba(107, 114, 128, 0.3);
 }
 
-/* Wormhole space styling */
-.zkill-system-sec.wormhole {
+.zkill-system-sec.sec-wspace {
     background: linear-gradient(135deg, #8b5cf6, #5b21b6);
     color: white;
     border-color: rgba(139, 92, 246, 0.4);
@@ -1723,7 +1608,7 @@ REORGANIZED LAYOUT - Tactical Intelligence First
 }
 
 .zkill-pattern-item:hover {
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--white-06);
     transform: translateY(-1px);
 }
 
@@ -2019,7 +1904,7 @@ Enhanced Analysis Sections
 
 .zkill-combat-card:hover {
     transform: translateY(-2px);
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--white-06);
     border-color: rgba(74, 222, 128, 0.3);
 }
 
@@ -2075,7 +1960,7 @@ Enhanced Analysis Sections
 
 .zkill-insight-card:hover {
     transform: translateY(-2px);
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--white-06);
     border-color: rgba(251, 191, 36, 0.3);
 }
 

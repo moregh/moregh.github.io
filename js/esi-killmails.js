@@ -190,18 +190,6 @@ class ESIKillmailFetcher {
 
 const esiKillmailFetcher = new ESIKillmailFetcher();
 
-export async function fetchKillmailDetails(killmailId, hash) {
-    return esiKillmailFetcher.fetchKillmailDetails(killmailId, hash);
-}
-
 export async function fetchKillmailsBatch(kills, options = {}) {
     return esiKillmailFetcher.fetchKillmailsBatch(kills, options);
-}
-
-export function getKillmailFetcherStats() {
-    return esiKillmailFetcher.getStats();
-}
-
-export function resetKillmailFetcherStats() {
-    esiKillmailFetcher.resetStats();
 }

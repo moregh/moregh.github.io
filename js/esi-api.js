@@ -42,12 +42,7 @@ export function getCounters() {
     };
 }
 
-export function resetCounters() {
-    esiClient.resetStats();
-    resetLocalCacheHits();
-}
-
-export function chunkArray(array, chunkSize) {
+function chunkArray(array, chunkSize) {
     const chunks = [];
     for (let i = 0; i < array.length; i += chunkSize) {
         chunks.push(array.slice(i, i + chunkSize));
@@ -55,7 +50,7 @@ export function chunkArray(array, chunkSize) {
     return chunks;
 }
 
-export async function processInChunks(items, processFn, delay = CHUNK_DELAY) {
+async function processInChunks(items, processFn, delay = CHUNK_DELAY) {
     const results = [];
     const totalChunks = items.length;
 
@@ -86,65 +81,6 @@ export async function processInChunks(items, processFn, delay = CHUNK_DELAY) {
         }
     }
     return results;
-}
-
-export async function getCharacterIds(names) {
-    const cachedCharacters = [];
-    const uncachedNames = [];
-
-    for (const name of names) {
-        const lowerName = name.toLowerCase();
-        if (characterNameToIdCache.has(lowerName)) {
-            cachedCharacters.push(characterNameToIdCache.get(lowerName));
-            incrementLocalCacheHits();
-            continue;
-        }
-
-        const cached = await getCachedNameToId(name);
-        if (cached) {
-            characterNameToIdCache.set(lowerName, cached);
-            cachedCharacters.push(cached);
-            incrementLocalCacheHits();
-            continue;
-        }
-
-        uncachedNames.push(name);
-    }
-
-    let fetchedCharacters = [];
-
-    if (uncachedNames.length > 0) {
-        updateProgress(0, uncachedNames.length, `Looking up ${uncachedNames.length} character names...`);
-
-        fetchedCharacters = await processInChunks(
-            chunkArray(uncachedNames, MAX_ESI_CALL_SIZE),
-            async (nameChunk, index, totalChunks) => {
-                updateProgress(index * MAX_ESI_CALL_SIZE, uncachedNames.length,
-                    `Looking up character names (batch ${index + 1}/${totalChunks})...`);
-
-                try {
-                    const data = await esiClient.post('/universe/ids/', nameChunk);
-                    const characters = data?.characters || [];
-
-                    for (const char of characters) {
-                        await setCachedNameToId(char.name, char);
-                        characterNameToIdCache.set(char.name.toLowerCase(), char);
-                    }
-
-                    return characters;
-                } catch (error) {
-                    console.error(`Failed to get character IDs for batch ${index + 1}:`, error);
-                    throw new Error(`Failed to get character IDs for batch ${index + 1}: ${error.message}`);
-                }
-            },
-            MAX_ESI_CALL_SIZE,
-            CHUNK_DELAY
-        );
-
-        fetchedCharacters = fetchedCharacters.flat().filter(char => char !== null);
-    }
-
-    return [...cachedCharacters, ...fetchedCharacters];
 }
 
 export async function getEntityIds(names) {
@@ -617,61 +553,9 @@ export function buildCharacterResults(characters, affiliationMap, corpMap, allia
     return results;
 }
 
-export async function handleMissingCharacters(characters, originalNames) {
-    if (characters.length !== originalNames.length) {
-        const foundNames = new Set(characters.map(c => c.name.toLowerCase()));
-        const missingNames = originalNames.filter(name => !foundNames.has(name.toLowerCase()));
-        console.warn(`Could not find ${missingNames.length} character(s):`, missingNames);
-
-        if (missingNames.length > 0) {
-            updateProgress(0, 0, `Warning: ${missingNames.length} character names not found`);
-            await new Promise(resolve => setTimeout(resolve, 1500));
-        }
-    }
-}
-
-export async function validator(names) {
-    resetCounters();
-
-    try {
-        const characters = await getCharacterIds(names);
-        const characterIds = characters.map(char => char.id);
-
-        await handleMissingCharacters(characters, names);
-
-        updateProgress(0, characterIds.length, "Getting character affiliations...");
-        const affiliations = await getCharacterAffiliations(characterIds);
-
-        const affiliationMap = new Map();
-        affiliations.forEach(affiliation => {
-            affiliationMap.set(affiliation.character_id, affiliation);
-        });
-
-        const uniqueCorpIds = Array.from(new Set(affiliations.map(a => a.corporation_id)));
-        const uniqueAllianceIds = Array.from(new Set(affiliations.map(a => a.alliance_id).filter(id => id)));
-
-        const [corpMap, allianceMap] = await Promise.all([
-            getCorporationInfoWithCaching(uniqueCorpIds),
-            getAllianceInfoWithCaching(uniqueAllianceIds)
-        ]);
-
-        return buildCharacterResults(characters, affiliationMap, corpMap, allianceMap);
-
-    } catch (error) {
-        if (error.name === 'ESIRateLimitError') {
-            throw new Error(`Rate limit exceeded. Please wait ${error.retryAfter} seconds before trying again.`);
-        } else if (error.name === 'ESIServerError') {
-            throw new Error(`EVE ESI servers are experiencing issues (${error.status}). Please try again later.`);
-        } else if (error.name === 'ESIError') {
-            throw new Error(`ESI API error: ${error.message}`);
-        } else {
-            throw error;
-        }
-    }
-}
-
 export async function mixedValidator(names) {
-    resetCounters();
+    esiClient.resetStats();
+    resetLocalCacheHits();
 
     try {
         const entities = await getEntityIds(names);

@@ -181,6 +181,21 @@ function initializeElementPools() {
 let corpToCharactersMap = new Map();
 let allianceToCorpsMap = new Map();
 
+function unobserveElement(element) {
+    const images = element.querySelectorAll('img[data-src]');
+    images.forEach(img => {
+        if (observerManager.observedImages.has(img)) {
+            observerManager.imageObserver?.unobserve(img);
+            observerManager.observedImages.delete(img);
+        }
+    });
+
+    if (observerManager.observedAnimations.has(element)) {
+        observerManager.animationObserver?.unobserve(element);
+        observerManager.observedAnimations.delete(element);
+    }
+}
+
 export function buildEntityMaps(results) {
     corpToCharactersMap.clear();
     allianceToCorpsMap.clear();
@@ -341,6 +356,78 @@ function resetMouseoverCardElement(element) {
     element.style.cssText = "";
 }
 
+function updateImageSrc(imgElement, newSrc) {
+    if (!imgElement) return;
+    if (imgElement.dataset.src !== newSrc) {
+        imgElement.dataset.src = newSrc;
+        if (document.contains(imgElement)) {
+            observerManager.observeImage(imgElement);
+        }
+    }
+}
+
+function updateOrgSection(element, character, orgType) {
+    const corpAllianceInfo = element.querySelector('.corp-alliance-info');
+    let orgSection = element.querySelector('.org-item:last-child');
+    const isOrgSection = orgSection && orgSection.querySelector(`a[href*="/${orgType}/"]`);
+
+    const orgName = character[`${orgType}_name`];
+    const orgId = character[`${orgType}_id`];
+    const logoSize = orgType === 'alliance' ? ALLIANCE_LOGO_SIZE_PX : CORP_LOGO_SIZE_PX;
+
+    if (orgName && orgId) {
+        if (!isOrgSection) {
+            const fragment = document.createDocumentFragment();
+            const newOrgSection = document.createElement('div');
+            newOrgSection.className = 'org-item';
+            newOrgSection.innerHTML = `
+                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3C/svg%3E"
+                     data-src="https://images.evetech.net/${orgType}s/${orgId}/logo?size=${logoSize}"
+                     alt="${orgName}"
+                     class="org-logo"
+                     loading="lazy"
+                     decoding="async">
+                <a href="https://zkillboard.com/${orgType}/${orgId}/"
+                   target="_blank"
+                   class="character-link">${orgName}</a>
+            `;
+            fragment.appendChild(newOrgSection);
+            corpAllianceInfo.appendChild(fragment);
+
+            const orgLogo = newOrgSection.querySelector('.org-logo');
+            if (document.contains(orgLogo)) {
+                observerManager.observeImage(orgLogo);
+            }
+        } else {
+            const orgLogo = orgSection.querySelector('.org-logo');
+            const orgLink = orgSection.querySelector('.character-link');
+
+            if (orgLogo) {
+                orgLogo.alt = orgName;
+                updateImageSrc(orgLogo, `https://images.evetech.net/${orgType}s/${orgId}/logo?size=${logoSize}`);
+            }
+
+            if (orgLink) {
+                orgLink.textContent = orgName;
+                orgLink.href = `https://zkillboard.com/${orgType}/${orgId}/`;
+            }
+        }
+    } else {
+        if (isOrgSection) {
+            orgSection.remove();
+        }
+    }
+}
+
+function createEmptyStateHTML(icon, text, className) {
+    return `
+        <div class="${className}">
+            <div class="no-results-icon">${icon}</div>
+            <div class="no-results-text">${text}</div>
+        </div>
+    `;
+}
+
 export function createMouseoverCard(entity, type) {
     const card = document.createElement("div");
     card.className = "mouseover-card";
@@ -428,13 +515,7 @@ export function updateElementContent(element, character) {
 
     if (avatar) {
         avatar.alt = character.character_name;
-        const newAvatarSrc = `https://images.evetech.net/characters/${character.character_id}/portrait?size=${CHARACTER_PORTRAIT_SIZE_PX}`;
-        if (avatar.dataset.src !== newAvatarSrc) {
-            avatar.dataset.src = newAvatarSrc;
-            if (document.contains(avatar)) {
-                observerManager.observeImage(avatar);
-            }
-        }
+        updateImageSrc(avatar, `https://images.evetech.net/characters/${character.character_id}/portrait?size=${CHARACTER_PORTRAIT_SIZE_PX}`);
     }
 
     if (characterLink) {
@@ -444,13 +525,7 @@ export function updateElementContent(element, character) {
 
     if (corpLogo) {
         corpLogo.alt = character.corporation_name;
-        const newCorpSrc = `https://images.evetech.net/corporations/${character.corporation_id}/logo?size=${CORP_LOGO_SIZE_PX}`;
-        if (corpLogo.dataset.src !== newCorpSrc) {
-            corpLogo.dataset.src = newCorpSrc;
-            if (document.contains(corpLogo)) {
-                observerManager.observeImage(corpLogo);
-            }
-        }
+        updateImageSrc(corpLogo, `https://images.evetech.net/corporations/${character.corporation_id}/logo?size=${CORP_LOGO_SIZE_PX}`);
     }
 
     if (corpLink) {
@@ -458,58 +533,7 @@ export function updateElementContent(element, character) {
         corpLink.href = `https://zkillboard.com/corporation/${character.corporation_id}/`;
     }
 
-    const corpAllianceInfo = element.querySelector('.corp-alliance-info');
-    let allianceSection = element.querySelector('.org-item:last-child');
-    const isAllianceSection = allianceSection && allianceSection.querySelector('a[href*="/alliance/"]');
-
-    if (character.alliance_name && character.alliance_id) {
-        if (!isAllianceSection) {
-            const fragment = document.createDocumentFragment();
-            const newAllianceSection = document.createElement('div');
-            newAllianceSection.className = 'org-item';
-            newAllianceSection.innerHTML = `
-                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3C/svg%3E" 
-                     data-src="https://images.evetech.net/alliances/${character.alliance_id}/logo?size=${ALLIANCE_LOGO_SIZE_PX}"
-                     alt="${character.alliance_name}" 
-                     class="org-logo" 
-                     loading="lazy" 
-                     decoding="async">
-                <a href="https://zkillboard.com/alliance/${character.alliance_id}/" 
-                   target="_blank" 
-                   class="character-link">${character.alliance_name}</a>
-            `;
-            fragment.appendChild(newAllianceSection);
-            corpAllianceInfo.appendChild(fragment);
-
-            const allianceLogo = newAllianceSection.querySelector('.org-logo');
-            if (document.contains(allianceLogo)) {
-                observerManager.observeImage(allianceLogo);
-            }
-        } else {
-            const allianceLogo = allianceSection.querySelector('.org-logo');
-            const allianceLink = allianceSection.querySelector('.character-link');
-
-            if (allianceLogo) {
-                allianceLogo.alt = character.alliance_name;
-                const newAllianceSrc = `https://images.evetech.net/alliances/${character.alliance_id}/logo?size=${ALLIANCE_LOGO_SIZE_PX}`;
-                if (allianceLogo.dataset.src !== newAllianceSrc) {
-                    allianceLogo.dataset.src = newAllianceSrc;
-                    if (document.contains(allianceLogo)) {
-                        observerManager.observeImage(allianceLogo);
-                    }
-                }
-            }
-
-            if (allianceLink) {
-                allianceLink.textContent = character.alliance_name;
-                allianceLink.href = `https://zkillboard.com/alliance/${character.alliance_id}/`;
-            }
-        }
-    } else {
-        if (isAllianceSection) {
-            allianceSection.remove();
-        }
-    }
+    updateOrgSection(element, character, 'alliance');
 }
 
 export function createCharacterItem(character, viewType = 'grid') {
@@ -617,14 +641,6 @@ export function releaseElementToPool(element) {
     }
 }
 
-export function getPoolStats() {
-    return {
-        character: characterElementPool?.getStats() || { created: 0, reused: 0, pooled: 0 },
-        entity: entityCardPool?.getStats() || { created: 0, reused: 0, pooled: 0 },
-        mouseover: mouseoverCardPool?.getStats() || { created: 0, reused: 0, pooled: 0 }
-    };
-}
-
 export function createEntityCard({ id, name, count, type, war_eligible, isDirect }) {
     const sanitizedId = sanitizeId(id);
     const sanitizedName = name;
@@ -695,30 +711,17 @@ export function createEntityCard({ id, name, count, type, war_eligible, isDirect
 export function renderGrid(containerId, items, type = 'character') {
     const container = document.getElementById(containerId);
 
+    if (items.length === 0) {
+        const icon = type === 'character' ? '🔍' : '📊';
+        const text = type === 'character' ? 'No results found' : `No ${type}s found`;
+        const className = type === 'character' ? 'no-results' : 'no-summary';
+        container.innerHTML = createEmptyStateHTML(icon, text, className);
+        return;
+    }
+
     if (type === 'character') {
-        if (items.length === 0) {
-            container.innerHTML = `
-                <div class="no-results">
-                    <div class="no-results-icon">🔍</div>
-                    <div class="no-results-text">No results found</div>
-                </div>
-            `;
-            return;
-        }
-
         setupVirtualScrolling(containerId, items);
-
     } else {
-        if (items.length === 0) {
-            container.innerHTML = `
-                <div class="no-summary">
-                    <div class="no-results-icon">📊</div>
-                    <div class="no-results-text">No ${type}s found</div>
-                </div>
-            `;
-            return;
-        }
-
         setupEntityScrolling(containerId, items, type);
     }
 }
@@ -1103,19 +1106,7 @@ class VirtualScrollManager {
         elementsToRemove.slice(0, Math.max(20, elementsToRemove.length / 4)).forEach(index => {
             const element = this.renderedElements.get(index);
             if (element) {
-                const images = element.querySelectorAll('img[data-src]');
-                images.forEach(img => {
-                    if (observerManager.observedImages.has(img)) {
-                        observerManager.imageObserver?.unobserve(img);
-                        observerManager.observedImages.delete(img);
-                    }
-                });
-
-                if (observerManager.observedAnimations.has(element)) {
-                    observerManager.animationObserver?.unobserve(element);
-                    observerManager.observedAnimations.delete(element);
-                }
-
+                unobserveElement(element);
                 releaseElementToPool(element);
                 this.renderedElements.delete(index);
             }
@@ -1195,19 +1186,7 @@ class VirtualScrollManager {
 
     cleanupObservers() {
         this.renderedElements.forEach(element => {
-            const images = element.querySelectorAll('img[data-src]');
-            images.forEach(img => {
-                if (observerManager.observedImages.has(img)) {
-                    observerManager.imageObserver?.unobserve(img);
-                    observerManager.observedImages.delete(img);
-                }
-            });
-
-            if (observerManager.observedAnimations.has(element)) {
-                observerManager.animationObserver?.unobserve(element);
-                observerManager.observedAnimations.delete(element);
-            }
-
+            unobserveElement(element);
             releaseElementToPool(element);
         });
     }
@@ -1271,8 +1250,4 @@ export function getEntityMaps() {
         corpToCharactersMap,
         allianceToCorpsMap
     };
-}
-
-export function cleanupEventListeners() {
-    eventManager.cleanup();
 }

@@ -89,7 +89,7 @@ class ZKillStatsCard {
         const startTime = Date.now();
         const timerInterval = setInterval(() => {
             const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-            const timerEl = this.currentModal.querySelector('.zkill-timer');
+            const timerEl = this.currentModal.querySelector('.timer');
             if (timerEl) {
                 timerEl.textContent = `Elapsed: ${elapsed}s`;
             }
@@ -200,46 +200,29 @@ class ZKillStatsCard {
         }
     }
 
-    async fetchEntityNames(corporationId, allianceId) {
-        const names = {};
+    async fetchEntityName(entityType, entityId) {
+        if (!entityId) return null;
 
         try {
-            const promises = [];
+            const endpoint = entityType === 'corporation'
+                ? `/corporations/${entityId}/`
+                : `/alliances/${entityId}/`;
 
-            if (corporationId) {
-                promises.push(
-                    esiClient.get(`/corporations/${corporationId}/`)
-                        .then(corpData => {
-                            if (corpData && corpData.name) {
-                                names.corporationName = corpData.name;
-                            }
-                        })
-                        .catch(error => {
-                            console.warn(`Failed to fetch corporation ${corporationId} name:`, error);
-                        })
-                );
-            }
-
-            if (allianceId) {
-                promises.push(
-                    esiClient.get(`/alliances/${allianceId}/`)
-                        .then(allianceData => {
-                            if (allianceData && allianceData.name) {
-                                names.allianceName = allianceData.name;
-                            }
-                        })
-                        .catch(error => {
-                            console.warn(`Failed to fetch alliance ${allianceId} name:`, error);
-                        })
-                );
-            }
-
-
-            await Promise.all(promises);
+            const data = await esiClient.get(endpoint);
+            return data && data.name ? data.name : null;
         } catch (error) {
-            console.warn('Failed to fetch entity names:', error);
+            console.warn(`Failed to fetch ${entityType} ${entityId} name:`, error);
+            return null;
         }
-        return names;
+    }
+
+    async fetchEntityNames(corporationId, allianceId) {
+        const [corporationName, allianceName] = await Promise.all([
+            corporationId ? this.fetchEntityName('corporation', corporationId) : null,
+            allianceId ? this.fetchEntityName('alliance', allianceId) : null
+        ]);
+
+        return { corporationName, allianceName };
     }
 
     renderAffiliations(corporationId, corporationName, allianceId, allianceName) {
@@ -477,7 +460,7 @@ class ZKillStatsCard {
 
         const warEligible = this.getWarEligibility(sanitizedType, sanitizedId);
         const warStatusBadge = warEligible ?
-            '<span class="war-eligible-badge zkill-war-badge">WAR</span>' : '';
+            '<span class="war-eligible-badge">WAR</span>' : '';
 
         modal.innerHTML = `
         <div class="zkill-stats-card ${warEligible ? 'war-eligible' : ''}">
@@ -505,19 +488,19 @@ class ZKillStatsCard {
             </div>
             <div class="zkill-card-content">
                 <div class="zkill-loading">
-                    <div class="zkill-loading-spinner-container">
-                        <div class="zkill-loading-spinner"></div>
-                        <div class="zkill-pulse-ring"></div>
+                    <div class="loading-spinner-container">
+                        <div class="loading-spinner"></div>
+                        <div class="pulse-ring"></div>
                     </div>
-                    <h3 class="zkill-loading-title">Loading killboard statistics</h3>
-                    <p class="zkill-loading-subtitle">Fetching data from zKillboard...</p>
-                    <div class="zkill-progress-container">
-                        <div class="zkill-progress-bar"></div>
-                        <div class="zkill-progress-glow"></div>
+                    <h3 class="loading-text">Loading killboard statistics</h3>
+                    <p class="loading-subtitle">Fetching data from zKillboard...</p>
+                    <div class="progress-container">
+                        <div class="progress-bar"></div>
+                        <div class="progress-glow"></div>
                     </div>
-                    <div class="zkill-loading-stats">
-                        <span class="zkill-progress-text">Connecting to zKillboard API...</span>
-                        <span class="zkill-timer">Elapsed: 0.0s</span>
+                    <div class="loading-stats">
+                        <span class="progress-text">Connecting to zKillboard API...</span>
+                        <span class="timer">Elapsed: 0.0s</span>
                     </div>
                 </div>
             </div>
@@ -662,9 +645,9 @@ class ZKillStatsCard {
     updateLoadingProgress(text, percentage, detail = '') {
         if (!this.currentModal) return;
 
-        const progressText = this.currentModal.querySelector('.zkill-progress-text');
-        const progressBar = this.currentModal.querySelector('.zkill-progress-bar');
-        const subtitle = this.currentModal.querySelector('.zkill-loading-subtitle');
+        const progressText = this.currentModal.querySelector('.progress-text');
+        const progressBar = this.currentModal.querySelector('.progress-bar');
+        const subtitle = this.currentModal.querySelector('.loading-subtitle');
 
         if (progressText) {
             progressText.textContent = text;
@@ -699,86 +682,77 @@ class ZKillStatsCard {
 
 
     createMembersDropdownHTML(entityType, entityId) {
-        if (entityType === 'corporation') {
-            const characters = this.corpToCharactersMap.get(parseInt(entityId)) || [];
-            if (characters.length === 0) return '';
+        const isCorporation = entityType === 'corporation';
+        const members = isCorporation
+            ? this.corpToCharactersMap.get(parseInt(entityId)) || []
+            : this.allianceToCorpsMap.get(parseInt(entityId)) || [];
 
-            const membersHTML = characters.map(character => `
-                <div class="zkill-member-item" 
-                     data-click-action="show-character" 
-                     data-character-id="${character.character_id}"
-                     data-character-name="${sanitizeAttribute(character.character_name)}">
-                    <img src="https://images.evetech.net/characters/${sanitizeId(character.character_id)}/portrait?size=32"
-                         alt="${sanitizeAttribute(character.character_name)}"
+        if (members.length === 0) return '';
+
+        const config = isCorporation
+            ? {
+                icon: '👥',
+                title: 'Corporation Members',
+                action: 'show-character',
+                idKey: 'character-id',
+                nameKey: 'character-name',
+                imgType: 'characters',
+                imgPath: 'portrait',
+                sanitizeName: sanitizeCharacterName,
+                getDetails: () => 'Character'
+            }
+            : {
+                icon: '🏢',
+                title: 'Member Corporations',
+                action: 'show-corporation',
+                idKey: 'corporation-id',
+                nameKey: 'corporation-name',
+                imgType: 'corporations',
+                imgPath: 'logo',
+                sanitizeName: sanitizeCorporationName,
+                getDetails: (item) => `${item.count} member${item.count !== 1 ? 's' : ''}`
+            };
+
+        const membersHTML = members.map(member => {
+            const id = isCorporation ? member.character_id : member.id;
+            const name = isCorporation ? member.character_name : member.name;
+
+            return `
+                <div class="zkill-member-item"
+                     data-click-action="${config.action}"
+                     data-${config.idKey}="${id}"
+                     data-${config.nameKey}="${sanitizeAttribute(name)}">
+                    <img src="https://images.evetech.net/${config.imgType}/${sanitizeId(id)}/${config.imgPath}?size=32"
+                         alt="${sanitizeAttribute(name)}"
                          class="zkill-member-avatar"
                          loading="lazy">
                     <div class="zkill-member-info">
-                        <div class="zkill-member-name">${sanitizeCharacterName(character.character_name)}</div>
-                        <div class="zkill-member-details">Character</div>
-                    </div>
-                </div>
-            `).join('');
-
-            return `
-                <div class="zkill-members-section">
-                    <div class="zkill-members-dropdown" id="zkill-members-dropdown">
-                        <div class="zkill-members-header" data-action="toggle-members">
-                            <div class="zkill-members-title">
-                                <span class="zkill-section-icon">👥</span>
-                                Corporation Members
-                                <span class="zkill-members-count">${characters.length}</span>
-                            </div>
-                            <div class="zkill-members-toggle">▼</div>
-                        </div>
-                        <div class="zkill-members-list">
-                            <div class="zkill-members-content">
-                                ${membersHTML}
-                            </div>
-                        </div>
+                        <div class="zkill-member-name">${config.sanitizeName(name)}</div>
+                        <div class="zkill-member-details">${config.getDetails(member)}</div>
                     </div>
                 </div>
             `;
-        } else if (entityType === 'alliance') {
-            const corps = this.allianceToCorpsMap.get(parseInt(entityId)) || [];
-            if (corps.length === 0) return '';
+        }).join('');
 
-            const membersHTML = corps.map(corp => `
-                <div class="zkill-member-item" 
-                     data-click-action="show-corporation" 
-                     data-corporation-id="${corp.id}"
-                     data-corporation-name="${sanitizeAttribute(corp.name)}">
-                    <img src="https://images.evetech.net/corporations/${sanitizeId(corp.id)}/logo?size=32"
-                         alt="${sanitizeAttribute(corp.name)}"
-                         class="zkill-member-avatar"
-                         loading="lazy">
-                    <div class="zkill-member-info">
-                        <div class="zkill-member-name">${sanitizeCorporationName(corp.name)}</div>
-                        <div class="zkill-member-details">${corp.count} member${corp.count !== 1 ? 's' : ''}</div>
-                    </div>
-                </div>
-            `).join('');
-
-            return `
-                <div class="zkill-members-section">
-                    <div class="zkill-members-dropdown" id="zkill-members-dropdown">
-                        <div class="zkill-members-header" data-action="toggle-members">
-                            <div class="zkill-members-title">
-                                <span class="zkill-section-icon">🏢</span>
-                                Member Corporations
-                                <span class="zkill-members-count">${corps.length}</span>
-                            </div>
-                            <div class="zkill-members-toggle">▼</div>
+        return `
+            <div class="zkill-members-section">
+                <div class="zkill-members-dropdown" id="zkill-members-dropdown">
+                    <div class="zkill-members-header" data-action="toggle-members">
+                        <div class="zkill-members-title">
+                            <span class="zkill-section-icon">${config.icon}</span>
+                            ${config.title}
+                            <span class="zkill-members-count">${members.length}</span>
                         </div>
-                        <div class="zkill-members-list">
-                            <div class="zkill-members-content">
-                                ${membersHTML}
-                            </div>
+                        <div class="zkill-members-toggle">▼</div>
+                    </div>
+                    <div class="zkill-members-list">
+                        <div class="zkill-members-content">
+                            ${membersHTML}
                         </div>
                     </div>
                 </div>
-            `;
-        }
-        return '';
+            </div>
+        `;
     }
 
     async createStatsHTML(stats, entityType, entityId) {
@@ -1205,16 +1179,7 @@ class ZKillStatsCard {
 
         const topLocsHTML = topLocations.slice(0, 3).map(loc => {
             const securityFormatted = this.formatSecurity(loc.securityStatus, loc.systemName);
-            let securityClass = 'unknown';
-            if (securityFormatted === 'WH') {
-                securityClass = 'wormhole';
-            } else if (loc.securityStatus >= 0.5) {
-                securityClass = 'highsec';
-            } else if (loc.securityStatus > 0.0) {
-                securityClass = 'lowsec';
-            } else if (loc.securityStatus >= -0.99) {
-                securityClass = 'nullsec';
-            }
+            const securityClass = this.getSecurityClass(loc.securityStatus);
 
             return `
             <div class="zkill-hot-zone">
@@ -1565,26 +1530,31 @@ class ZKillStatsCard {
         }, ZKILL_CARD_ANIMATION_DURATION_MS);
     }
 
-    formatNumber(num) {
-        if (num >= 1000000) {
-            return (num / 1000000).toFixed(1) + 'M';
-        } else if (num >= 1000) {
-            return (num / 1000).toFixed(1) + 'k';
+    formatValue(value, thresholds) {
+        for (const [threshold, suffix] of thresholds) {
+            if (value >= threshold) {
+                return (value / threshold).toFixed(1) + suffix;
+            }
         }
-        return num.toString();
+        return value.toFixed(0);
+    }
+
+    formatNumber(num) {
+        const thresholds = [
+            [1000000, 'M'],
+            [1000, 'k']
+        ];
+        return this.formatValue(num, thresholds);
     }
 
     formatISK(isk) {
-        if (isk >= 1000000000000) {
-            return (isk / 1000000000000).toFixed(1) + 'T';
-        } else if (isk >= 1000000000) {
-            return (isk / 1000000000).toFixed(1) + 'B';
-        } else if (isk >= 1000000) {
-            return (isk / 1000000).toFixed(1) + 'M';
-        } else if (isk >= 1000) {
-            return (isk / 1000).toFixed(1) + 'k';
-        }
-        return isk.toFixed(0);
+        const thresholds = [
+            [1000000000000, 'T'],
+            [1000000000, 'B'],
+            [1000000, 'M'],
+            [1000, 'k']
+        ];
+        return this.formatValue(isk, thresholds);
     }
 
     formatSecurity(security, systemName) {

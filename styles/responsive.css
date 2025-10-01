@@ -236,9 +236,9 @@
 
 @media (prefers-contrast: high) {
     :root {
-        --border-color: rgba(255, 255, 255, 0.3);
-        --text-secondary: rgba(255, 255, 255, 0.9);
-        --background-card: rgba(255, 255, 255, 0.1)
+        --border-color: var(--white-3);
+        --text-secondary: var(--white-9);
+        --background-card: var(--white-1)
     }
 }
 

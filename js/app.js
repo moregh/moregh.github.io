@@ -13,7 +13,8 @@ import { mixedValidator } from './esi-api.js';
 import { initializeFilters, setResultsData, getFilteredResults, getFilteredAlliances, getFilteredCorporations } from './filters.js';
 import { startLoading, stopLoading, showError, updateStats, updatePerformanceStats, updateVersionDisplay, expandInputSection } from './ui.js';
 import { renderGrid, buildEntityMaps, getObserverManager, addScrollStateDetection } from './rendering.js';
-import { getZkillCardInstance } from './zkill-card.js'
+import { getZkillCardInstance } from './zkill-card.js';
+import { domCache } from './dom-cache.js';
 
 
 let currentView = 'grid';
@@ -25,7 +26,7 @@ let completeResults = [];
 window.currentView = currentView;
 
 function setupCollapsedIndicatorClick() {
-    const inputSection = document.getElementById('input-section');
+    const inputSection = domCache.get('input-section');
     let hoverTimeout;
 
     inputSection.addEventListener('mouseenter', () => {
@@ -79,12 +80,12 @@ document.addEventListener('click', function (event) {
         case 'reload-page':
             event.preventDefault();
             window.location.reload(true);
-            document.querySelectorAll('form').forEach(form => form.reset());
+            domCache.queryAll('form').forEach(form => form.reset());
             break;
         case 'expand-input':
             expandInputSection();
             setTimeout(() => {
-                document.getElementById('names').focus();
+                domCache.get('names').focus();
             }, STATS_UPDATE_DELAY);
             break;
     }
@@ -139,15 +140,15 @@ function switchTab(tabName) {
 
     currentTab = tabName;
 
-    document.querySelectorAll('.tab-btn').forEach(btn => {
+    domCache.queryAll('.tab-btn').forEach(btn => {
         btn.classList.remove('active');
     });
     document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
 
-    document.querySelectorAll('.tab-content').forEach(content => {
+    domCache.queryAll('.tab-content').forEach(content => {
         content.classList.remove('active');
     });
-    document.getElementById(`${tabName}-tab`).classList.add('active');
+    domCache.get(`${tabName}-tab`).classList.add('active');
 
     updateTabCounts();
     updateTabDisplay();
@@ -172,9 +173,9 @@ function updateTabDisplay() {
 }
 
 function updateTabCounts() {
-    const charactersCount = document.getElementById('characters-tab-count');
-    const alliancesCount = document.getElementById('alliances-tab-count');
-    const corporationsCount = document.getElementById('corporations-tab-count');
+    const charactersCount = domCache.get('characters-tab-count');
+    const alliancesCount = domCache.get('alliances-tab-count');
+    const corporationsCount = domCache.get('corporations-tab-count');
 
     if (charactersCount) {
         const filteredResults = getFilteredResults();
@@ -205,7 +206,7 @@ function debouncedUpdateCharacterCount() {
 }
 
 function updateCharacterCount() {
-    const textarea = document.getElementById('names');
+    const textarea = domCache.get('names');
     const names = textarea.value.split('\n')
         .map(n => n.trim())
         .filter(n => n && (clientValidate(n) || validateEntityName(n)));
@@ -214,7 +215,7 @@ function updateCharacterCount() {
     const uniqueNames = [...new Set(names.map(n => n.toLowerCase()))];
     const count = uniqueNames.length;
 
-    const countElement = document.getElementById('character-count');
+    const countElement = domCache.get('character-count');
     if (count === 0) {
         countElement.textContent = "0 entities entered";
     } else if (count === 1) {
@@ -223,7 +224,7 @@ function updateCharacterCount() {
         countElement.textContent = `${count} entities entered`;
     }
 
-    const button = document.getElementById('checkButton');
+    const button = domCache.get('checkButton');
     const buttonText = button.querySelector('.button-text');
     if (count > 0) {
         buttonText.textContent = `Analyze ${count} Entit${count !== 1 ? 'ies' : 'y'}`;
@@ -233,7 +234,7 @@ function updateCharacterCount() {
 }
 
 export async function validateNames() {
-    const rawNames = document.getElementById("names").value.split("\n")
+    const rawNames = domCache.get("names").value.split("\n")
         .map(n => n.trim())
         .filter(n => n && (clientValidate(n) || validateEntityName(n)));
 
@@ -297,6 +298,14 @@ export async function validateNames() {
         }
     } finally {
         stopLoading();
+
+        setTimeout(() => {
+            const button = domCache.get("checkButton");
+            if (button && button.disabled) {
+                button.disabled = false;
+                button.removeAttribute('disabled');
+            }
+        }, 250);
     }
 }
 
@@ -353,7 +362,7 @@ document.addEventListener('DOMContentLoaded', function () {
         updateTabDisplay();
     });
 
-    const textarea = document.getElementById('names');
+    const textarea = domCache.get('names');
     textarea.addEventListener('input', debouncedUpdateCharacterCount);
     textarea.addEventListener('keydown', function (e) {
         if (e.ctrlKey && e.key === 'Enter') {

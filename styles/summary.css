@@ -5,24 +5,6 @@
     Licensed under AGPL License.
 */
 
-/* Summary war eligibility badges */
-.summary-war-badge {
-    display: inline-block;
-    background: var(--gradient-war);
-    color: white;
-    padding: 1px 4px;
-    border-radius: var(--radius-small);
-    font-size: 0.55rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-    margin-left: 4px;
-    box-shadow: 0 1px 4px rgba(255, 71, 87, 0.3);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    animation: warPulse 2s infinite;
-    vertical-align: middle;
-}
-
 /* Highlight war-eligible summary items */
 .summary-item.war-eligible {
     border: 1px solid rgba(255, 71, 87, 0.3);
@@ -142,7 +124,7 @@
     display: flex;
     align-items: center;
     gap: 0.9rem;
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--white-03);
     border-radius: 10.8px;
     padding: 0.9rem;
     border-left: 2.7px solid var(--secondary-color);
@@ -160,7 +142,7 @@
     height: 36px;
     border-radius: 7.2px;
     object-fit: cover;
-    border: 1.8px solid rgba(255, 255, 255, 0.1);
+    border: 1.8px solid var(--white-1);
     background: var(--gradient-highlight);
     transition: opacity 0.3s ease;
 }
@@ -220,7 +202,7 @@
     backdrop-filter: blur(18px);
     border: 1px solid rgba(0, 212, 255, 0.5);
     border-radius: var(--radius-xl);
-    box-shadow: 0 9px 36px rgba(0, 0, 0, 0.4), inset 0 0.9px 0 rgba(255, 255, 255, 0.1);
+    box-shadow: 0 9px 36px rgba(0, 0, 0, 0.4), inset 0 0.9px 0 var(--white-1);
     padding: 1.2rem;
     z-index: 9999;
     opacity: 0;
@@ -258,7 +240,7 @@
     align-items: center;
     gap: 0.6rem;
     padding: 0.4rem 0.6rem;
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--white-02);
     border-radius: var(--radius-small);
     border-left: 2px solid var(--secondary-color);
     transition: all 0.2s ease;
@@ -267,7 +249,7 @@
 }
 
 .mouseover-card-item:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--white-05);
     transform: translateX(2px)
 }
 
@@ -276,7 +258,7 @@
 }
 
 .zkill-card-clickable:hover {
-    background: rgba(255, 255, 255, 0.08) !important;
+    background: var(--white-08) !important;
     transform: translateX(3px) !important
 }
 
@@ -285,7 +267,7 @@
     height: 24px;
     border-radius: 4px;
     object-fit: cover;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--white-1);
     background: var(--gradient-highlight);
     transition: opacity 0.3s ease;
 }

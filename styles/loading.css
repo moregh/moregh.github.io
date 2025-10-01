@@ -78,7 +78,7 @@
     width: 100%;
     max-width: 360px;
     height: 5.4px;
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--white-1);
     border-radius: 9px;
     overflow: hidden;
     position: relative

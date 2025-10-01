@@ -16,7 +16,7 @@ export const CHUNK_DELAY = 25;
 export const STATS_UPDATE_DELAY = 100;
 export const DB_NAME = 'EVETargetIntelDB';
 export const DB_VERSION = 2;
-export const VERSION = "0.8.4";
+export const VERSION = "0.8.5";
 
 export const PROGRESS_UPDATE_THROTTLE_MS = 50;
 export const TIMER_UPDATE_INTERVAL_MS = 100;
@@ -56,7 +56,7 @@ export const PERFORMANCE_CONFIG = {
 };
 
 export const ESI_BASE = "https://esi.evetech.net/latest";
-export const USER_AGENT = `WarTargetFinder/${VERSION} (+https://github.com/moregh/moregh.github.io/)`;
+export const USER_AGENT = `EVETargetIntel/${VERSION} (+https://github.com/moregh/moregh.github.io/)`;
 export const ALLOWED_IMAGE_URLS = ['images.evetech.net', 'imageserver.eveonline.com'];
 export const ESI_HEADERS = {
     'Content-Type': 'application/json',
@@ -71,6 +71,17 @@ export const ZKILL_DATA_CACHE_DURATION_MS = 30 * 60 * 1000;
 export const MAX_KILLMAILS_TO_FETCH = 100;
 export const KILLMAIL_BATCH_SIZE = 10;
 export const KILLMAIL_FETCH_DELAY_MS = 100;
+
+export const ZKILL_CONFIG = {
+    PROXY_BASE_URL: 'https://zkill2.zkillproxy.workers.dev/',
+    POW_DIFFICULTY: 12,
+    REQUEST_INTERVAL_MS: 2000,
+    CACHE_DURATION_MS: ZKILL_DATA_CACHE_DURATION_MS,
+    REQUEST_TIMEOUT_MS: 15000,
+    MAX_RETRIES: 3,
+    MAX_CONCURRENT_REQUESTS: 1,
+    BATCH_DELAY_MS: 2500
+};
 
 export const VIRTUAL_SCROLL_CONFIG = {
     CONTAINER_HEIGHT: '75vh',

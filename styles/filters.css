@@ -40,8 +40,6 @@
     align-items: center
 }
 
-/* filter button styles moved to components.css */
-
 .toggle-icon {
     transition: transform 0.2s ease;
     font-size: 0.7rem

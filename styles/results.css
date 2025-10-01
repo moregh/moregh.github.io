@@ -196,7 +196,7 @@
 }
 
 .tab-btn:hover {
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--white-08);
     border-color: var(--white-3);
     color: var(--text-primary);
     transform: translateY(-2px);
@@ -208,7 +208,7 @@
 }
 
 .tab-btn.active {
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--white-08);
     border-color: var(--primary-color);
     color: var(--primary-color);
     z-index: 3;
@@ -216,7 +216,7 @@
 }
 
 .tab-btn.active::after {
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--white-08);
 }
 
 .tab-btn.active:hover {
@@ -236,7 +236,7 @@
 }
 
 .tab-count {
-    background: rgba(255, 255, 255, 0.2);
+    background: var(--white-2);
     padding: 0.2rem 0.5rem;
     border-radius: var(--radius-large);
     font-size: 0.75rem;
@@ -322,7 +322,7 @@
 
 .entity-card:hover {
     transform: translateY(-4.5px) translateZ(0);
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--white-08);
     box-shadow: 0 9px 27px rgba(0, 0, 0, 0.2);
     contain: layout;
     will-change: transform;
@@ -348,7 +348,7 @@
 }
 
 .entity-card:hover .entity-logo {
-    border-color: rgba(255, 255, 255, 0.2);
+    border-color: var(--white-2);
     transform: scale(1.05);
 }
 
@@ -479,7 +479,7 @@
 .alliance-grid .summary-item:hover,
 .corporation-grid .summary-item:hover {
     transform: translateY(-4.5px) translateZ(0);
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--white-08);
     box-shadow: 0 9px 27px rgba(0, 0, 0, 0.2);
     contain: layout;
     will-change: transform;
@@ -511,7 +511,7 @@
     letter-spacing: 0.5px;
     margin-left: 6px;
     box-shadow: 0 2px 6px rgba(255, 71, 87, 0.3);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    border: 1px solid var(--white-2);
     animation: warPulse 2s infinite;
     vertical-align: middle;
 }
@@ -623,7 +623,7 @@
 
 .result-item:hover {
     transform: translateY(-4.5px) translateZ(0);
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--white-08);
     box-shadow: 0 9px 27px rgba(0, 0, 0, 0.2);
     contain: layout;
     will-change: transform;
@@ -665,7 +665,7 @@
 }
 
 .result-item:hover .character-avatar {
-    border-color: rgba(255, 255, 255, 0.2);
+    border-color: var(--white-2);
     transform: scale(1.05)
 }
 

@@ -7,25 +7,24 @@
 
 import { ESI_BASE, ESI_HEADERS } from './config.js';
 import { showError, showWarning, clearErrorMessage } from './ui.js';
+import { APIError, RateLimitError, ServerError } from './errors.js';
 
-class ESIError extends Error {
+class ESIError extends APIError {
     constructor(message, status, response, retryAfter = null) {
-        super(message);
+        super(message, status, response);
         this.name = 'ESIError';
-        this.status = status;
-        this.response = response;
         this.retryAfter = retryAfter;
     }
 }
 
-class ESIRateLimitError extends ESIError {
+class ESIRateLimitError extends RateLimitError {
     constructor(message, retryAfter, response) {
-        super(message, 429, response, retryAfter);
+        super(message, retryAfter, response);
         this.name = 'ESIRateLimitError';
     }
 }
 
-class ESIServerError extends ESIError {
+class ESIServerError extends ServerError {
     constructor(message, status, response) {
         super(message, status, response);
         this.name = 'ESIServerError';

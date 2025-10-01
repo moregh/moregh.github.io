@@ -5,6 +5,8 @@
     Licensed under AGPL License.
 */
 
+import { domCache } from './dom-cache.js';
+
 let filterState = {
     warEligibleOnly: false,
     nameSearch: '',
@@ -79,25 +81,25 @@ export function initializeFilters(onChangeCallback) {
 
 function cacheFilterElements() {
     filterElements = {
-        section: document.getElementById('filters-section'),
-        content: document.getElementById('filters-content'),
-        toggleBtn: document.getElementById('filter-toggle'),
-        toggleText: document.querySelector('#filter-toggle .toggle-text'),
-        toggleIcon: document.querySelector('#filter-toggle .toggle-icon'),
-        clearBtn: document.getElementById('filter-clear'),
-        warEligibleOnly: document.getElementById('filter-war-eligible-only'),
-        nameSearch: document.getElementById('filter-name'),
-        minCorpSize: document.getElementById('filter-min-corp-size'),
-        maxCorpSize: document.getElementById('filter-max-corp-size'),
-        minAllianceSize: document.getElementById('filter-min-alliance-size'),
-        maxAllianceSize: document.getElementById('filter-max-alliance-size'),
-        corporationSelect: document.getElementById('filter-corporation'),
-        allianceSelect: document.getElementById('filter-alliance'),
-        minCorpSizeValue: document.getElementById('min-corp-size-value'),
-        maxCorpSizeValue: document.getElementById('max-corp-size-value'),
-        minAllianceSizeValue: document.getElementById('min-alliance-size-value'),
-        maxAllianceSizeValue: document.getElementById('max-alliance-size-value'),
-        resultsCount: document.getElementById('filter-results-count'),
+        section: domCache.get('filters-section'),
+        content: domCache.get('filters-content'),
+        toggleBtn: domCache.get('filter-toggle'),
+        toggleText: domCache.query('#filter-toggle .toggle-text'),
+        toggleIcon: domCache.query('#filter-toggle .toggle-icon'),
+        clearBtn: domCache.get('filter-clear'),
+        warEligibleOnly: domCache.get('filter-war-eligible-only'),
+        nameSearch: domCache.get('filter-name'),
+        minCorpSize: domCache.get('filter-min-corp-size'),
+        maxCorpSize: domCache.get('filter-max-corp-size'),
+        minAllianceSize: domCache.get('filter-min-alliance-size'),
+        maxAllianceSize: domCache.get('filter-max-alliance-size'),
+        corporationSelect: domCache.get('filter-corporation'),
+        allianceSelect: domCache.get('filter-alliance'),
+        minCorpSizeValue: domCache.get('min-corp-size-value'),
+        maxCorpSizeValue: domCache.get('max-corp-size-value'),
+        minAllianceSizeValue: domCache.get('min-alliance-size-value'),
+        maxAllianceSizeValue: domCache.get('max-alliance-size-value'),
+        resultsCount: domCache.get('filter-results-count'),
     };
 }
 
@@ -108,10 +110,20 @@ function setupEventListeners() {
     filterElements.clearBtn?.addEventListener('click', clearAllFilters);
     filterElements.warEligibleOnly?.addEventListener('change', handleFilterChange);
     filterElements.nameSearch?.addEventListener('input', debounce(handleFilterChange, 300));
-    filterElements.minCorpSize?.addEventListener('input', handleMinCorpSizeChange);
-    filterElements.maxCorpSize?.addEventListener('input', handleMaxCorpSizeChange);
-    filterElements.minAllianceSize?.addEventListener('input', handleMinAllianceSizeChange);
-    filterElements.maxAllianceSize?.addEventListener('input', handleMaxAllianceSizeChange);
+
+    if (filterElements.minCorpSize) {
+        filterElements.minCorpSize.addEventListener('input', handleMinCorpSizeChange);
+    }
+    if (filterElements.maxCorpSize) {
+        filterElements.maxCorpSize.addEventListener('input', handleMaxCorpSizeChange);
+    }
+    if (filterElements.minAllianceSize) {
+        filterElements.minAllianceSize.addEventListener('input', handleMinAllianceSizeChange);
+    }
+    if (filterElements.maxAllianceSize) {
+        filterElements.maxAllianceSize.addEventListener('input', handleMaxAllianceSizeChange);
+    }
+
     filterElements.corporationSelect?.addEventListener('change', handleFilterChange);
     filterElements.allianceSelect?.addEventListener('change', handleAllianceChange);
 }
@@ -126,14 +138,37 @@ function handleFilterChange() {
     }
 }
 
-function handleMinCorpSizeChange() {
-    filterState.minCorpSize = parseInt(filterElements.minCorpSize.value);
-    filterElements.minCorpSizeValue.textContent = filterState.minCorpSize;
+function handleRangeSizeChange(type, isMin) {
+    const minKey = `min${type}Size`;
+    const maxKey = `max${type}Size`;
+    const minElement = filterElements[minKey];
+    const maxElement = filterElements[maxKey];
+    const minValueElement = filterElements[`${minKey}Value`];
+    const maxValueElement = filterElements[`${maxKey}Value`];
 
-    if (filterState.minCorpSize > filterState.maxCorpSize) {
-        filterState.maxCorpSize = filterState.minCorpSize;
-        filterElements.maxCorpSize.value = filterState.maxCorpSize;
-        filterElements.maxCorpSizeValue.textContent = filterState.maxCorpSize;
+    if (!minElement || !maxElement || !minValueElement || !maxValueElement) {
+        console.error('Filter elements not found:', { minKey, maxKey, minElement, maxElement, minValueElement, maxValueElement });
+        return;
+    }
+
+    if (isMin) {
+        filterState[minKey] = parseInt(minElement.value);
+        minValueElement.textContent = filterState[minKey];
+
+        if (filterState[minKey] > filterState[maxKey]) {
+            filterState[maxKey] = filterState[minKey];
+            maxElement.value = filterState[maxKey];
+            maxValueElement.textContent = filterState[maxKey];
+        }
+    } else {
+        filterState[maxKey] = parseInt(maxElement.value);
+        maxValueElement.textContent = filterState[maxKey];
+
+        if (filterState[maxKey] < filterState[minKey]) {
+            filterState[minKey] = filterState[maxKey];
+            minElement.value = filterState[minKey];
+            minValueElement.textContent = filterState[minKey];
+        }
     }
 
     applyFilters();
@@ -141,57 +176,22 @@ function handleMinCorpSizeChange() {
     if (onFiltersChangeCallback) {
         onFiltersChangeCallback();
     }
+}
+
+function handleMinCorpSizeChange() {
+    handleRangeSizeChange('Corp', true);
 }
 
 function handleMaxCorpSizeChange() {
-    filterState.maxCorpSize = parseInt(filterElements.maxCorpSize.value);
-    filterElements.maxCorpSizeValue.textContent = filterState.maxCorpSize;
-
-    if (filterState.maxCorpSize < filterState.minCorpSize) {
-        filterState.minCorpSize = filterState.maxCorpSize;
-        filterElements.minCorpSize.value = filterState.minCorpSize;
-        filterElements.minCorpSizeValue.textContent = filterState.minCorpSize;
-    }
-
-    applyFilters();
-    updateResultsDisplay();
-    if (onFiltersChangeCallback) {
-        onFiltersChangeCallback();
-    }
+    handleRangeSizeChange('Corp', false);
 }
 
 function handleMinAllianceSizeChange() {
-    filterState.minAllianceSize = parseInt(filterElements.minAllianceSize.value);
-    filterElements.minAllianceSizeValue.textContent = filterState.minAllianceSize;
-
-    if (filterState.minAllianceSize > filterState.maxAllianceSize) {
-        filterState.maxAllianceSize = filterState.minAllianceSize;
-        filterElements.maxAllianceSize.value = filterState.maxAllianceSize;
-        filterElements.maxAllianceSizeValue.textContent = filterState.maxAllianceSize;
-    }
-
-    applyFilters();
-    updateResultsDisplay();
-    if (onFiltersChangeCallback) {
-        onFiltersChangeCallback();
-    }
+    handleRangeSizeChange('Alliance', true);
 }
 
 function handleMaxAllianceSizeChange() {
-    filterState.maxAllianceSize = parseInt(filterElements.maxAllianceSize.value);
-    filterElements.maxAllianceSizeValue.textContent = filterState.maxAllianceSize;
-
-    if (filterState.maxAllianceSize < filterState.minAllianceSize) {
-        filterState.minAllianceSize = filterState.maxAllianceSize;
-        filterElements.minAllianceSize.value = filterState.minAllianceSize;
-        filterElements.minAllianceSizeValue.textContent = filterState.minAllianceSize;
-    }
-
-    applyFilters();
-    updateResultsDisplay();
-    if (onFiltersChangeCallback) {
-        onFiltersChangeCallback();
-    }
+    handleRangeSizeChange('Alliance', false);
 }
 
 function handleAllianceChange() {
