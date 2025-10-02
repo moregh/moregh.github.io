@@ -21,7 +21,7 @@ import {
 import { getEntityMaps } from './rendering.js';
 import { esiClient } from './esi-client.js';
 import { sanitizeCharacterName, sanitizeCorporationName, sanitizeAllianceName, sanitizeId, sanitizeAttribute, escapeHtml } from './xss-protection.js';
-import { getCachedUniverseName, setCachedUniverseName } from './database.js';
+import { getCachedUniverseName, setCachedUniverseName, getCachedAffiliation, setCachedAffiliation } from './database.js';
 
 class ZKillStatsCard {
     constructor() {
@@ -188,14 +188,37 @@ class ZKillStatsCard {
             let affiliationData = null;
 
             if (entityType === 'character') {
+                const character = this.completeResults.find(char => char.character_id == entityId);
+                if (character) {
+                    return {
+                        character_id: entityId,
+                        corporation_id: character.corporation_id,
+                        alliance_id: character.alliance_id || null
+                    };
+                }
+
+                const cached = await getCachedAffiliation(entityId);
+                if (cached) {
+                    return cached;
+                }
+
                 const charData = await esiClient.get(`/characters/${entityId}/`);
                 if (charData) {
                     affiliationData = {
+                        character_id: entityId,
                         corporation_id: charData.corporation_id,
                         alliance_id: charData.alliance_id || null
                     };
+                    await setCachedAffiliation(entityId, affiliationData);
                 }
             } else if (entityType === 'corporation') {
+                const character = this.completeResults.find(char => char.corporation_id == entityId);
+                if (character) {
+                    return {
+                        alliance_id: character.alliance_id || null
+                    };
+                }
+
                 const corpData = await esiClient.get(`/corporations/${entityId}/`);
                 if (corpData) {
                     affiliationData = {
