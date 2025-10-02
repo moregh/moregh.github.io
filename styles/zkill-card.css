@@ -637,19 +637,23 @@ flex-shrink: 0;
 }
 .zkill-location-security.sec-high {
 background: rgba(74, 222, 128, 0.2);
-color: var(--secondary-color);
+color: #4ade80;
 }
 .zkill-location-security.sec-low {
 background: rgba(251, 191, 36, 0.2);
-color: var(--warning-color);
+color: #fbbf24;
 }
 .zkill-location-security.sec-null {
-background: rgba(248, 113, 113, 0.2);
-color: var(--danger-color);
+background: rgba(239, 68, 68, 0.2);
+color: #ef4444;
 }
 .zkill-location-security.sec-wspace {
-background: rgba(155, 89, 182, 0.2);
-color: #9b59b6;
+background: rgba(59, 130, 246, 0.2);
+color: #3b82f6;
+}
+.zkill-location-security.sec-pochven {
+background: rgba(168, 85, 247, 0.2);
+color: #a855f7;
 }
 .zkill-location-security.sec-unknown {
 background: rgba(128, 128, 128, 0.2);
@@ -741,19 +745,23 @@ flex-shrink: 0;
 }
 .zkill-location-sec-badge.sec-high {
 background: rgba(74, 222, 128, 0.2);
-color: var(--secondary-color);
+color: #4ade80;
 }
 .zkill-location-sec-badge.sec-low {
 background: rgba(251, 191, 36, 0.2);
-color: var(--warning-color);
+color: #fbbf24;
 }
 .zkill-location-sec-badge.sec-null {
-background: rgba(248, 113, 113, 0.2);
-color: var(--danger-color);
+background: rgba(239, 68, 68, 0.2);
+color: #ef4444;
 }
 .zkill-location-sec-badge.sec-wspace {
-background: rgba(155, 89, 182, 0.2);
-color: #9b59b6;
+background: rgba(59, 130, 246, 0.2);
+color: #3b82f6;
+}
+.zkill-location-sec-badge.sec-pochven {
+background: rgba(168, 85, 247, 0.2);
+color: #a855f7;
 }
 .zkill-location-sec-badge.sec-unknown {
 background: rgba(128, 128, 128, 0.2);
@@ -844,19 +852,23 @@ flex-shrink: 0;
 }
 .zkill-top10-sec-badge.sec-high {
 background: rgba(74, 222, 128, 0.2);
-color: var(--secondary-color);
+color: #4ade80;
 }
 .zkill-top10-sec-badge.sec-low {
 background: rgba(251, 191, 36, 0.2);
-color: var(--warning-color);
+color: #fbbf24;
 }
 .zkill-top10-sec-badge.sec-null {
-background: rgba(248, 113, 113, 0.2);
-color: var(--danger-color);
+background: rgba(239, 68, 68, 0.2);
+color: #ef4444;
 }
 .zkill-top10-sec-badge.sec-wspace {
-background: rgba(155, 89, 182, 0.2);
-color: #9b59b6;
+background: rgba(59, 130, 246, 0.2);
+color: #3b82f6;
+}
+.zkill-top10-sec-badge.sec-pochven {
+background: rgba(168, 85, 247, 0.2);
+color: #a855f7;
 }
 .zkill-top10-sec-badge.sec-unknown {
 background: rgba(128, 128, 128, 0.2);
@@ -905,6 +917,7 @@ grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
 gap: 1.5rem;
 margin-bottom: 0;
 }
+
 .zkill-chart-container {
 background: var(--white-03);
 border: 1px solid var(--white-1);
@@ -943,6 +956,58 @@ cursor: pointer;
 }
 .zkill-chart-bar:hover { opacity: 0.8; stroke-width: 2; }
 .zkill-chart-label { font-family: 'Inter', sans-serif; font-weight: 500; }
+
+.zkill-pie-chart-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+}
+
+.zkill-pie-chart {
+    display: block;
+    margin: 0 auto;
+}
+
+.zkill-pie-slice {
+    transition: opacity 0.2s ease;
+    cursor: pointer;
+}
+
+.zkill-pie-slice:hover {
+    opacity: 0.8;
+}
+
+.zkill-pie-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    width: 100%;
+}
+
+.zkill-pie-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+}
+
+.zkill-pie-legend-color {
+    width: 16px;
+    height: 16px;
+    border-radius: var(--radius-small);
+    flex-shrink: 0;
+}
+
+.zkill-pie-legend-label {
+    flex: 1;
+    color: var(--text-primary);
+}
+
+.zkill-pie-legend-value {
+    color: var(--text-secondary);
+    font-weight: 600;
+}
 
 .zkill-charts-empty {
 display: flex;
@@ -1194,27 +1259,33 @@ Killmail Data Sections
 }
 
 .zkill-kill-sec.sec-high {
-    color: #27ae60 !important;
-    background: rgba(46, 204, 113, 0.25) !important;
-    border: 1px solid rgba(46, 204, 113, 0.5) !important;
+    color: #4ade80 !important;
+    background: rgba(74, 222, 128, 0.25) !important;
+    border: 1px solid rgba(74, 222, 128, 0.5) !important;
 }
 
 .zkill-kill-sec.sec-low {
-    color: #e67e22 !important;
-    background: rgba(230, 126, 34, 0.25) !important;
-    border: 1px solid rgba(230, 126, 34, 0.5) !important;
+    color: #fbbf24 !important;
+    background: rgba(251, 191, 36, 0.25) !important;
+    border: 1px solid rgba(251, 191, 36, 0.5) !important;
 }
 
 .zkill-kill-sec.sec-null {
-    color: #e74c3c !important;
-    background: rgba(231, 76, 60, 0.25) !important;
-    border: 1px solid rgba(231, 76, 60, 0.5) !important;
+    color: #ef4444 !important;
+    background: rgba(239, 68, 68, 0.25) !important;
+    border: 1px solid rgba(239, 68, 68, 0.5) !important;
 }
 
 .zkill-kill-sec.sec-wspace {
-    color: #9b59b6 !important;
-    background: rgba(155, 89, 182, 0.25) !important;
-    border: 1px solid rgba(155, 89, 182, 0.5) !important;
+    color: #3b82f6 !important;
+    background: rgba(59, 130, 246, 0.25) !important;
+    border: 1px solid rgba(59, 130, 246, 0.5) !important;
+}
+
+.zkill-kill-sec.sec-pochven {
+    color: #a855f7 !important;
+    background: rgba(168, 85, 247, 0.25) !important;
+    border: 1px solid rgba(168, 85, 247, 0.5) !important;
 }
 
 .zkill-kill-sec.sec-unknown {
@@ -1275,6 +1346,10 @@ justify-content: flex-start;
 }
 .zkill-threat-grid { grid-template-columns: auto 1fr; }
 .zkill-threat-ship-sizes { grid-column: 1 / -1; margin-top: 0.5rem; }
+.zkill-stats-row { grid-template-columns: 1fr; }
+.zkill-stats-left { grid-template-columns: 1fr 1fr; }
+.zkill-activity-summary { grid-template-columns: repeat(3, 1fr); }
+.zkill-charts-row { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 768px) {
@@ -1813,12 +1888,34 @@ REORGANIZED LAYOUT - Tactical Intelligence First
     letter-spacing: 0.05em;
 }
 
-/* Detailed Statistics - Compact version */
-.zkill-detailed-stats {
+/* Combined Stats and Charts Section */
+.zkill-stats-charts-combined {
     margin-bottom: 1.5rem;
 }
 
-.zkill-details-grid {
+.zkill-stats-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+    align-items: start;
+}
+
+.zkill-stats-left {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    grid-auto-rows: min-content;
+}
+
+.zkill-activity-summary {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+}
+
+.zkill-charts-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 1.5rem;
@@ -2331,8 +2428,11 @@ Enhanced Analysis Sections
 .zkill-pattern-summary { grid-template-columns: 1fr; gap: 0.8rem; }
 .zkill-pattern-item { padding: 0.8rem; }
 
-.zkill-details-grid { grid-template-columns: 1fr; gap: 1rem; }
+.zkill-stats-row { grid-template-columns: 1fr; gap: 1rem; }
+.zkill-stats-left { grid-template-columns: 1fr; }
 .zkill-detail-group { padding: 1rem; }
+.zkill-activity-summary { grid-template-columns: 1fr; gap: 0.8rem; }
+.zkill-charts-row { grid-template-columns: 1fr; }
 
 /* Enhanced sections mobile */
 .zkill-analysis-grid { grid-template-columns: 1fr; gap: 0.8rem; }

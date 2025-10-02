@@ -192,27 +192,69 @@ function calculateAverageValue(killmails) {
     return Math.round(total / killmails.length);
 }
 
-export function getRecentKills(killmails, limit = 5) {
+export async function getRecentKills(killmails, limit = 5) {
     if (!Array.isArray(killmails) || killmails.length === 0) {
         return [];
     }
 
-    return killmails
+    const { getCachedUniverseName, setCachedUniverseName } = await import('./database.js');
+    const { esiClient } = await import('./esi-client.js');
+
+    const sorted = killmails
         .sort((a, b) => {
             const timeA = new Date(a.killmail?.killmail_time || 0);
             const timeB = new Date(b.killmail?.killmail_time || 0);
             return timeB - timeA;
         })
-        .slice(0, limit)
-        .map(km => ({
+        .slice(0, limit);
+
+    const uniqueSystemIds = [...new Set(sorted.map(km => km.killmail?.solar_system_id).filter(id => id))];
+    const systemDataMap = new Map();
+
+    for (let i = 0; i < uniqueSystemIds.length; i += 20) {
+        const batch = uniqueSystemIds.slice(i, i + 20);
+        await Promise.all(batch.map(async (systemId) => {
+            try {
+                let cached = await getCachedUniverseName(systemId);
+
+                if (!cached) {
+                    const data = await esiClient.get(`/universe/systems/${systemId}/`);
+                    if (data) {
+                        systemDataMap.set(systemId, {
+                            name: data.name,
+                            security: data.security_status
+                        });
+                        await setCachedUniverseName(systemId, data.name, data.security_status);
+                    }
+                } else {
+                    systemDataMap.set(systemId, {
+                        name: cached.name,
+                        security: cached.security
+                    });
+                }
+            } catch (e) {
+                console.error(`Error fetching system ${systemId}:`, e);
+            }
+        }));
+    }
+
+    const killsWithNames = sorted.map(km => {
+        const systemId = km.killmail?.solar_system_id;
+        const systemData = systemDataMap.get(systemId);
+
+        return {
             killmailId: km.killmailId,
             value: km.zkbData?.totalValue || 0,
             victimShipTypeId: km.killmail?.victim?.ship_type_id,
             attackers: km.killmail?.attackers?.length || 0,
             time: km.killmail?.killmail_time,
-            systemId: km.killmail?.solar_system_id,
-            systemSecurity: km.killmail?.solar_system_security
-        }));
+            systemId: systemId,
+            systemName: systemData?.name || '',
+            systemSecurity: systemData?.security ?? null
+        };
+    });
+
+    return killsWithNames;
 }
 
 export function getTopValueKills(killmails, limit = 5) {

@@ -338,7 +338,7 @@ class ZKillboardClient {
 
             if (killmails && killmails.length > 0) {
                 const detailedAnalysis = analyzeKillmails(killmails, entityType, entityId);
-                const recentKills = getRecentKills(killmails, 10);
+                const recentKills = await getRecentKills(killmails, 10);
                 const topValueKills = getTopValueKills(killmails, 5);
 
                 const mergedAnalysis = this.mergeAnalyses(detailedAnalysis, zkillRoleAnalysis);
@@ -348,11 +348,12 @@ class ZKillboardClient {
                     analysis: mergedAnalysis,
                     recentKills,
                     topValueKills,
-                    hasData: true
+                    hasData: true,
+                    rawKillmails: killmails
                 };
 
                 stats.combatStyle = this.enrichCombatStyleWithKillmails(stats.combatStyle, mergedAnalysis, stats);
-                stats.securityPreference = this.analyzeSecurityPreference(stats._rawData, stats.killmailData);
+                stats.securityPreference = await this.analyzeSecurityPreferenceFromKillmails(killmails, stats._rawData);
             } else {
                 const mergedAnalysis = {
                     blopsAnalysis: zkillRoleAnalysis.blopsAnalysis,
@@ -369,6 +370,8 @@ class ZKillboardClient {
     }
 
     processStatsData(rawData, entityType, entityId) {
+        const memberCount = this.safeGet(rawData, 'info.memberCount', null);
+
         const stats = {
             entityType: entityType,
             entityId: parseInt(entityId),
@@ -381,12 +384,13 @@ class ZKillboardClient {
             efficiency: this.calculateEfficiency(rawData),
             dangerRatio: this.calculateDangerRatio(rawData),
             gangRatio: this.calculateGangRatio(rawData),
+            memberCount: memberCount,
             recentActivity: this.extractRecentActivity(rawData),
             topLocations: this.extractTopLocations(rawData),
             topShips: this.extractTopShips(rawData),
             topPlayers: this.extractTopPlayers(rawData),
             shipAnalysis: this.analyzeShipUsage(rawData),
-            combatStyle: this.analyzeCombatStyle(rawData),
+            combatStyle: this.analyzeCombatStyle(rawData, memberCount),
             activityInsights: this.analyzeActivityInsights(rawData),
             securityPreference: this.analyzeSecurityPreference(rawData),
             activePeriods: this.extractActivePeriods(rawData),
@@ -411,6 +415,7 @@ class ZKillboardClient {
             efficiency: 0,
             dangerRatio: 0,
             gangRatio: 0,
+            memberCount: null,
             recentActivity: {
                 activePvPData: {
                     ships: 0,
@@ -438,6 +443,17 @@ class ZKillboardClient {
 
     safeGet(obj, path, defaultValue = 0) {
         try {
+            if (path.includes('.')) {
+                const parts = path.split('.');
+                let result = obj;
+                for (const part of parts) {
+                    if (result === null || result === undefined) {
+                        return defaultValue;
+                    }
+                    result = result[part];
+                }
+                return result !== undefined ? result : defaultValue;
+            }
             return obj[path] !== undefined ? obj[path] : defaultValue;
         } catch {
             return defaultValue;
@@ -686,7 +702,7 @@ class ZKillboardClient {
         };
     }
 
-    analyzeCombatStyle(data) {
+    analyzeCombatStyle(data, memberCount) {
         const ships = this.extractTopShips(data);
         if (!ships.length) return null;
 
@@ -741,6 +757,9 @@ class ZKillboardClient {
         const fleetRole = gangPreference > 70 ? 'Fleet Fighter' :
             gangPreference < 30 ? 'Solo Hunter' : 'Flexible';
 
+        const activepvp = data.activepvp || {};
+        const activePlayerCount = activepvp.characters?.count || null;
+
         return {
             primaryRole: primaryRole ? {
                 role: this.getRoleLabel(primaryRole.role),
@@ -752,7 +771,9 @@ class ZKillboardClient {
             } : null,
             fleetRole,
             gangPreference,
-            roleBreakdown: rolePercentages.filter(r => r.percentage > 0)
+            roleBreakdown: rolePercentages.filter(r => r.percentage > 0),
+            memberCount,
+            activePlayerCount
         };
     }
 
@@ -1028,6 +1049,7 @@ class ZKillboardClient {
                 activeMonths >= 1 ? 'Sporadic' : 'Inactive';
 
         let primeTime = 'Unknown';
+        let timezone = 'Unknown';
         if (activity.max) {
             const hourlyTotals = new Array(24).fill(0);
             for (let day = 0; day < 7; day++) {
@@ -1041,48 +1063,216 @@ class ZKillboardClient {
 
             const maxHour = hourlyTotals.indexOf(Math.max(...hourlyTotals));
             primeTime = `${maxHour.toString().padStart(2, '0')}:00 EVE Time`;
+
+            const eutzEarlyKills = [14, 15, 16, 17, 18].reduce((sum, h) => sum + hourlyTotals[h], 0);
+            const eutzLateKills = [19, 20, 21, 22, 23].reduce((sum, h) => sum + hourlyTotals[h], 0);
+            const ustzEarlyKills = [0, 1, 2, 3, 4].reduce((sum, h) => sum + hourlyTotals[h], 0);
+            const ustzLateKills = [5, 6, 7, 8, 9].reduce((sum, h) => sum + hourlyTotals[h], 0);
+            const autzKills = [10, 11, 12, 13].reduce((sum, h) => sum + hourlyTotals[h], 0);
+
+            const timezones = [
+                { name: 'Early EUTZ', kills: eutzEarlyKills },
+                { name: 'Late EUTZ', kills: eutzLateKills },
+                { name: 'Early USTZ', kills: ustzEarlyKills },
+                { name: 'Late USTZ', kills: ustzLateKills },
+                { name: 'AUTZ', kills: autzKills }
+            ];
+
+            const maxTZ = timezones.reduce((max, tz) => tz.kills > max.kills ? tz : max, { kills: 0 });
+            if (maxTZ.kills > 0) {
+                timezone = maxTZ.name;
+            }
         }
 
         return {
             trend,
             consistency,
             primeTime,
+            timezone,
             activeMonths,
             recentActivity: monthEntries.slice(0, 3).reduce((sum, [, data]) => sum + (data.shipsDestroyed || 0), 0)
         };
     }
 
-    analyzeSecurityPreference(data, killmailData = null) {
-        const topLists = data.topLists || [];
-        const systemList = topLists.find(list => list.type === 'solarSystem' || list.type === 'system');
+    async analyzeSecurityPreferenceFromKillmails(killmails, fallbackData) {
+        const { getCachedUniverseName, setCachedUniverseName } = await import('./database.js');
+        const { esiClient } = await import('./esi-client.js');
+
+        const uniqueSystemIds = [...new Set(killmails.map(km => km.killmail?.solar_system_id).filter(id => id))];
+        const systemInfoMap = new Map();
+
+        console.log(`Fetching system info for ${uniqueSystemIds.length} unique systems from ${killmails.length} killmails`);
+
+        for (let i = 0; i < uniqueSystemIds.length; i += 20) {
+            const batch = uniqueSystemIds.slice(i, i + 20);
+            await Promise.all(batch.map(async (systemId) => {
+                try {
+                    let cached = await getCachedUniverseName(systemId);
+
+                    if (cached && cached.name && cached.security !== undefined && cached.security !== null) {
+                        systemInfoMap.set(systemId, {
+                            name: cached.name,
+                            security: cached.security
+                        });
+                    } else {
+                        const data = await esiClient.get(`/universe/systems/${systemId}/`);
+                        if (data && data.name && data.security_status !== undefined) {
+                            systemInfoMap.set(systemId, {
+                                name: data.name,
+                                security: data.security_status
+                            });
+                            await setCachedUniverseName(systemId, data.name, data.security_status);
+                        }
+                    }
+                } catch (e) {
+                    console.error(`Error fetching system ${systemId}:`, e);
+                }
+            }));
+        }
 
         let highsecKills = 0;
         let lowsecKills = 0;
         let nullsecKills = 0;
+        let pochvenKills = 0;
         let wspaceKills = 0;
 
-        if (systemList && systemList.values && systemList.values.length > 0) {
-            systemList.values.forEach(system => {
-                const kills = system.kills || 0;
-                const sec = system.solarSystemSecurity;
+        console.log(`Processing ${killmails.length} killmails for security classification`);
+
+        killmails.forEach(km => {
+            const systemId = km.killmail?.solar_system_id;
+            if (!systemId) return;
+
+            const systemInfo = systemInfoMap.get(systemId);
+            if (!systemInfo || systemInfo.security === undefined || systemInfo.security === null) {
+                console.log(`Skipping killmail in system ${systemId} - no system info`);
+                return;
+            }
+
+            const sec = systemInfo.security;
+            const systemName = systemInfo.name;
+
+            if (sec >= 0.5) {
+                highsecKills += 1;
+            } else if (sec > 0.0) {
+                lowsecKills += 1;
+            } else if (sec > -0.99) {
+                nullsecKills += 1;
+            } else {
+                if (systemName && systemName[0] === 'J') {
+                    wspaceKills += 1;
+                } else if (!systemName) {
+                    wspaceKills += 1;
+                } else {
+                    pochvenKills += 1;
+                }
+            }
+        });
+
+        console.log(`Security classification results: HS=${highsecKills}, LS=${lowsecKills}, NS=${nullsecKills}, Poch=${pochvenKills}, WH=${wspaceKills}`);
+
+        let total = highsecKills + lowsecKills + nullsecKills + pochvenKills + wspaceKills;
+
+        if (total === 0) {
+            return this.analyzeSecurityPreference(fallbackData, null);
+        }
+
+        const breakdown = [
+            { space: 'Highsec', kills: highsecKills, percentage: Math.round((highsecKills / total) * 100) },
+            { space: 'Lowsec', kills: lowsecKills, percentage: Math.round((lowsecKills / total) * 100) },
+            { space: 'Nullsec', kills: nullsecKills, percentage: Math.round((nullsecKills / total) * 100) },
+            { space: 'Pochven', kills: pochvenKills, percentage: Math.round((pochvenKills / total) * 100) },
+            { space: 'W-Space', kills: wspaceKills, percentage: Math.round((wspaceKills / total) * 100) }
+        ].filter(item => item.kills > 0).sort((a, b) => b.kills - a.kills);
+
+        console.log('Final breakdown:', breakdown);
+
+        const primary = breakdown[0]?.space || 'Unknown';
+        const riskProfile = this.calculateRiskProfile(fallbackData, breakdown, { rawKillmails: killmails });
+
+        return {
+            primary,
+            breakdown,
+            riskProfile
+        };
+    }
+
+    analyzeSecurityPreference(data, killmailData = null) {
+        let highsecKills = 0;
+        let lowsecKills = 0;
+        let nullsecKills = 0;
+        let pochvenKills = 0;
+        let wspaceKills = 0;
+
+        const killsToAnalyze = killmailData?.allKills || killmailData?.recentKills;
+
+        if (killmailData && killsToAnalyze && killsToAnalyze.length > 0) {
+            console.log('Analyzing security preference from killmail data:', killsToAnalyze);
+            killsToAnalyze.forEach(kill => {
+                const sec = kill.systemSecurity;
+                const systemName = kill.systemName || '';
+
+                console.log(`Kill: sec=${sec}, systemName="${systemName}"`);
 
                 if (sec === undefined || sec === null) {
+                    console.log('  -> Skipping (no security)');
                     return;
                 }
 
                 if (sec >= 0.5) {
-                    highsecKills += kills;
+                    highsecKills += 1;
+                    console.log('  -> Highsec');
                 } else if (sec > 0.0) {
-                    lowsecKills += kills;
-                } else if (sec >= -0.99) {
-                    nullsecKills += kills;
+                    lowsecKills += 1;
+                    console.log('  -> Lowsec');
+                } else if (sec > -0.99) {
+                    nullsecKills += 1;
+                    console.log('  -> Nullsec');
                 } else {
-                    wspaceKills += kills;
+                    if (systemName && systemName[0] === 'J') {
+                        wspaceKills += 1;
+                        console.log('  -> Wormhole');
+                    } else if (!systemName) {
+                        console.log('  -> Unknown (no name, treating as WH)');
+                        wspaceKills += 1;
+                    } else {
+                        pochvenKills += 1;
+                        console.log('  -> Pochven');
+                    }
                 }
             });
+            console.log(`Results: HS=${highsecKills}, LS=${lowsecKills}, NS=${nullsecKills}, Poch=${pochvenKills}, WH=${wspaceKills}`);
+        } else {
+            const topLists = data.topLists || [];
+            const systemList = topLists.find(list => list.type === 'solarSystem' || list.type === 'system');
+
+            if (systemList && systemList.values && systemList.values.length > 0) {
+                systemList.values.forEach(system => {
+                    const kills = system.kills || 0;
+                    const sec = system.solarSystemSecurity;
+                    const systemName = system.solarSystemName || system.name || '';
+
+                    if (sec === undefined || sec === null) {
+                        return;
+                    }
+
+                    if (sec >= 0.5) {
+                        highsecKills += kills;
+                    } else if (sec > 0.0) {
+                        lowsecKills += kills;
+                    } else if (sec > -1.0) {
+                        nullsecKills += kills;
+                    } else if (sec <= -1.0) {
+                        if (systemName && systemName[0] === 'J') {
+                            wspaceKills += kills;
+                        } else {
+                            pochvenKills += kills;
+                        }
+                    }
+                });
+            }
         }
 
-        let total = highsecKills + lowsecKills + nullsecKills + wspaceKills;
+        let total = highsecKills + lowsecKills + nullsecKills + pochvenKills + wspaceKills;
 
         if (total === 0) {
             const labels = data.labels || {};
@@ -1090,13 +1280,15 @@ class ZKillboardClient {
             const lowsec = labels['loc:lowsec'] || {};
             const nullsec = labels['loc:nullsec'] || {};
             const wspace = labels['loc:w-space'] || {};
+            const pochven = labels['loc:pochven'] || {};
 
             highsecKills = this.safeGet(highsec, 'shipsDestroyed', 0);
             lowsecKills = this.safeGet(lowsec, 'shipsDestroyed', 0);
             nullsecKills = this.safeGet(nullsec, 'shipsDestroyed', 0);
             wspaceKills = this.safeGet(wspace, 'shipsDestroyed', 0);
+            pochvenKills = this.safeGet(pochven, 'shipsDestroyed', 0);
 
-            total = highsecKills + lowsecKills + nullsecKills + wspaceKills;
+            total = highsecKills + lowsecKills + nullsecKills + pochvenKills + wspaceKills;
         }
 
         if (total === 0) {
@@ -1111,8 +1303,11 @@ class ZKillboardClient {
             { space: 'Highsec', kills: highsecKills, percentage: Math.round((highsecKills / total) * 100) },
             { space: 'Lowsec', kills: lowsecKills, percentage: Math.round((lowsecKills / total) * 100) },
             { space: 'Nullsec', kills: nullsecKills, percentage: Math.round((nullsecKills / total) * 100) },
+            { space: 'Pochven', kills: pochvenKills, percentage: Math.round((pochvenKills / total) * 100) },
             { space: 'W-Space', kills: wspaceKills, percentage: Math.round((wspaceKills / total) * 100) }
         ].filter(item => item.kills > 0).sort((a, b) => b.kills - a.kills);
+
+        console.log('Final breakdown:', breakdown);
 
         const primary = breakdown[0]?.space || 'Unknown';
 

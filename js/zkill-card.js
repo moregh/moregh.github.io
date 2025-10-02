@@ -414,6 +414,83 @@ class ZKillStatsCard {
     `;
     }
 
+    createSpacePieChart(breakdown) {
+        const size = 200;
+        const radius = 80;
+        const centerX = size / 2;
+        const centerY = size / 2;
+
+        const colors = {
+            'Highsec': '#4ade80',
+            'Lowsec': '#fbbf24',
+            'Nullsec': '#ef4444',
+            'Pochven': '#a855f7',
+            'W-Space': '#3b82f6'
+        };
+
+        let slices = '';
+
+        if (breakdown.length === 1 && breakdown[0].percentage === 100) {
+            slices = `
+                <circle cx="${centerX}" cy="${centerY}" r="${radius}"
+                        fill="${colors[breakdown[0].space] || '#666'}"
+                        stroke="rgba(0, 0, 0, 0.3)"
+                        stroke-width="2"
+                        class="zkill-pie-slice">
+                    <title>${breakdown[0].space}: 100%</title>
+                </circle>
+            `;
+        } else {
+            let currentAngle = -90;
+            slices = breakdown.map(item => {
+                const angle = (item.percentage / 100) * 360;
+                const startAngle = currentAngle;
+                const endAngle = currentAngle + angle;
+                currentAngle = endAngle;
+
+                const startRad = (startAngle * Math.PI) / 180;
+                const endRad = (endAngle * Math.PI) / 180;
+
+                const x1 = centerX + radius * Math.cos(startRad);
+                const y1 = centerY + radius * Math.sin(startRad);
+                const x2 = centerX + radius * Math.cos(endRad);
+                const y2 = centerY + radius * Math.sin(endRad);
+
+                const largeArc = angle > 180 ? 1 : 0;
+
+                return `
+                    <path d="M ${centerX} ${centerY} L ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2} Z"
+                          fill="${colors[item.space] || '#666'}"
+                          stroke="rgba(0, 0, 0, 0.3)"
+                          stroke-width="2"
+                          class="zkill-pie-slice">
+                        <title>${item.space}: ${item.percentage}%</title>
+                    </path>
+                `;
+            }).join('');
+        }
+
+        const legend = breakdown.map(item => `
+            <div class="zkill-pie-legend-item">
+                <div class="zkill-pie-legend-color" style="background: ${colors[item.space] || '#666'}"></div>
+                <div class="zkill-pie-legend-label">${item.space}</div>
+                <div class="zkill-pie-legend-value">${item.percentage}%</div>
+            </div>
+        `).join('');
+
+        return `
+            <div class="zkill-chart-container zkill-pie-chart-container">
+                <div class="zkill-chart-title">Operating Space</div>
+                <svg width="${size}" height="${size}" class="zkill-pie-chart">
+                    ${slices}
+                </svg>
+                <div class="zkill-pie-legend">
+                    ${legend}
+                </div>
+            </div>
+        `;
+    }
+
     getCurrentEntityId() {
         if (!this.currentModal) return null;
         const avatar = this.currentModal.querySelector('.zkill-entity-avatar');
@@ -679,6 +756,15 @@ class ZKillStatsCard {
         return ratio.toFixed(2);
     }
 
+    getOrgSize(memberCount) {
+        if (!memberCount) return 'N/A';
+        if (memberCount < 10) return 'Micro';
+        if (memberCount < 50) return 'Small';
+        if (memberCount < 250) return 'Medium';
+        if (memberCount < 1000) return 'Large';
+        return 'Massive';
+    }
+
     async populateStatsData(stats, entityType, entityId, entityName) {
         if (!this.currentModal) return;
 
@@ -776,8 +862,7 @@ class ZKillStatsCard {
         ${this.createTacticalOverviewHTML(stats)}
         ${this.createTop10CombinedHTML(stats.topShips, stats.topPlayers, stats.topLocations, entityType)}
         ${this.createKillmailInsightsHTML(stats.killmailData)}
-        ${this.createActivityPatternsHTML(stats.activityInsights, stats.recentActivity.activePvPData, stats.activityData)}
-        ${this.createDetailedStatsHTML(stats)}
+        ${this.createCombinedStatsAndChartsHTML(stats, stats.securityPreference, stats.activityInsights, stats.recentActivity.activePvPData, stats.activityData)}
         ${recentKillsHTML}
         <div style="text-align: center; padding: 1rem; border-top: 1px solid rgba(255, 255, 255, 0.1); margin-top: 1rem;">
             <a href="https://zkillboard.com/${entityType}/${entityId}/"
@@ -859,7 +944,7 @@ class ZKillStatsCard {
             const secStatus = kill.systemSecurity !== undefined && kill.systemSecurity !== null
                 ? kill.systemSecurity.toFixed(1)
                 : '?';
-            const secClass = this.getSecurityClass(kill.systemSecurity);
+            const secClass = this.getSecurityClass(kill.systemSecurity, kill.systemName);
 
             return `
                 <div class="zkill-kill-item">
@@ -900,12 +985,13 @@ class ZKillStatsCard {
         `;
     }
 
-    getSecurityClass(security) {
+    getSecurityClass(security, systemName) {
         if (security === undefined || security === null) return 'sec-unknown';
         if (security >= ZKILL_SECURITY_HIGH_THRESHOLD) return 'sec-high';
         if (security > ZKILL_SECURITY_NULL_THRESHOLD) return 'sec-low';
         if (security >= ZKILL_SECURITY_WSPACE_THRESHOLD) return 'sec-null';
-        return 'sec-wspace';
+        if (systemName && systemName[0] === 'J') return 'sec-wspace';
+        return 'sec-pochven';
     }
 
     async getShipName(shipTypeId) {
@@ -1053,7 +1139,7 @@ class ZKillStatsCard {
         const topLocations = locations.slice(0, displayCount);
 
         const locationsHTML = topLocations.map(location => {
-            const secClass = this.getSecurityClass(location.securityStatus);
+            const secClass = this.getSecurityClass(location.securityStatus, location.systemName);
             const secFormatted = this.formatSecurity(location.securityStatus, location.systemName);
 
             return `
@@ -1209,7 +1295,7 @@ class ZKillStatsCard {
         `).join('') : (entityType === 'character' ? '' : '<div class="zkill-top10-empty">No player data</div>');
 
         const locationsHTML = hasLocations ? topLocations.slice(0, 10).map(location => {
-            const secClass = this.getSecurityClass(location.securityStatus);
+            const secClass = this.getSecurityClass(location.securityStatus, location.systemName);
             const secFormatted = this.formatSecurity(location.securityStatus, location.systemName);
             return `
             <div class="zkill-top10-item">
@@ -1284,8 +1370,44 @@ class ZKillStatsCard {
     createThreatAssessmentHTML(securityPreference, combatStyle, activityInsights, shipAnalysis) {
         if (!securityPreference || !combatStyle) return '';
 
-        const riskLevel = securityPreference.riskProfile === 'High Risk' ? 'high' :
+        const memberCount = combatStyle.memberCount;
+        const activePlayerCount = combatStyle.activePlayerCount;
+
+        let baseRiskLevel = securityPreference.riskProfile === 'High Risk' ? 'high' :
             securityPreference.riskProfile === 'Risk Averse' ? 'low' : 'moderate';
+
+        let riskLevel = baseRiskLevel;
+        let adjustedRiskProfile = securityPreference.riskProfile;
+
+        if (memberCount && activePlayerCount) {
+            const participationRate = (activePlayerCount / memberCount) * 100;
+
+            if (participationRate < 1) {
+                riskLevel = 'low';
+                adjustedRiskProfile = 'Minimal Threat';
+            } else if (participationRate < 5) {
+                if (baseRiskLevel === 'high') {
+                    riskLevel = 'low';
+                    adjustedRiskProfile = 'Low Risk';
+                } else if (baseRiskLevel === 'moderate') {
+                    riskLevel = 'low';
+                    adjustedRiskProfile = 'Low Risk';
+                }
+            } else if (participationRate < 15) {
+                if (baseRiskLevel === 'high') {
+                    riskLevel = 'moderate';
+                    adjustedRiskProfile = 'Moderate Risk';
+                }
+            } else if (participationRate >= 40) {
+                if (baseRiskLevel === 'low') {
+                    riskLevel = 'moderate';
+                    adjustedRiskProfile = 'Moderate Risk';
+                } else if (baseRiskLevel === 'moderate') {
+                    riskLevel = 'high';
+                    adjustedRiskProfile = 'High Risk';
+                }
+            }
+        }
 
         const sizeHTML = shipAnalysis?.sizeBreakdown ? shipAnalysis.sizeBreakdown.slice(0, BREAKDOWN_DISPLAY_LIMIT).map(item => `
             <div class="zkill-pref-item">
@@ -1301,6 +1423,16 @@ class ZKillStatsCard {
 
         const specialization = shipAnalysis?.specialization;
 
+        let participationInfo = '';
+        if (memberCount && activePlayerCount) {
+            const participationRate = Math.round((activePlayerCount / memberCount) * 100);
+            participationInfo = `
+                <div class="zkill-threat-item">
+                    <span class="zkill-threat-label">Active Members:</span>
+                    <span class="zkill-threat-value">${activePlayerCount.toLocaleString()} / ${memberCount.toLocaleString()} (${participationRate}%)</span>
+                </div>`;
+        }
+
         return `
         <div class="zkill-section zkill-threat-assessment">
             <h3 class="zkill-section-title">
@@ -1310,8 +1442,8 @@ class ZKillStatsCard {
             <div class="zkill-threat-grid">
                 <div class="zkill-threat-primary">
                     <div class="zkill-risk-indicator ${riskLevel}">
-                        <div class="zkill-risk-icon">${securityPreference.riskProfile === 'High Risk' ? '🔥' : securityPreference.riskProfile === 'Risk Averse' ? '🛡️' : '⚠️'}</div>
-                        <div class="zkill-risk-level">${securityPreference.riskProfile}</div>
+                        <div class="zkill-risk-icon">${riskLevel === 'high' ? '🔥' : riskLevel === 'low' ? '🛡️' : '⚠️'}</div>
+                        <div class="zkill-risk-level">${adjustedRiskProfile}</div>
                         <div class="zkill-risk-space">Primarily ${securityPreference.primary}</div>
                     </div>
                 </div>
@@ -1328,10 +1460,10 @@ class ZKillStatsCard {
                         <span class="zkill-threat-label">Activity Trend:</span>
                         <span class="zkill-threat-value ${activityInsights?.trend?.toLowerCase()}">${activityInsights?.trend || 'Unknown'}</span>
                     </div>
+                    ${participationInfo}
                 </div>
                 ${shipAnalysis && sizeHTML ? `
                 <div class="zkill-threat-ship-sizes">
-                    <h4 class="zkill-threat-subtitle">Ship Size Preference</h4>
                     ${specialization ? `
                     <div class="zkill-specialization-badge">
                         <span class="zkill-spec-icon">${specialization.type === 'Generalist' ? '🔄' : '🎯'}</span>
@@ -1389,45 +1521,111 @@ class ZKillStatsCard {
         `;
     }
 
-    createDetailedStatsHTML(stats) {
+    createCombinedStatsAndChartsHTML(stats, securityPreference, activityInsights, activePvPData, activityData) {
+        const spaceChart = securityPreference && securityPreference.breakdown && securityPreference.breakdown.length > 0
+            ? this.createSpacePieChart(securityPreference.breakdown)
+            : '';
+
+        const hasCharts = activityData && activityData.hasData;
+        const hasActivityInsights = activityInsights != null;
+
         return `
-        <div class="zkill-section zkill-detailed-stats">
+        <div class="zkill-section zkill-stats-charts-combined">
             <h3 class="zkill-section-title">
                 <span class="zkill-section-icon">📊</span>
-                Detailed Statistics
+                Activity & Statistics
             </h3>
-            <div class="zkill-details-grid">
-                <div class="zkill-detail-group kills">
-                    <div class="zkill-detail-header">Kills</div>
-                    <div class="zkill-detail-item">
-                        <span class="zkill-detail-label">Total</span>
-                        <span class="zkill-detail-value">${this.formatNumber(stats.totalKills)}</span>
+
+            <div class="zkill-stats-row">
+                <div class="zkill-stats-left">
+                    <div class="zkill-detail-group kills">
+                        <div class="zkill-detail-header">Kills</div>
+                        <div class="zkill-detail-item">
+                            <span class="zkill-detail-label">Total</span>
+                            <span class="zkill-detail-value">${this.formatNumber(stats.totalKills)}</span>
+                        </div>
+                        <div class="zkill-detail-item">
+                            <span class="zkill-detail-label">Solo</span>
+                            <span class="zkill-detail-value">${this.formatNumber(stats.soloKills)}</span>
+                        </div>
+                        <div class="zkill-detail-item">
+                            <span class="zkill-detail-label">ISK</span>
+                            <span class="zkill-detail-value">${this.formatISK(stats.iskDestroyed)}</span>
+                        </div>
                     </div>
-                    <div class="zkill-detail-item">
-                        <span class="zkill-detail-label">Solo</span>
-                        <span class="zkill-detail-value">${this.formatNumber(stats.soloKills)}</span>
+                    <div class="zkill-detail-group losses">
+                        <div class="zkill-detail-header">Losses</div>
+                        <div class="zkill-detail-item">
+                            <span class="zkill-detail-label">Total</span>
+                            <span class="zkill-detail-value">${this.formatNumber(stats.totalLosses)}</span>
+                        </div>
+                        <div class="zkill-detail-item">
+                            <span class="zkill-detail-label">Solo</span>
+                            <span class="zkill-detail-value">${this.formatNumber(stats.soloLosses)}</span>
+                        </div>
+                        <div class="zkill-detail-item">
+                            <span class="zkill-detail-label">ISK</span>
+                            <span class="zkill-detail-value">${this.formatISK(stats.iskLost)}</span>
+                        </div>
                     </div>
-                    <div class="zkill-detail-item">
-                        <span class="zkill-detail-label">ISK</span>
-                        <span class="zkill-detail-value">${this.formatISK(stats.iskDestroyed)}</span>
+                    ${hasActivityInsights ? `
+                    <div class="zkill-activity-summary">
+                        <div class="zkill-pattern-item">
+                            <div class="zkill-pattern-icon">⏰</div>
+                            <div class="zkill-pattern-info">
+                                <div class="zkill-pattern-value">${activityInsights.primeTime}</div>
+                                <div class="zkill-pattern-label">Prime Time</div>
+                            </div>
+                        </div>
+                        <div class="zkill-pattern-item">
+                            <div class="zkill-pattern-icon">🌍</div>
+                            <div class="zkill-pattern-info">
+                                <div class="zkill-pattern-value">${activityInsights.timezone}</div>
+                                <div class="zkill-pattern-label">Timezone</div>
+                            </div>
+                        </div>
+                        <div class="zkill-pattern-item">
+                            <div class="zkill-pattern-icon">📅</div>
+                            <div class="zkill-pattern-info">
+                                <div class="zkill-pattern-value">${activityInsights.consistency}</div>
+                                <div class="zkill-pattern-label">Consistency</div>
+                            </div>
+                        </div>
+                        <div class="zkill-pattern-item">
+                            <div class="zkill-pattern-icon trend-${activityInsights.trend.toLowerCase()}">
+                                ${activityInsights.trend === 'Increasing' ? '📈' : activityInsights.trend === 'Decreasing' ? '📉' : '📊'}
+                            </div>
+                            <div class="zkill-pattern-info">
+                                <div class="zkill-pattern-value">${activityInsights.trend}</div>
+                                <div class="zkill-pattern-label">Trend</div>
+                            </div>
+                        </div>
+                        <div class="zkill-pattern-item">
+                            <div class="zkill-pattern-icon">👥</div>
+                            <div class="zkill-pattern-info">
+                                <div class="zkill-pattern-value">${this.getOrgSize(stats.memberCount)}</div>
+                                <div class="zkill-pattern-label">Org Size</div>
+                            </div>
+                        </div>
+                        <div class="zkill-pattern-item">
+                            <div class="zkill-pattern-icon">🚀</div>
+                            <div class="zkill-pattern-info">
+                                <div class="zkill-pattern-value">${activePvPData.ships || 0}</div>
+                                <div class="zkill-pattern-label">Active Ships</div>
+                            </div>
+                        </div>
                     </div>
+                    ` : ''}
                 </div>
-                <div class="zkill-detail-group losses">
-                    <div class="zkill-detail-header">Losses</div>
-                    <div class="zkill-detail-item">
-                        <span class="zkill-detail-label">Total</span>
-                        <span class="zkill-detail-value">${this.formatNumber(stats.totalLosses)}</span>
-                    </div>
-                    <div class="zkill-detail-item">
-                        <span class="zkill-detail-label">Solo</span>
-                        <span class="zkill-detail-value">${this.formatNumber(stats.soloLosses)}</span>
-                    </div>
-                    <div class="zkill-detail-item">
-                        <span class="zkill-detail-label">ISK</span>
-                        <span class="zkill-detail-value">${this.formatISK(stats.iskLost)}</span>
-                    </div>
-                </div>
+                ${spaceChart}
             </div>
+
+            ${hasCharts ? `
+            <div class="zkill-charts-row">
+                ${this.createBarChart(activityData.hourlyData, 'Kills by Hour (EVE Time)', activityData.maxHourly)}
+                ${this.createBarChart(activityData.dailyData, 'Kills by Day of Week', activityData.maxDaily)}
+            </div>
+            ` : ''}
         </div>
         `;
     }
