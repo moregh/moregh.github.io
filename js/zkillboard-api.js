@@ -12,6 +12,7 @@ import { get_zkill_character_kills, get_zkill_corporation_kills, get_zkill_allia
 import { fetchKillmailsBatch } from './esi-killmails.js';
 import { analyzeKillmails, getRecentKills, getTopValueKills } from './killmail-analysis.js';
 import { APIError } from './errors.js';
+import { SecurityClassification, POCHVEN_SYSTEMS } from './zkill-card.js';
 
 class ZKillError extends APIError {
     constructor(message, status, entityType, entityId) {
@@ -309,12 +310,26 @@ class ZKillboardClient {
             }
 
             let kills = [];
+            const zkillProgress = (page, totalKills, estimatedDays, status) => {
+                if (onProgress) {
+                    let message = `Fetching page ${page} (${totalKills} kills`;
+                    if (estimatedDays) {
+                        message += `, ~${estimatedDays} days`;
+                    }
+                    if (status) {
+                        message += `, ${status}`;
+                    }
+                    message += ')';
+                    onProgress('zkill', message, 0, 0);
+                }
+            };
+
             if (entityType === 'characterID') {
-                kills = await get_zkill_character_kills(entityId);
+                kills = await get_zkill_character_kills(entityId, zkillProgress);
             } else if (entityType === 'corporationID') {
-                kills = await get_zkill_corporation_kills(entityId);
+                kills = await get_zkill_corporation_kills(entityId, zkillProgress);
             } else if (entityType === 'allianceID') {
-                kills = await get_zkill_alliance_kills(entityId);
+                kills = await get_zkill_alliance_kills(entityId, zkillProgress);
             }
 
             if (!kills || kills.length === 0) {
@@ -322,7 +337,7 @@ class ZKillboardClient {
             }
 
             if (onProgress) {
-                onProgress('zkill', `Received ${kills.length} kill IDs`, 100, 0);
+                onProgress('zkill', `Collected ${kills.length} kill IDs`, 100, 0);
             }
 
             const killmails = await fetchKillmailsBatch(kills, {
@@ -998,7 +1013,7 @@ class ZKillboardClient {
         } else if (soloVsFleet.smallGang.percentage > 50) {
             enhancedFleetRole = 'Small Gang Specialist';
             playstyleDetails.push('Small Gang');
-        } else if (soloVsFleet.fleet.percentage > 60 && fleetSize.average > 15) {
+        } else if (soloVsFleet.fleet.percentage > 60 && fleetSize.average > 30) {
             enhancedFleetRole = 'Fleet Commander';
         } else if (soloVsFleet.fleet.percentage > 40) {
             enhancedFleetRole = 'Fleet Fighter';
@@ -1008,8 +1023,8 @@ class ZKillboardClient {
 
         const blobEngagements = soloVsFleet.fleet.count;
         const totalEngagements = killmailAnalysis.totalKillmails;
-        tagScores.blob = fleetSize.max > 100 ? (blobEngagements / totalEngagements) : 0;
-        if (tagScores.blob > 0.3) {
+        tagScores.blob = (fleetSize.average > 30 && fleetSize.max > 50) ? (blobEngagements / totalEngagements) : 0;
+        if (tagScores.blob > 0.5 && fleetSize.average > 30) {
             playstyleDetails.push('Blob');
         }
 
@@ -1176,27 +1191,18 @@ class ZKillboardClient {
 
             const sec = systemInfo.security;
             const systemName = systemInfo.name;
-            const roundedSec = Math.ceil(sec * 10) / 10;
+            const classification = SecurityClassification.classify(sec, systemName);
 
-            if (roundedSec >= 0.5) {
+            if (classification.cssClass === 'sec-high') {
                 highsecKills += 1;
-            } else if (roundedSec > 0.0) {
+            } else if (classification.cssClass === 'sec-low') {
                 lowsecKills += 1;
-            } else if (roundedSec > -1.0) {
+            } else if (classification.cssClass === 'sec-null') {
                 nullsecKills += 1;
-            } else {
-                if (systemName && systemName[0] === 'J') {
-                    wspaceKills += 1;
-                } else if (!systemName) {
-                    wspaceKills += 1;
-                } else {
-                    const pochvenSystems = ['Skarkon', 'Archee', 'Kino', 'Konola', 'Krirald', 'Nalvula', 'Nani', 'Ala', 'Angymonne', 'Arvasaras', 'Harva', 'Ignebaener', 'Kuharah', 'Otanuomi', 'Otela', 'Senda', 'Vale', 'Wirashoda', 'Ahtila', 'Ichoriya', 'Kaunokka', 'Raravoss', 'Sakenta', 'Skarkon', 'Urhinichi'];
-                    if (pochvenSystems.includes(systemName)) {
-                        pochvenKills += 1;
-                    } else {
-                        wspaceKills += 1;
-                    }
-                }
+            } else if (classification.cssClass === 'sec-pochven') {
+                pochvenKills += 1;
+            } else if (classification.cssClass === 'sec-wspace') {
+                wspaceKills += 1;
             }
         });
 
@@ -1242,22 +1248,18 @@ class ZKillboardClient {
                     return;
                 }
 
-                const roundedSec = Math.ceil(sec * 10) / 10;
+                const classification = SecurityClassification.classify(sec, systemName);
 
-                if (roundedSec >= 0.5) {
+                if (classification.cssClass === 'sec-high') {
                     highsecKills += 1;
-                } else if (roundedSec > 0.0) {
+                } else if (classification.cssClass === 'sec-low') {
                     lowsecKills += 1;
-                } else if (roundedSec > -1.0) {
+                } else if (classification.cssClass === 'sec-null') {
                     nullsecKills += 1;
-                } else {
-                    if (systemName && systemName[0] === 'J') {
-                        wspaceKills += 1;
-                    } else if (!systemName) {
-                        wspaceKills += 1;
-                    } else {
-                        pochvenKills += 1;
-                    }
+                } else if (classification.cssClass === 'sec-pochven') {
+                    pochvenKills += 1;
+                } else if (classification.cssClass === 'sec-wspace') {
+                    wspaceKills += 1;
                 }
             });
         } else {
@@ -1274,20 +1276,18 @@ class ZKillboardClient {
                         return;
                     }
 
-                    const roundedSec = Math.ceil(sec * 10) / 10;
+                    const classification = SecurityClassification.classify(sec, systemName);
 
-                    if (roundedSec >= 0.5) {
+                    if (classification.cssClass === 'sec-high') {
                         highsecKills += kills;
-                    } else if (roundedSec > 0.0) {
+                    } else if (classification.cssClass === 'sec-low') {
                         lowsecKills += kills;
-                    } else if (roundedSec > -1.0) {
+                    } else if (classification.cssClass === 'sec-null') {
                         nullsecKills += kills;
-                    } else {
-                        if (systemName && systemName[0] === 'J') {
-                            wspaceKills += kills;
-                        } else {
-                            pochvenKills += kills;
-                        }
+                    } else if (classification.cssClass === 'sec-pochven') {
+                        pochvenKills += kills;
+                    } else if (classification.cssClass === 'sec-wspace') {
+                        wspaceKills += kills;
                     }
                 });
             }
@@ -1368,17 +1368,22 @@ class ZKillboardClient {
             const avgValue = analysis.avgValue || 0;
 
             if (analysis.hvtAnalysis?.isHVTHunter) {
-                riskScore += 10;
+                const confidence = analysis.hvtAnalysis.confidence;
+                if (confidence === 'very high') riskScore += 15;
+                else if (confidence === 'high') riskScore += 12;
+                else riskScore += 8;
             }
 
             if (analysis.targetPreferences?.capitalHunter) {
                 riskScore += 10;
             }
 
-            if (avgValue > 500000000) {
-                riskScore += 8;
-            } else if (avgValue > 100000000) {
-                riskScore += 4;
+            if (avgValue > 1000000000) {
+                riskScore += 12;
+            } else if (avgValue > 500000000) {
+                riskScore += 6;
+            } else if (avgValue > 250000000) {
+                riskScore += 3;
             }
 
             const soloVsFleet = analysis.soloVsFleet;
@@ -1390,12 +1395,24 @@ class ZKillboardClient {
                 riskScore += 6;
             }
 
-            if (analysis.shipComposition?.uniqueShips > 15) {
+            if (analysis.shipComposition?.uniqueShips > 20) {
+                riskScore += 4;
+            } else if (analysis.shipComposition?.uniqueShips > 15) {
                 riskScore += 2;
             }
 
             if (analysis.cynoAnalysis?.isCynoPilot) {
-                riskScore += 15;
+                const confidence = analysis.cynoAnalysis.confidence;
+                if (confidence === 'very high') riskScore += 20;
+                else if (confidence === 'high') riskScore += 15;
+                else riskScore += 10;
+            }
+
+            if (analysis.blopsAnalysis?.isBlopsUser) {
+                const confidence = analysis.blopsAnalysis.confidence;
+                if (confidence === 'very high') riskScore += 18;
+                else if (confidence === 'high') riskScore += 14;
+                else riskScore += 10;
             }
         }
 
@@ -1408,9 +1425,9 @@ class ZKillboardClient {
 
         if (riskScore >= 100) return 'Extreme Risk';
         if (riskScore >= 80) return 'Very High Risk';
-        if (riskScore >= 60) return 'High Risk';
-        if (riskScore >= 40) return 'Moderate Risk';
-        if (riskScore >= 20) return 'Low Risk';
+        if (riskScore >= 50) return 'High Risk';
+        if (riskScore >= 30) return 'Moderate Risk';
+        if (riskScore >= 10) return 'Low Risk';
         return 'Minimal Risk';
     }
 
@@ -1555,7 +1572,7 @@ class ZKillboardClient {
                 .map(k => k.attackers || 0)
                 .reduce((a, b) => a + b, 0) / topDayKills.length;
 
-            if (uniqueSystems.size <= 2 && avgFleetSize > 15) {
+            if (uniqueSystems.size <= 2 && avgFleetSize > 20) {
                 return true;
             }
         }

@@ -16,7 +16,7 @@ export const CHUNK_DELAY = 25;
 export const STATS_UPDATE_DELAY = 100;
 export const DB_NAME = 'EVETargetIntelDB';
 export const DB_VERSION = 2;
-export const VERSION = "0.8.11";
+export const VERSION = "0.9.0";
 
 export const PROGRESS_UPDATE_THROTTLE_MS = 50;
 export const TIMER_UPDATE_INTERVAL_MS = 100;
@@ -68,9 +68,17 @@ export const ESI_HEADERS = {
 export const ZKILL_CARD_ANIMATION_DURATION_MS = 300;
 export const ZKILL_CARD_BACKDROP_BLUR = '12px';
 export const ZKILL_DATA_CACHE_DURATION_MS = 30 * 60 * 1000;
-export const MAX_KILLMAILS_TO_FETCH = 100;
+export const MAX_KILLMAILS_TO_FETCH = 1000;
 export const KILLMAIL_BATCH_SIZE = 10;
-export const KILLMAIL_FETCH_DELAY_MS = 100;
+export const KILLMAIL_FETCH_DELAY_MS = 50;
+
+export const ZKILL_PAGINATION_CONFIG = {
+    MIN_KILLMAILS: 100,
+    TARGET_DAYS: 30,
+    MAX_PAGES: 20,
+    PAGE_FETCH_DELAY_MS: 500,
+    VERIFY_AFTER_PAGES: 5
+};
 
 export const ZKILL_CONFIG = {
     PROXY_BASE_URL: 'https://zkill2.zkillproxy.workers.dev/',

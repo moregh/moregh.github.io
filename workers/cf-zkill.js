@@ -40,23 +40,34 @@ export default {
       baseUrl = "https://zkillboard.com/api/kills/";
       const killsType = searchParams.get("kills");
       idValue = searchParams.get("id");
+      const pageParam = searchParams.get("page");
 
       if (!idValue || !isInteger(idValue)) {
         return jsonError("ID must be provided and be an integer", 400, false);
       }
 
+      if (pageParam && !isInteger(pageParam)) {
+        return jsonError("Page parameter must be an integer", 400, false);
+      }
+
+      const page = pageParam ? parseInt(pageParam, 10) : 1;
+
+      if (page < 1 || page > 100) {
+        return jsonError("Page parameter must be between 1 and 100", 400, false);
+      }
+
       if (killsType === "character") {
         idType = "character";
-        targetUrl = `${baseUrl}characterID/${idValue}/`;
-        cacheKey = `kills:character:${idValue}`;
+        targetUrl = `${baseUrl}characterID/${idValue}/page/${page}/`;
+        cacheKey = `kills:character:${idValue}:page:${page}`;
       } else if (killsType === "corporation") {
         idType = "corporation";
-        targetUrl = `${baseUrl}corporationID/${idValue}/`;
-        cacheKey = `kills:corporation:${idValue}`;
+        targetUrl = `${baseUrl}corporationID/${idValue}/page/${page}/`;
+        cacheKey = `kills:corporation:${idValue}:page:${page}`;
       } else if (killsType === "alliance") {
         idType = "alliance";
-        targetUrl = `${baseUrl}allianceID/${idValue}/`;
-        cacheKey = `kills:alliance:${idValue}`;
+        targetUrl = `${baseUrl}allianceID/${idValue}/page/${page}/`;
+        cacheKey = `kills:alliance:${idValue}:page:${page}`;
       } else {
         return jsonError("kills parameter must be 'character', 'corporation', or 'alliance'", 400, false);
       }

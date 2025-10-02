@@ -23,6 +23,57 @@ import { esiClient } from './esi-client.js';
 import { sanitizeCharacterName, sanitizeCorporationName, sanitizeAllianceName, sanitizeId, sanitizeAttribute, escapeHtml } from './xss-protection.js';
 import { getCachedUniverseName, setCachedUniverseName, getCachedAffiliation, setCachedAffiliation } from './database.js';
 
+const POCHVEN_SYSTEMS = [
+    'Skarkon', 'Archee', 'Kino', 'Konola', 'Krirald', 'Nalvula', 'Nani',
+    'Ala', 'Angymonne', 'Arvasaras', 'Harva', 'Ignebaener', 'Kuharah',
+    'Otanuomi', 'Otela', 'Senda', 'Vale', 'Wirashoda', 'Ahtila',
+    'Ichoriya', 'Kaunokka', 'Raravoss', 'Sakenta', 'Urhinichi'
+];
+
+const SecurityClassification = {
+    classify(security, systemName) {
+        if (security === undefined || security === null) {
+            return { cssClass: 'sec-unknown', label: 'Unknown', color: '#666' };
+        }
+
+        if (typeof security === 'string') {
+            security = parseFloat(security);
+            if (isNaN(security)) {
+                return { cssClass: 'sec-unknown', label: 'Unknown', color: '#666' };
+            }
+        }
+
+        if (systemName && POCHVEN_SYSTEMS.includes(systemName)) {
+            return { cssClass: 'sec-pochven', label: 'POCH', color: '#4A90E2' };
+        }
+        if (systemName && systemName[0] == 'J' && 
+                systemName.length == 7 && security < -0.99) {
+            return { cssClass: 'sec-wspace', label: 'WH', color: '#B10DC9' };    
+        }
+        if (systemName === 'Thera') {
+            return { cssClass: 'sec-wspace', label: 'WH', color: '#B10DC9' };    
+        }
+
+        const rounded = Math.round(security * 10) / 10;
+
+        if (rounded >= 0.5) {
+            return { cssClass: 'sec-high', label: rounded.toFixed(1), color: '#2ECC40' };
+        }
+        if (rounded >= 0.1) {
+            return { cssClass: 'sec-low', label: rounded.toFixed(1), color: '#FF851B' };
+        }
+        if (rounded >= 0.0) {
+            return { cssClass: 'sec-low', label: rounded.toFixed(1), color: '#FF851B' };
+        }
+        return { cssClass: 'sec-null', label: rounded.toFixed(1), color: '#FF4136' };
+        // if (rounded > -1.0) {
+        //     return { cssClass: 'sec-null', label: rounded.toFixed(1), color: '#FF4136' };
+        // }
+        // console.warn(`${systemName}: ${security} / ${rounded}`);
+        // return { cssClass: 'sec-unknown', label: 'Unknown', color: '#666' };
+    }
+};
+
 class ZKillStatsCard {
     constructor() {
         this.currentModal = null;
@@ -318,7 +369,7 @@ class ZKillStatsCard {
                 const entityName = link.dataset.entityName;
 
 
-                const currentEntityType = this.currentModal.querySelector('.zkill-entity-type').textContent;
+                const currentEntityType = this.currentModal.querySelector('.zkill-entity-type').dataset.entityType;
                 const currentEntityName = this.currentModal.querySelector('.zkill-entity-details h2').textContent.replace(' ⚔️', '');
                 const currentEntityId = this.getCurrentEntityId();
 
@@ -582,7 +633,7 @@ class ZKillStatsCard {
                          loading="eager">
                     <div class="zkill-entity-details">
                         <h2>${headerName} ${warStatusBadge}</h2>
-                        <div class="zkill-entity-type">${sanitizedType}<span class="zkill-member-count" id="zkill-header-member-count"></span></div>
+                        <div class="zkill-entity-type" data-entity-type="${entityType}">${sanitizedType}<span class="zkill-member-count" id="zkill-header-member-count"></span></div>
                     </div>
                     <!-- Affiliations now separate from entity-details -->
                     <div class="zkill-entity-affiliations" id="zkill-affiliations"></div>
@@ -670,7 +721,7 @@ class ZKillStatsCard {
     addToNavigationHistory() {
         if (!this.currentModal) return;
 
-        const currentEntityType = this.currentModal.querySelector('.zkill-entity-type').textContent;
+        const currentEntityType = this.currentModal.querySelector('.zkill-entity-type').dataset.entityType;
         const currentEntityName = this.currentModal.querySelector('.zkill-entity-details h2').textContent.replace(' ⚔️', '');
         const currentEntityId = this.getCurrentEntityId();
 
@@ -1013,15 +1064,7 @@ class ZKillStatsCard {
     }
 
     getSecurityClass(security, systemName) {
-        if (security === undefined || security === null) return 'sec-unknown';
-
-        if (security >= 0.5) return 'sec-high';
-        if (security > 0.0) return 'sec-low';
-        if (systemName && systemName[0] === 'J') return 'sec-wspace';
-        if (security > -1.0) return 'sec-null';
-        const pochvenSystems = ['Skarkon', 'Archee', 'Kino', 'Konola', 'Krirald', 'Nalvula', 'Nani', 'Ala', 'Angymonne', 'Arvasaras', 'Harva', 'Ignebaener', 'Kuharah', 'Otanuomi', 'Otela', 'Senda', 'Vale', 'Wirashoda', 'Ahtila', 'Ichoriya', 'Kaunokka', 'Raravoss', 'Sakenta', 'Skarkon', 'Urhinichi'];
-        if (pochvenSystems.includes(systemName)) return 'sec-pochven';
-        return 'sec-wspace';
+        return SecurityClassification.classify(security, systemName).cssClass;
     }
 
     async getShipName(shipTypeId) {
@@ -1904,38 +1947,13 @@ class ZKillStatsCard {
     }
 
     formatSecurity(security, systemName) {
-        if (security === null || security === undefined) {
-            return 'Unknown';
-        }
-
-        if (typeof security === 'string') {
-            const numSec = parseFloat(security);
-            if (isNaN(numSec)) {
-                return 'Unknown';
-            }
-            security = numSec;
-        }
-
-        if (security >= 0.5) {
-            return security.toFixed(1);
-        } else if (security > 0.0) {
-            return security.toFixed(1);
-        } else if (security > -0.99) {
-            return security.toFixed(1);
-        } else {
-            if (systemName && systemName[0] === 'J') {
-                return 'WH';
-            }
-            const pochvenSystems = ['Skarkon', 'Archee', 'Kino', 'Konola', 'Krirald', 'Nalvula', 'Nani', 'Ala', 'Angymonne', 'Arvasaras', 'Harva', 'Ignebaener', 'Kuharah', 'Otanuomi', 'Otela', 'Senda', 'Vale', 'Wirashoda', 'Ahtila', 'Ichoriya', 'Kaunokka', 'Raravoss', 'Sakenta', 'Skarkon', 'Urhinichi'];
-            if (pochvenSystems.includes(systemName)) {
-                return 'POCH';
-            }
-            return 'WH';
-        }
+        return SecurityClassification.classify(security, systemName).label;
     }
 }
 
 const zkillStatsCard = new ZKillStatsCard();
+
+export { SecurityClassification, POCHVEN_SYSTEMS };
 
 export function showCharacterStats(characterId, characterName) {
     return zkillStatsCard.showCharacterStats(characterId, characterName);

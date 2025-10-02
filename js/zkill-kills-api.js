@@ -6,6 +6,7 @@
 */
 
 import { getCachedKills, setCachedKills } from './database.js';
+import { ZKILL_PAGINATION_CONFIG } from './config.js';
 
 const ZKILL_CONFIG = {
     PROXY_BASE_URL: 'https://zkill2.zkillproxy.workers.dev/',
@@ -52,7 +53,7 @@ class ZKillKillsClient {
         }
     }
 
-    async executeRequest(entityType, entityId, retryCount = 0) {
+    async executeRequest(entityType, entityId, page = 1, retryCount = 0) {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), ZKILL_CONFIG.REQUEST_TIMEOUT_MS);
 
@@ -70,7 +71,7 @@ class ZKillKillsClient {
 
             const { nonce, ts, hash } = await this.computePoW(entityId);
 
-            const proxyUrl = `${ZKILL_CONFIG.PROXY_BASE_URL}?kills=${proxyParam}&id=${entityId}&nonce=${nonce}&ts=${ts}&hash=${hash}`;
+            const proxyUrl = `${ZKILL_CONFIG.PROXY_BASE_URL}?kills=${proxyParam}&id=${entityId}&page=${page}&nonce=${nonce}&ts=${ts}&hash=${hash}`;
 
             this.requestCount++;
 
@@ -121,14 +122,14 @@ class ZKillKillsClient {
                 console.warn(`Kills request failed, retrying in ${backoffDelay}ms (attempt ${retryCount + 1}/${ZKILL_CONFIG.MAX_RETRIES})`);
 
                 await new Promise(resolve => setTimeout(resolve, backoffDelay));
-                return this.executeRequest(entityType, entityId, retryCount + 1);
+                return this.executeRequest(entityType, entityId, page, retryCount + 1);
             }
 
             throw error;
         }
     }
 
-    async getEntityKills(entityType, entityId) {
+    async getEntityKills(entityType, entityId, onProgress = null) {
         if (!entityType || !['characterID', 'corporationID', 'allianceID'].includes(entityType)) {
             throw new ZKillKillsError('Invalid entity type. Must be characterID, corporationID, or allianceID', 400, entityType, entityId);
         }
@@ -146,11 +147,79 @@ class ZKillKillsClient {
         }
 
         try {
-            const kills = await this.executeRequest(entityType, entityId);
+            const allKills = [];
+            let currentPage = 1;
+            let shouldContinue = true;
+            let actualDailyRate = 14000;
+            const TARGET_DAYS = ZKILL_PAGINATION_CONFIG.TARGET_DAYS;
+            const MIN_KILLMAILS = ZKILL_PAGINATION_CONFIG.MIN_KILLMAILS;
+            const VERIFY_INTERVAL = ZKILL_PAGINATION_CONFIG.VERIFY_AFTER_PAGES || 5;
+            let lastVerifiedPage = 0;
 
-            await setCachedKills(entityTypeShort, entityId, kills);
+            while (shouldContinue && currentPage <= ZKILL_PAGINATION_CONFIG.MAX_PAGES) {
+                const pageKills = await this.executeRequest(entityType, entityId, currentPage);
 
-            return kills;
+                if (!pageKills || pageKills.length === 0) {
+                    break;
+                }
+
+                allKills.push(...pageKills);
+
+                const meetsMinKillmails = allKills.length >= MIN_KILLMAILS;
+
+                if (allKills.length > 0) {
+                    const newestKillmailId = allKills[0].killmail_id;
+                    const oldestKillmailId = allKills[allKills.length - 1].killmail_id;
+                    const killmailIdSpan = newestKillmailId - oldestKillmailId;
+                    const estimatedDays = killmailIdSpan / actualDailyRate;
+
+                    if (onProgress) {
+                        onProgress(currentPage, allKills.length, estimatedDays.toFixed(1), null);
+                    }
+
+                    const shouldVerify = meetsMinKillmails && estimatedDays >= TARGET_DAYS && (currentPage - lastVerifiedPage >= VERIFY_INTERVAL || estimatedDays >= TARGET_DAYS * 1.2);
+
+                    if (shouldVerify) {
+                        if (onProgress) {
+                            onProgress(currentPage, allKills.length, estimatedDays.toFixed(1), 'verifying');
+                        }
+
+                        const verified = await this.verifyTimespan(allKills, TARGET_DAYS);
+                        lastVerifiedPage = currentPage;
+
+                        if (verified.meetsRequirement) {
+                            if (onProgress) {
+                                onProgress(currentPage, allKills.length, verified.actualDays.toFixed(1), 'verified');
+                            }
+                            shouldContinue = false;
+                        } else if (verified.actualDays > 0) {
+                            actualDailyRate = killmailIdSpan / verified.actualDays;
+                            const daysNeeded = TARGET_DAYS - verified.actualDays;
+
+                            if (onProgress) {
+                                onProgress(currentPage, allKills.length, verified.actualDays.toFixed(1), `need ${daysNeeded.toFixed(1)} more days`);
+                            }
+
+                            currentPage++;
+                            await new Promise(resolve => setTimeout(resolve, ZKILL_PAGINATION_CONFIG.PAGE_FETCH_DELAY_MS));
+                        } else {
+                            currentPage++;
+                            await new Promise(resolve => setTimeout(resolve, ZKILL_PAGINATION_CONFIG.PAGE_FETCH_DELAY_MS));
+                        }
+                    } else if (currentPage >= ZKILL_PAGINATION_CONFIG.MAX_PAGES) {
+                        shouldContinue = false;
+                    } else {
+                        currentPage++;
+                        await new Promise(resolve => setTimeout(resolve, ZKILL_PAGINATION_CONFIG.PAGE_FETCH_DELAY_MS));
+                    }
+                } else {
+                    break;
+                }
+            }
+
+            await setCachedKills(entityTypeShort, entityId, allKills);
+
+            return allKills;
 
         } catch (error) {
             if (error instanceof ZKillKillsError) {
@@ -166,6 +235,52 @@ class ZKillKillsClient {
         }
     }
 
+    async verifyTimespan(kills, targetDays) {
+        if (!kills || kills.length === 0) {
+            return { meetsRequirement: false, actualDays: 0 };
+        }
+
+        try {
+            const { esiClient } = await import('./esi-client.js');
+
+            const oldestKill = kills[kills.length - 1];
+            const newestKill = kills[0];
+
+            const oldestHash = oldestKill.zkb?.hash;
+            const newestHash = newestKill.zkb?.hash;
+
+            if (!oldestHash || !newestHash) {
+                console.warn('Missing hash for verification, using estimation');
+                return { meetsRequirement: false, actualDays: 0 };
+            }
+
+            const [oldestKm, newestKm] = await Promise.all([
+                esiClient.get(`/killmails/${oldestKill.killmail_id}/${oldestHash}/`),
+                esiClient.get(`/killmails/${newestKill.killmail_id}/${newestHash}/`)
+            ]);
+
+            if (!oldestKm?.killmail_time || !newestKm?.killmail_time) {
+                console.warn('Missing killmail_time in ESI response');
+                return { meetsRequirement: false, actualDays: 0 };
+            }
+
+            const oldestTime = new Date(oldestKm.killmail_time).getTime();
+            const newestTime = new Date(newestKm.killmail_time).getTime();
+            const actualDays = (newestTime - oldestTime) / (1000 * 60 * 60 * 24);
+
+            return {
+                meetsRequirement: actualDays >= targetDays,
+                actualDays,
+                oldestTime: oldestKm.killmail_time,
+                newestTime: newestKm.killmail_time
+            };
+
+        } catch (error) {
+            console.error('Error verifying timespan:', error);
+            return { meetsRequirement: false, actualDays: 0 };
+        }
+    }
+
     getStats() {
         return {
             requests: this.requestCount
@@ -175,27 +290,27 @@ class ZKillKillsClient {
 
 const zkillKillsClient = new ZKillKillsClient();
 
-export async function get_zkill_character_kills(charId) {
+export async function get_zkill_character_kills(charId, onProgress = null) {
     try {
-        return await zkillKillsClient.getEntityKills('characterID', charId);
+        return await zkillKillsClient.getEntityKills('characterID', charId, onProgress);
     } catch (error) {
         console.error(`Failed to get character kills for ${charId}:`, error);
         return [];
     }
 }
 
-export async function get_zkill_corporation_kills(corpId) {
+export async function get_zkill_corporation_kills(corpId, onProgress = null) {
     try {
-        return await zkillKillsClient.getEntityKills('corporationID', corpId);
+        return await zkillKillsClient.getEntityKills('corporationID', corpId, onProgress);
     } catch (error) {
         console.error(`Failed to get corporation kills for ${corpId}:`, error);
         return [];
     }
 }
 
-export async function get_zkill_alliance_kills(allianceId) {
+export async function get_zkill_alliance_kills(allianceId, onProgress = null) {
     try {
-        return await zkillKillsClient.getEntityKills('allianceID', allianceId);
+        return await zkillKillsClient.getEntityKills('allianceID', allianceId, onProgress);
     } catch (error) {
         console.error(`Failed to get alliance kills for ${allianceId}:`, error);
         return [];

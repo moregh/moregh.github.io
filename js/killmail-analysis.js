@@ -62,8 +62,8 @@ function analyzeFleetSizes(killmails) {
         solo: sizes.filter(s => s === 1).length,
         small: sizes.filter(s => s >= 2 && s <= 5).length,
         medium: sizes.filter(s => s >= 6 && s <= 15).length,
-        large: sizes.filter(s => s >= 16 && s <= 50).length,
-        blob: sizes.filter(s => s > 50).length
+        large: sizes.filter(s => s >= 16 && s <= 30).length,
+        blob: sizes.filter(s => s > 30).length
     };
 
     return {
@@ -288,9 +288,9 @@ function analyzeHighValueTargets(killmails) {
     }
 
     const thresholds = {
-        high: 500000000,      // 500M ISK
-        veryHigh: 1000000000, // 1B ISK
-        extreme: 5000000000   // 5B ISK
+        high: 1000000000,     // 1B ISK
+        veryHigh: 5000000000, // 5B ISK
+        extreme: 10000000000  // 10B ISK
     };
 
     const hvtKills = {
@@ -313,12 +313,14 @@ function analyzeHighValueTargets(killmails) {
     const timeSpread = analyzeHVTTimeSpread(hvtKills.high);
 
     let confidence = 'low';
-    if (totalKills >= 50 && hvtCount >= 5) confidence = 'high';
-    else if (totalKills >= 20 && hvtCount >= 3) confidence = 'medium';
-    else if (hvtCount >= 3) confidence = 'low';
+    if (totalKills >= 150 && hvtCount >= 15) confidence = 'very high';
+    else if (totalKills >= 100 && hvtCount >= 10) confidence = 'high';
+    else if (totalKills >= 50 && hvtCount >= 5) confidence = 'medium';
+    else if (totalKills >= 20 && hvtCount >= 3) confidence = 'low';
     else confidence = 'insufficient';
 
-    const isHVTHunter = hvtCount >= 3 && hvtFrequency >= 0.15 && confidence !== 'insufficient';
+    const avgKillValue = calculateAverageValue(killmails);
+    const isHVTHunter = avgKillValue > 1000000000 && ((hvtCount >= 10 && hvtFrequency >= 0.08) || (hvtCount >= 5 && hvtFrequency >= 0.15));
 
     return {
         isHVTHunter,
@@ -395,8 +397,8 @@ function analyzeTargetPreferences(killmails) {
             ])
         ),
         preferredTargetSize: preferredSize ? preferredSize[0] : 'Mixed',
-        industrialHunter: industrialCount / totalVictims > 0.3,
-        capitalHunter: capitalCount / totalVictims > 0.15,
+        industrialHunter: industrialCount / totalVictims >= 0.2,
+        capitalHunter: capitalCount / totalVictims >= 0.2,
         industrialCount,
         capitalCount,
         totalVictims
@@ -559,11 +561,13 @@ function analyzeBlackOpsActivity(killmails, entityType = null, entityId = null) 
     const blopsFrequency = totalKills > 0 ? blopsKillCount / totalKills : 0;
 
     let confidence = 'insufficient';
-    if (totalKills >= 50 && blopsKillCount >= 5) confidence = 'high';
-    else if (totalKills >= 20 && blopsKillCount >= 3) confidence = 'medium';
-    else if (blopsKillCount >= 2) confidence = 'low';
+    if (totalKills >= 150 && blopsKillCount >= 10) confidence = 'very high';
+    else if (totalKills >= 100 && blopsKillCount >= 7) confidence = 'high';
+    else if (totalKills >= 50 && blopsKillCount >= 5) confidence = 'medium';
+    else if (totalKills >= 20 && blopsKillCount >= 3) confidence = 'low';
+    else if (blopsKillCount >= 2) confidence = 'minimal';
 
-    const isBlopsUser = blopsKillCount >= 3 && blopsFrequency >= 0.1;
+    const isBlopsUser = (blopsKillCount >= 8 && blopsFrequency >= 0.08) || (blopsKillCount >= 5 && blopsFrequency >= 0.15);
 
     const blopsFleetDetected = detectBlopsFleetActivity(killmails, BLACK_OPS_SHIP_IDS);
 
@@ -677,11 +681,13 @@ function analyzeCynoActivity(killmails, entityType = null, entityId = null) {
     const cynoFrequency = totalKills > 0 ? cynoKillCount / totalKills : 0;
 
     let confidence = 'insufficient';
-    if (totalKills >= 30 && cynoKillCount >= 5) confidence = 'high';
-    else if (totalKills >= 15 && cynoKillCount >= 3) confidence = 'medium';
-    else if (cynoKillCount >= 2) confidence = 'low';
+    if (totalKills >= 150 && cynoKillCount >= 12) confidence = 'very high';
+    else if (totalKills >= 100 && cynoKillCount >= 8) confidence = 'high';
+    else if (totalKills >= 50 && cynoKillCount >= 5) confidence = 'medium';
+    else if (totalKills >= 20 && cynoKillCount >= 3) confidence = 'low';
+    else if (cynoKillCount >= 2) confidence = 'minimal';
 
-    const isCynoPilot = cynoKillCount >= 3 && cynoFrequency >= 0.15;
+    const isCynoPilot = cynoFrequency >= 0.10;
 
     let cynoRole = 'Unknown';
     if (suspiciousCynoPatterns >= 2) {
