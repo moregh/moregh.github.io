@@ -268,7 +268,7 @@ class ZKillboardClient {
                 return emptyResult;
             }
 
-            const processedData = this.processStatsData(rawData, entityType, entityId);
+            const processedData = await this.processStatsData(rawData, entityType, entityId);
 
             this.cache.set(entityType, entityId, processedData);
 
@@ -373,7 +373,7 @@ class ZKillboardClient {
         return stats;
     }
 
-    processStatsData(rawData, entityType, entityId) {
+    async processStatsData(rawData, entityType, entityId) {
         const memberCount = this.safeGet(rawData, 'info.memberCount', null);
 
         const stats = {
@@ -390,7 +390,7 @@ class ZKillboardClient {
             gangRatio: this.calculateGangRatio(rawData),
             memberCount: memberCount,
             recentActivity: this.extractRecentActivity(rawData),
-            topLocations: this.extractTopLocations(rawData),
+            topLocations: await this.extractTopLocations(rawData),
             topShips: this.extractTopShips(rawData),
             topPlayers: this.extractTopPlayers(rawData),
             shipAnalysis: this.analyzeShipUsage(rawData),
@@ -515,7 +515,7 @@ class ZKillboardClient {
         };
     }
 
-    extractTopLocations(data) {
+    async extractTopLocations(data) {
         const topLists = data.topLists || [];
         const systemList = topLists.find(list => list.type === 'solarSystem' || list.type === 'system');
 
@@ -523,14 +523,41 @@ class ZKillboardClient {
             return [];
         }
 
-        return systemList.values.map(system => ({
-            systemId: system.solarSystemID || system.id,
-            systemName: system.solarSystemName || system.name || 'Unknown System',
-            kills: system.kills || 0,
-            securityStatus: system.solarSystemSecurity !== undefined
-                ? parseFloat(system.solarSystemSecurity)
-                : null
+        const { getCachedUniverseName, setCachedUniverseName } = await import('./database.js');
+        const { esiClient } = await import('./esi-client.js');
+
+        const locations = await Promise.all(systemList.values.map(async system => {
+            const systemId = system.solarSystemID || system.id;
+            const systemName = system.solarSystemName || system.name || 'Unknown System';
+            let securityStatus = null;
+
+            if (systemId) {
+                try {
+                    let cached = await getCachedUniverseName(systemId);
+
+                    if (cached && cached.security !== undefined && cached.security !== null) {
+                        securityStatus = cached.security;
+                    } else {
+                        const esiData = await esiClient.get(`/universe/systems/${systemId}/`);
+                        if (esiData && esiData.security_status !== undefined) {
+                            securityStatus = esiData.security_status;
+                            await setCachedUniverseName(systemId, esiData.name || systemName, esiData.security_status);
+                        }
+                    }
+                } catch (e) {
+                    console.error(`Error fetching security for system ${systemId}:`, e);
+                }
+            }
+
+            return {
+                systemId: systemId,
+                systemName: systemName,
+                kills: system.kills || 0,
+                securityStatus: securityStatus
+            };
         }));
+
+        return locations;
     }
 
     extractTopShips(data) {
@@ -1105,8 +1132,6 @@ class ZKillboardClient {
         const uniqueSystemIds = [...new Set(killmails.map(km => km.killmail?.solar_system_id).filter(id => id))];
         const systemInfoMap = new Map();
 
-        console.log(`Fetching system info for ${uniqueSystemIds.length} unique systems from ${killmails.length} killmails`);
-
         for (let i = 0; i < uniqueSystemIds.length; i += 20) {
             const batch = uniqueSystemIds.slice(i, i + 20);
             await Promise.all(batch.map(async (systemId) => {
@@ -1140,15 +1165,12 @@ class ZKillboardClient {
         let pochvenKills = 0;
         let wspaceKills = 0;
 
-        console.log(`Processing ${killmails.length} killmails for security classification`);
-
         killmails.forEach(km => {
             const systemId = km.killmail?.solar_system_id;
             if (!systemId) return;
 
             const systemInfo = systemInfoMap.get(systemId);
             if (!systemInfo || systemInfo.security === undefined || systemInfo.security === null) {
-                console.log(`Skipping killmail in system ${systemId} - no system info`);
                 return;
             }
 
@@ -1167,12 +1189,15 @@ class ZKillboardClient {
                 } else if (!systemName) {
                     wspaceKills += 1;
                 } else {
-                    pochvenKills += 1;
+                    const pochvenSystems = ['Skarkon', 'Archee', 'Kino', 'Konola', 'Krirald', 'Nalvula', 'Nani', 'Ala', 'Angymonne', 'Arvasaras', 'Harva', 'Ignebaener', 'Kuharah', 'Otanuomi', 'Otela', 'Senda', 'Vale', 'Wirashoda', 'Ahtila', 'Ichoriya', 'Kaunokka', 'Raravoss', 'Sakenta', 'Skarkon', 'Urhinichi'];
+                    if (pochvenSystems.includes(systemName)) {
+                        pochvenKills += 1;
+                    } else {
+                        wspaceKills += 1;
+                    }
                 }
             }
         });
-
-        console.log(`Security classification results: HS=${highsecKills}, LS=${lowsecKills}, NS=${nullsecKills}, Poch=${pochvenKills}, WH=${wspaceKills}`);
 
         let total = highsecKills + lowsecKills + nullsecKills + pochvenKills + wspaceKills;
 
@@ -1187,8 +1212,6 @@ class ZKillboardClient {
             { space: 'Pochven', kills: pochvenKills, percentage: Math.round((pochvenKills / total) * 100) },
             { space: 'W-Space', kills: wspaceKills, percentage: Math.round((wspaceKills / total) * 100) }
         ].filter(item => item.kills > 0).sort((a, b) => b.kills - a.kills);
-
-        console.log('Final breakdown:', breakdown);
 
         const primary = breakdown[0]?.space || 'Unknown';
         const riskProfile = this.calculateRiskProfile(fallbackData, breakdown, { rawKillmails: killmails });
@@ -1210,41 +1233,30 @@ class ZKillboardClient {
         const killsToAnalyze = killmailData?.allKills || killmailData?.recentKills;
 
         if (killmailData && killsToAnalyze && killsToAnalyze.length > 0) {
-            console.log('Analyzing security preference from killmail data:', killsToAnalyze);
             killsToAnalyze.forEach(kill => {
                 const sec = kill.systemSecurity;
                 const systemName = kill.systemName || '';
 
-                console.log(`Kill: sec=${sec}, systemName="${systemName}"`);
-
                 if (sec === undefined || sec === null) {
-                    console.log('  -> Skipping (no security)');
                     return;
                 }
 
                 if (sec >= 0.5) {
                     highsecKills += 1;
-                    console.log('  -> Highsec');
                 } else if (sec > 0.0) {
                     lowsecKills += 1;
-                    console.log('  -> Lowsec');
                 } else if (sec > -0.99) {
                     nullsecKills += 1;
-                    console.log('  -> Nullsec');
                 } else {
                     if (systemName && systemName[0] === 'J') {
                         wspaceKills += 1;
-                        console.log('  -> Wormhole');
                     } else if (!systemName) {
-                        console.log('  -> Unknown (no name, treating as WH)');
                         wspaceKills += 1;
                     } else {
                         pochvenKills += 1;
-                        console.log('  -> Pochven');
                     }
                 }
             });
-            console.log(`Results: HS=${highsecKills}, LS=${lowsecKills}, NS=${nullsecKills}, Poch=${pochvenKills}, WH=${wspaceKills}`);
         } else {
             const topLists = data.topLists || [];
             const systemList = topLists.find(list => list.type === 'solarSystem' || list.type === 'system');
@@ -1310,8 +1322,6 @@ class ZKillboardClient {
             { space: 'Pochven', kills: pochvenKills, percentage: Math.round((pochvenKills / total) * 100) },
             { space: 'W-Space', kills: wspaceKills, percentage: Math.round((wspaceKills / total) * 100) }
         ].filter(item => item.kills > 0).sort((a, b) => b.kills - a.kills);
-
-        console.log('Final breakdown:', breakdown);
 
         const primary = breakdown[0]?.space || 'Unknown';
 

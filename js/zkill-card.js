@@ -986,11 +986,13 @@ class ZKillStatsCard {
 
     getSecurityClass(security, systemName) {
         if (security === undefined || security === null) return 'sec-unknown';
-        if (security >= ZKILL_SECURITY_HIGH_THRESHOLD) return 'sec-high';
-        if (security > ZKILL_SECURITY_NULL_THRESHOLD) return 'sec-low';
-        if (security >= ZKILL_SECURITY_WSPACE_THRESHOLD) return 'sec-null';
+        if (security >= 0.5) return 'sec-high';
+        if (security > 0.0) return 'sec-low';
+        if (security > -0.99) return 'sec-null';
         if (systemName && systemName[0] === 'J') return 'sec-wspace';
-        return 'sec-pochven';
+        const pochvenSystems = ['Skarkon', 'Archee', 'Kino', 'Konola', 'Krirald', 'Nalvula', 'Nani', 'Ala', 'Angymonne', 'Arvasaras', 'Harva', 'Ignebaener', 'Kuharah', 'Otanuomi', 'Otela', 'Senda', 'Vale', 'Wirashoda', 'Ahtila', 'Ichoriya', 'Kaunokka', 'Raravoss', 'Sakenta', 'Skarkon', 'Urhinichi'];
+        if (pochvenSystems.includes(systemName)) return 'sec-pochven';
+        return 'sec-wspace';
     }
 
     async getShipName(shipTypeId) {
@@ -1885,17 +1887,21 @@ class ZKillStatsCard {
             security = numSec;
         }
 
-        if (security >= ZKILL_SECURITY_HIGH_THRESHOLD) {
+        if (security >= 0.5) {
             return security.toFixed(1);
-        } else if (security > ZKILL_SECURITY_NULL_THRESHOLD) {
+        } else if (security > 0.0) {
             return security.toFixed(1);
-        } else if (security === ZKILL_WORMHOLE_SECURITY) {
-            if (systemName && systemName[0] == 'J') {
-                return 'WH'
-            }
-            return 'POCH';
+        } else if (security > -0.99) {
+            return security.toFixed(1);
         } else {
-            return '0.0';
+            if (systemName && systemName[0] === 'J') {
+                return 'WH';
+            }
+            const pochvenSystems = ['Skarkon', 'Archee', 'Kino', 'Konola', 'Krirald', 'Nalvula', 'Nani', 'Ala', 'Angymonne', 'Arvasaras', 'Harva', 'Ignebaener', 'Kuharah', 'Otanuomi', 'Otela', 'Senda', 'Vale', 'Wirashoda', 'Ahtila', 'Ichoriya', 'Kaunokka', 'Raravoss', 'Sakenta', 'Skarkon', 'Urhinichi'];
+            if (pochvenSystems.includes(systemName)) {
+                return 'POCH';
+            }
+            return 'WH';
         }
     }
 }
