@@ -1176,12 +1176,13 @@ class ZKillboardClient {
 
             const sec = systemInfo.security;
             const systemName = systemInfo.name;
+            const roundedSec = Math.ceil(sec * 10) / 10;
 
-            if (sec >= 0.5) {
+            if (roundedSec >= 0.5) {
                 highsecKills += 1;
-            } else if (sec > 0.0) {
+            } else if (roundedSec > 0.0) {
                 lowsecKills += 1;
-            } else if (sec > -0.99) {
+            } else if (roundedSec > -1.0) {
                 nullsecKills += 1;
             } else {
                 if (systemName && systemName[0] === 'J') {
@@ -1241,11 +1242,13 @@ class ZKillboardClient {
                     return;
                 }
 
-                if (sec >= 0.5) {
+                const roundedSec = Math.ceil(sec * 10) / 10;
+
+                if (roundedSec >= 0.5) {
                     highsecKills += 1;
-                } else if (sec > 0.0) {
+                } else if (roundedSec > 0.0) {
                     lowsecKills += 1;
-                } else if (sec > -0.99) {
+                } else if (roundedSec > -1.0) {
                     nullsecKills += 1;
                 } else {
                     if (systemName && systemName[0] === 'J') {
@@ -1271,13 +1274,15 @@ class ZKillboardClient {
                         return;
                     }
 
-                    if (sec >= 0.5) {
+                    const roundedSec = Math.ceil(sec * 10) / 10;
+
+                    if (roundedSec >= 0.5) {
                         highsecKills += kills;
-                    } else if (sec > 0.0) {
+                    } else if (roundedSec > 0.0) {
                         lowsecKills += kills;
-                    } else if (sec > -1.0) {
+                    } else if (roundedSec > -1.0) {
                         nullsecKills += kills;
-                    } else if (sec <= -1.0) {
+                    } else {
                         if (systemName && systemName[0] === 'J') {
                             wspaceKills += kills;
                         } else {

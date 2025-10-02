@@ -1009,10 +1009,13 @@ class ZKillStatsCard {
 
     getSecurityClass(security, systemName) {
         if (security === undefined || security === null) return 'sec-unknown';
-        if (security >= 0.5) return 'sec-high';
-        if (security > 0.0) return 'sec-low';
-        if (security > -0.99) return 'sec-null';
+
+        const roundedSec = Math.ceil(security * 10) / 10;
+
+        if (roundedSec >= 0.5) return 'sec-high';
+        if (roundedSec > 0.0) return 'sec-low';
         if (systemName && systemName[0] === 'J') return 'sec-wspace';
+        if (roundedSec > -1.0) return 'sec-null';
         const pochvenSystems = ['Skarkon', 'Archee', 'Kino', 'Konola', 'Krirald', 'Nalvula', 'Nani', 'Ala', 'Angymonne', 'Arvasaras', 'Harva', 'Ignebaener', 'Kuharah', 'Otanuomi', 'Otela', 'Senda', 'Vale', 'Wirashoda', 'Ahtila', 'Ichoriya', 'Kaunokka', 'Raravoss', 'Sakenta', 'Skarkon', 'Urhinichi'];
         if (pochvenSystems.includes(systemName)) return 'sec-pochven';
         return 'sec-wspace';
