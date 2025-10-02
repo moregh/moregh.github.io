@@ -8,7 +8,11 @@
 import {
     CHARACTER_PORTRAIT_SIZE_PX, CORP_LOGO_SIZE_PX, ALLIANCE_LOGO_SIZE_PX, MOUSEOVER_CARD_AVATAR_SIZE_PX,
     MOUSEOVER_CARD_MAX_ITEMS, SCROLL_STATE_TIMEOUT_MS, SCROLL_THROTTLE_MS, ANIMATION_FRAME_THROTTLE_FPS,
-    POPUP_SHOW_DELAY, VIRTUAL_SCROLL_CONFIG, VIEW_DIMENSIONS
+    POPUP_SHOW_DELAY, VIRTUAL_SCROLL_CONFIG, VIEW_DIMENSIONS, PERFORMANCE_CONFIG,
+    MOUSEOVER_POSITION_TOP_MULTIPLIER, MOUSEOVER_POSITION_LEFT_MULTIPLIER, MOUSEOVER_HIDE_DELAY_MS,
+    IMAGE_OBSERVER_THRESHOLD, IMAGE_OBSERVER_ROOT_MARGIN, IMAGE_PLACEHOLDER_SIZE_PX,
+    ENTITY_MIN_WIDTH_PX, ENTITY_CARD_MIN_WIDTH_PX, CONTAINER_PADDING_PX, ENTITY_LOGO_SIZE_PX,
+    CLEANUP_ELEMENT_BATCH_SIZE, TOP_ITEMS_DISPLAY_LIMIT, BREAKDOWN_DISPLAY_LIMIT
 } from './config.js';
 import { ManagedObservers, setImageObserverEnabled } from './observers.js';
 import { sanitizeId, sanitizeAttribute } from './xss-protection.js';
@@ -50,7 +54,7 @@ class EventManager {
                 if (!mouseoverCard.matches(':hover')) {
                     mouseoverCard.classList.remove('visible');
                 }
-            }, 10);
+            }, MOUSEOVER_HIDE_DELAY_MS);
         }
     }
 
@@ -91,7 +95,7 @@ class EventManager {
                 if (!card.matches(':hover')) {
                     card.classList.remove('visible');
                 }
-            }, 10);
+            }, MOUSEOVER_HIDE_DELAY_MS);
         }
     }
 
@@ -100,8 +104,8 @@ class EventManager {
         const parentContainer = item.closest('.summary-column') || item.closest('.tab-content') || item.closest('.result-grid');
         const containerRect = parentContainer.getBoundingClientRect();
 
-        const relativeTop = itemRect.top - containerRect.top + (itemRect.height * 0.85);
-        const relativeLeft = itemRect.left - containerRect.left + (itemRect.width / 2);
+        const relativeTop = itemRect.top - containerRect.top + (itemRect.height * MOUSEOVER_POSITION_TOP_MULTIPLIER);
+        const relativeLeft = itemRect.left - containerRect.left + (itemRect.width * MOUSEOVER_POSITION_LEFT_MULTIPLIER);
 
         card.style.position = 'absolute';
         card.style.top = relativeTop + 'px';
@@ -122,7 +126,7 @@ class EventManager {
 const eventManager = new EventManager();
 
 class ElementPool {
-    constructor(createFn, resetFn, maxSize = 50) {
+    constructor(createFn, resetFn, maxSize = PERFORMANCE_CONFIG.MAX_ELEMENT_POOL_SIZE) {
         this.pool = [];
         this.createFn = createFn;
         this.resetFn = resetFn;
@@ -239,7 +243,7 @@ export function buildEntityMaps(results) {
 
 function createBaseCharacterElement() {
     const template = document.createElement('template');
-    const placeholder = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3C/svg%3E";
+    const placeholder = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='${IMAGE_PLACEHOLDER_SIZE_PX}' height='${IMAGE_PLACEHOLDER_SIZE_PX}'%3E%3C/svg%3E`;
 
     template.innerHTML = `
         <div class="result-item grid-view animate-ready" data-clickable="character" style="cursor: pointer;">
@@ -264,7 +268,7 @@ function createBaseCharacterElement() {
 
 function createBaseEntityCardElement() {
     const template = document.createElement('template');
-    const placeholder = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3C/svg%3E";
+    const placeholder = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='${ENTITY_LOGO_SIZE_PX}' height='${ENTITY_LOGO_SIZE_PX}'%3E%3C/svg%3E`;
 
     template.innerHTML = `
         <div class="result-item entity-card" data-clickable="" style="cursor: pointer;">
@@ -303,7 +307,7 @@ function resetCharacterElement(element) {
 
     const images = element.querySelectorAll('img');
     images.forEach(img => {
-        img.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3C/svg%3E";
+        img.src = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='${IMAGE_PLACEHOLDER_SIZE_PX}' height='${IMAGE_PLACEHOLDER_SIZE_PX}'%3E%3C/svg%3E`;
         img.dataset.src = "";
         img.alt = "";
     });
@@ -331,7 +335,7 @@ function resetEntityCardElement(element) {
 
     const logo = element.querySelector('.entity-logo');
     if (logo) {
-        logo.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3C/svg%3E";
+        logo.src = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='${ENTITY_LOGO_SIZE_PX}' height='${ENTITY_LOGO_SIZE_PX}'%3E%3C/svg%3E`;
         logo.dataset.src = "";
         logo.alt = "";
     }
@@ -381,7 +385,7 @@ function updateOrgSection(element, character, orgType) {
             const newOrgSection = document.createElement('div');
             newOrgSection.className = 'org-item';
             newOrgSection.innerHTML = `
-                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3C/svg%3E"
+                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='${IMAGE_PLACEHOLDER_SIZE_PX}' height='${IMAGE_PLACEHOLDER_SIZE_PX}'%3E%3C/svg%3E"
                      data-src="https://images.evetech.net/${orgType}s/${orgId}/logo?size=${logoSize}"
                      alt="${orgName}"
                      class="org-logo"
@@ -596,7 +600,7 @@ export function createCharacterItem(character, viewType = 'grid') {
             const newAllianceItem = document.createElement('div');
             newAllianceItem.className = 'org-item';
             newAllianceItem.innerHTML = `
-                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3C/svg%3E"
+                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='${IMAGE_PLACEHOLDER_SIZE_PX}' height='${IMAGE_PLACEHOLDER_SIZE_PX}'%3E%3C/svg%3E"
                      data-src="https://images.evetech.net/alliances/${allianceId}/logo?size=${ALLIANCE_LOGO_SIZE_PX}"
                      alt="${sanitizeAttribute(allianceName)}"
                      class="org-logo"
@@ -648,10 +652,10 @@ export function createEntityCard({ id, name, count, type, war_eligible, isDirect
     const allowedTypes = ['corporation', 'alliance'];
     const sanitizedType = allowedTypes.includes(type) ? type : 'corporation';
     const template = document.createElement('template');
-    const placeholder = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3C/svg%3E";
+    const placeholder = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='${ENTITY_LOGO_SIZE_PX}' height='${ENTITY_LOGO_SIZE_PX}'%3E%3C/svg%3E`;
     const warEligibleBadge = war_eligible ? '<span class="war-eligible-badge">WAR</span>' : '';
     const entityIcon = sanitizedType === 'alliance' ? '🏛️' : '🏢';
-    const logoSize = 64;
+    const logoSize = ENTITY_LOGO_SIZE_PX;
 
     template.innerHTML = `
         <div class="result-item entity-card ${sanitizedType}-card ${war_eligible ? 'war-eligible' : ''}"
@@ -752,7 +756,7 @@ export function setupEntityScrolling(containerId, items, type) {
     spacer.className = 'virtual-scroll-spacer';
     const content = document.createElement('div');
     content.className = 'virtual-scroll-content';
-    const minWidth = type === 'alliance' || type === 'corporation' ? '300px' : '252px';
+    const minWidth = type === 'alliance' || type === 'corporation' ? `${ENTITY_CARD_MIN_WIDTH_PX}px` : `${ENTITY_MIN_WIDTH_PX}px`;
 
     Object.assign(content.style, {
         position: 'absolute',
@@ -767,8 +771,8 @@ export function setupEntityScrolling(containerId, items, type) {
     
     const elements = items.map(item => createEntityCard(item));
     elements.forEach(element => content.appendChild(element));
-    const itemHeight = 150;
-    const itemsPerRow = Math.max(1, Math.floor((container.clientWidth - 60) / 300));
+    const itemHeight = VIEW_DIMENSIONS.grid.height;
+    const itemsPerRow = Math.max(1, Math.floor((container.clientWidth - CONTAINER_PADDING_PX) / ENTITY_CARD_MIN_WIDTH_PX));
     const totalRows = Math.ceil(elements.length / itemsPerRow);
     spacer.style.height = `${totalRows * itemHeight}px`;
     spacer.appendChild(content);
@@ -1103,7 +1107,7 @@ class VirtualScrollManager {
             }
         }
 
-        elementsToRemove.slice(0, Math.max(20, elementsToRemove.length / 4)).forEach(index => {
+        elementsToRemove.slice(0, Math.max(CLEANUP_ELEMENT_BATCH_SIZE, elementsToRemove.length / 4)).forEach(index => {
             const element = this.renderedElements.get(index);
             if (element) {
                 unobserveElement(element);

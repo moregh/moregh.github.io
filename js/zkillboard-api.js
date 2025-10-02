@@ -384,6 +384,7 @@ class ZKillboardClient {
             recentActivity: this.extractRecentActivity(rawData),
             topLocations: this.extractTopLocations(rawData),
             topShips: this.extractTopShips(rawData),
+            topPlayers: this.extractTopPlayers(rawData),
             shipAnalysis: this.analyzeShipUsage(rawData),
             combatStyle: this.analyzeCombatStyle(rawData),
             activityInsights: this.analyzeActivityInsights(rawData),
@@ -424,6 +425,7 @@ class ZKillboardClient {
             },
             topLocations: [],
             topShips: [],
+            topPlayers: [],
             shipAnalysis: null,
             combatStyle: null,
             activityInsights: null,
@@ -535,6 +537,21 @@ class ZKillboardClient {
         });
 
         return ships;
+    }
+
+    extractTopPlayers(data) {
+        const topLists = data.topLists || [];
+        const characterList = topLists.find(list => list.type === 'character');
+
+        if (!characterList || !characterList.values) {
+            return [];
+        }
+
+        return characterList.values.slice(0, 10).map(player => ({
+            characterId: player.characterID || player.id,
+            characterName: player.characterName || player.name || 'Unknown',
+            kills: player.kills || 0
+        }));
     }
 
     classifyShip(ship) {

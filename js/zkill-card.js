@@ -6,7 +6,18 @@
 */
 
 import { get_zkill_character_stats, get_zkill_corporation_stats, get_zkill_alliance_stats } from './zkillboard-api.js';
-import { CHARACTER_PORTRAIT_SIZE_PX, CORP_LOGO_SIZE_PX, ALLIANCE_LOGO_SIZE_PX, ZKILL_CARD_ANIMATION_DURATION_MS } from './config.js';
+import {
+    CHARACTER_PORTRAIT_SIZE_PX, CORP_LOGO_SIZE_PX, ALLIANCE_LOGO_SIZE_PX, ZKILL_CARD_ANIMATION_DURATION_MS,
+    ZKILL_TIMER_UPDATE_INTERVAL_MS, ZKILL_PROGRESS_CONNECTING, ZKILL_PROGRESS_ESI_BASE, ZKILL_PROGRESS_AFFILIATIONS,
+    ZKILL_PROGRESS_PROCESSING, ZKILL_RECENT_KILLS_LIMIT, ZKILL_NAVIGATION_CLOSE_DELAY_MS, ZKILL_NAVIGATION_HISTORY_LIMIT,
+    ZKILL_EFFICIENCY_THRESHOLD_HIGH, ZKILL_EFFICIENCY_THRESHOLD_MEDIUM, ZKILL_GANG_RATIO_THRESHOLD_HIGH,
+    ZKILL_GANG_RATIO_THRESHOLD_LOW, ZKILL_WORMHOLE_SECURITY, ZKILL_SECURITY_HIGH_THRESHOLD,
+    ZKILL_SECURITY_NULL_THRESHOLD, ZKILL_SECURITY_WSPACE_THRESHOLD, IMAGE_PLACEHOLDER_SIZE_PX,
+    CHART_WIDTH_PX, CHART_HEIGHT_PX, CHART_MARGIN_TOP_PX, CHART_MARGIN_RIGHT_PX, CHART_MARGIN_BOTTOM_PX,
+    CHART_MARGIN_LEFT_PX, CHART_BAR_SPACING_PX, CHART_STEPS, CHART_LABEL_INTERVAL_DIVISOR,
+    CHART_COLOR_THRESHOLD_HIGH, CHART_COLOR_THRESHOLD_MEDIUM, TOP_ITEMS_DISPLAY_LIMIT,
+    BREAKDOWN_DISPLAY_LIMIT
+} from './config.js';
 import { getEntityMaps } from './rendering.js';
 import { esiClient } from './esi-client.js';
 import { sanitizeCharacterName, sanitizeCorporationName, sanitizeAllianceName, sanitizeId, sanitizeAttribute, escapeHtml } from './xss-protection.js';
@@ -93,7 +104,7 @@ class ZKillStatsCard {
             if (timerEl) {
                 timerEl.textContent = `Elapsed: ${elapsed}s`;
             }
-        }, 100);
+        }, ZKILL_TIMER_UPDATE_INTERVAL_MS);
 
         try {
             this.updateLoadingProgress('Connecting to zKillboard...', 0, '');
@@ -103,14 +114,14 @@ class ZKillStatsCard {
                 let detail = '';
 
                 if (source === 'zkill') {
-                    percentage = 10;
+                    percentage = ZKILL_PROGRESS_CONNECTING;
                     detail = message;
                 } else if (source === 'esi') {
                     if (total > 0) {
-                        percentage = 10 + (current / total) * 60;
+                        percentage = ZKILL_PROGRESS_CONNECTING + (current / total) * ZKILL_PROGRESS_ESI_BASE;
                         detail = `${current}/${total} killmails`;
                     } else {
-                        percentage = 10;
+                        percentage = ZKILL_PROGRESS_CONNECTING;
                         detail = message;
                     }
                 }
@@ -122,7 +133,7 @@ class ZKillStatsCard {
 
             const [stats, affiliationData] = await Promise.all([statsPromise, affiliationPromise]);
 
-            this.updateLoadingProgress('Loading affiliations...', 75, '');
+            this.updateLoadingProgress('Loading affiliations...', ZKILL_PROGRESS_AFFILIATIONS, '');
 
             let corporationName = null;
             let allianceName = null;
@@ -136,7 +147,7 @@ class ZKillStatsCard {
                 allianceName = names.allianceName;
             }
 
-            this.updateLoadingProgress('Processing data...', 90, '');
+            this.updateLoadingProgress('Processing data...', ZKILL_PROGRESS_PROCESSING, '');
 
             clearInterval(timerInterval);
 
@@ -234,14 +245,14 @@ class ZKillStatsCard {
         if (corporationId && corporationName) {
             affiliationsHTML += `
             <div class="zkill-affiliation-item">
-                <img src="https://images.evetech.net/corporations/${corporationId}/logo?size=32" 
-                     alt="${corporationName}" 
+                <img src="https://images.evetech.net/corporations/${corporationId}/logo?size=${IMAGE_PLACEHOLDER_SIZE_PX}"
+                     alt="${corporationName}"
                      class="zkill-affiliation-logo"
                      loading="lazy">
                 <div class="zkill-affiliation-info">
                     <div class="zkill-affiliation-label">Corporation</div>
-                    <div class="zkill-affiliation-link" 
-                        data-entity-type="corporation" 
+                    <div class="zkill-affiliation-link"
+                        data-entity-type="corporation"
                         data-entity-id="${corporationId}"
                         data-entity-name="${sanitizeAttribute(corporationName)}"
                         style="cursor: pointer;">${sanitizeCorporationName(corporationName)}
@@ -254,14 +265,14 @@ class ZKillStatsCard {
         if (allianceId && allianceName) {
             affiliationsHTML += `
             <div class="zkill-affiliation-item">
-                <img src="https://images.evetech.net/alliances/${allianceId}/logo?size=32" 
-                     alt="${allianceName}" 
+                <img src="https://images.evetech.net/alliances/${allianceId}/logo?size=${IMAGE_PLACEHOLDER_SIZE_PX}"
+                     alt="${allianceName}"
                      class="zkill-affiliation-logo"
                      loading="lazy">
                 <div class="zkill-affiliation-info">
                     <div class="zkill-affiliation-label">Alliance</div>
-                    <div class="zkill-affiliation-link" 
-                                data-entity-type="alliance" 
+                    <div class="zkill-affiliation-link"
+                                data-entity-type="alliance"
                                 data-entity-id="${allianceId}"
                                 data-entity-name="${sanitizeAttribute(allianceName)}"
                                 style="cursor: pointer;">${sanitizeAllianceName(allianceName)}
@@ -296,7 +307,7 @@ class ZKillStatsCard {
                 });
 
 
-                if (this.navigationHistory.length > 2) {
+                if (this.navigationHistory.length > ZKILL_NAVIGATION_HISTORY_LIMIT - 1) {
                     this.navigationHistory.shift();
                 }
 
@@ -308,7 +319,7 @@ class ZKillStatsCard {
                     } else if (entityType === 'alliance') {
                         this.showAllianceStats(entityId, entityName);
                     }
-                }, 350);
+                }, ZKILL_NAVIGATION_CLOSE_DELAY_MS);
             });
         });
     }
@@ -318,12 +329,12 @@ class ZKillStatsCard {
             return ``;
         }
 
-        const width = 320;
-        const height = 180;
-        const margin = { top: 20, right: 10, bottom: 40, left: 50 };
+        const width = CHART_WIDTH_PX;
+        const height = CHART_HEIGHT_PX;
+        const margin = { top: CHART_MARGIN_TOP_PX, right: CHART_MARGIN_RIGHT_PX, bottom: CHART_MARGIN_BOTTOM_PX, left: CHART_MARGIN_LEFT_PX };
         const chartWidth = width - margin.left - margin.right;
         const chartHeight = height - margin.top - margin.bottom;
-        const barSpacing = 2;
+        const barSpacing = CHART_BAR_SPACING_PX;
         const barWidth = Math.max(1, (chartWidth - (data.length - 1) * barSpacing) / data.length);
 
         const bars = data.map((item, index) => {
@@ -332,9 +343,9 @@ class ZKillStatsCard {
             const y = margin.top + chartHeight - barHeight;
 
             let fillColor = 'rgba(0, 212, 255, 0.3)';
-            if (item.value > maxValue * 0.7) {
+            if (item.value > maxValue * CHART_COLOR_THRESHOLD_HIGH) {
                 fillColor = 'rgba(248, 113, 113, 0.8)';
-            } else if (item.value > maxValue * 0.4) {
+            } else if (item.value > maxValue * CHART_COLOR_THRESHOLD_MEDIUM) {
                 fillColor = 'rgba(251, 191, 36, 0.8)';
             } else if (item.value > 0) {
                 fillColor = 'rgba(74, 222, 128, 0.8)';
@@ -350,7 +361,7 @@ class ZKillStatsCard {
         }).join('');
 
 
-        const labelInterval = Math.ceil(data.length / 8);
+        const labelInterval = Math.ceil(data.length / CHART_LABEL_INTERVAL_DIVISOR);
         const labels = data.map((item, index) => {
             if (index % labelInterval === 0 || index === data.length - 1) {
                 const x = margin.left + index * (barWidth + barSpacing) + barWidth / 2;
@@ -367,7 +378,7 @@ class ZKillStatsCard {
 
 
         const yAxisLabels = [];
-        const steps = 4;
+        const steps = CHART_STEPS;
         for (let i = 0; i <= steps; i++) {
             const value = Math.round((maxValue * i) / steps);
             const y = margin.top + chartHeight - (i / steps) * chartHeight;
@@ -539,7 +550,7 @@ class ZKillStatsCard {
 
                     setTimeout(() => {
                         this.showCharacterStats(characterId, characterName);
-                    }, 350);
+                    }, ZKILL_NAVIGATION_CLOSE_DELAY_MS);
 
                 } else if (action === 'show-corporation') {
                     const corporationId = memberItem.dataset.corporationId;
@@ -549,7 +560,7 @@ class ZKillStatsCard {
 
                     setTimeout(() => {
                         this.showCorporationStats(corporationId, corporationName);
-                    }, 350);
+                    }, ZKILL_NAVIGATION_CLOSE_DELAY_MS);
                 }
             }
         });
@@ -572,7 +583,7 @@ class ZKillStatsCard {
                 apiType: currentEntityType + 'ID'
             });
 
-            if (this.navigationHistory.length > 3) {
+            if (this.navigationHistory.length > ZKILL_NAVIGATION_HISTORY_LIMIT) {
                 this.navigationHistory.shift();
             }
         }
@@ -585,7 +596,7 @@ class ZKillStatsCard {
 
             setTimeout(() => {
                 this.showStatsWithoutHistory(previous.entityType, previous.entityId, previous.entityName, previous.apiType);
-            }, 350);
+            }, ZKILL_NAVIGATION_CLOSE_DELAY_MS);
         }
     }
 
@@ -722,7 +733,7 @@ class ZKillStatsCard {
                      data-click-action="${config.action}"
                      data-${config.idKey}="${id}"
                      data-${config.nameKey}="${sanitizeAttribute(name)}">
-                    <img src="https://images.evetech.net/${config.imgType}/${sanitizeId(id)}/${config.imgPath}?size=32"
+                    <img src="https://images.evetech.net/${config.imgType}/${sanitizeId(id)}/${config.imgPath}?size=${IMAGE_PLACEHOLDER_SIZE_PX}"
                          alt="${sanitizeAttribute(name)}"
                          class="zkill-member-avatar"
                          loading="lazy">
@@ -760,13 +771,13 @@ class ZKillStatsCard {
 
         return `
         ${this.createMembersDropdownHTML(entityType, entityId)}
+        ${this.createPlaystyleTagsHTML(stats.combatStyle)}
+        ${this.createThreatAssessmentHTML(stats.securityPreference, stats.combatStyle, stats.activityInsights, stats.shipAnalysis)}
         ${this.createTacticalOverviewHTML(stats)}
-        ${this.createThreatAssessmentHTML(stats.securityPreference, stats.combatStyle, stats.activityInsights)}
+        ${this.createTop10CombinedHTML(stats.topShips, stats.topPlayers, stats.topLocations, entityType)}
         ${this.createKillmailInsightsHTML(stats.killmailData)}
-        ${this.createShipPreferencesHTML(stats.shipAnalysis, stats.topLocations)}
         ${this.createActivityPatternsHTML(stats.activityInsights, stats.recentActivity.activePvPData, stats.activityData)}
         ${this.createDetailedStatsHTML(stats)}
-        ${this.createTopShipsHTML(stats.topShips)}
         ${recentKillsHTML}
         <div style="text-align: center; padding: 1rem; border-top: 1px solid rgba(255, 255, 255, 0.1); margin-top: 1rem;">
             <a href="https://zkillboard.com/${entityType}/${entityId}/"
@@ -826,7 +837,7 @@ class ZKillStatsCard {
             return '';
         }
 
-        const killsWithNames = await Promise.all(killmailData.recentKills.slice(0, 5).map(async kill => {
+        const killsWithNames = await Promise.all(killmailData.recentKills.slice(0, ZKILL_RECENT_KILLS_LIMIT).map(async kill => {
             const [shipName, systemData] = await Promise.all([
                 this.getShipName(kill.victimShipTypeId),
                 this.getSystemName(kill.systemId)
@@ -853,7 +864,7 @@ class ZKillStatsCard {
             return `
                 <div class="zkill-kill-item">
                     <div class="zkill-kill-ship">
-                        <img src="https://images.evetech.net/types/${kill.victimShipTypeId}/icon?size=32"
+                        <img src="https://images.evetech.net/types/${kill.victimShipTypeId}/icon?size=${IMAGE_PLACEHOLDER_SIZE_PX}"
                              alt="${kill.shipName}"
                              class="zkill-kill-icon"
                              loading="lazy">
@@ -891,9 +902,9 @@ class ZKillStatsCard {
 
     getSecurityClass(security) {
         if (security === undefined || security === null) return 'sec-unknown';
-        if (security >= 0.5) return 'sec-high';
-        if (security > 0.0) return 'sec-low';
-        if (security >= -0.99) return 'sec-null';
+        if (security >= ZKILL_SECURITY_HIGH_THRESHOLD) return 'sec-high';
+        if (security > ZKILL_SECURITY_NULL_THRESHOLD) return 'sec-low';
+        if (security >= ZKILL_SECURITY_WSPACE_THRESHOLD) return 'sec-null';
         return 'sec-wspace';
     }
 
@@ -1001,7 +1012,7 @@ class ZKillStatsCard {
         const shipsHTML = ships.map(ship => `
         <div class="zkill-ship-card">
             <div class="zkill-ship-info">
-                <img src="https://images.evetech.net/types/${sanitizeId(ship.shipTypeID)}/icon?size=32"
+                <img src="https://images.evetech.net/types/${sanitizeId(ship.shipTypeID)}/icon?size=${IMAGE_PLACEHOLDER_SIZE_PX}"
                      alt="${sanitizeAttribute(ship.shipName)}"
                      class="zkill-ship-icon"
                      loading="lazy">
@@ -1038,20 +1049,77 @@ class ZKillStatsCard {
             return '';
         }
 
-        const locationsHTML = locations.map(location => `
-        <div class="zkill-location-card">
-            <div class="zkill-location-name">
-                <a href="https://zkillboard.com/system/${sanitizeId(location.systemId)}/" 
-                target="_blank"
-                style="color: var(--primary-color); text-decoration: none; font-weight: 600;">
-                    ${escapeHtml(location.systemName)}
-                </a>
-            </div>
-            <div class="zkill-location-bottom">
-                <div class="zkill-location-security ${this.getSecurityClass(location.securityStatus)}">
-                    ${this.formatSecurity(location.securityStatus, location.systemName)}
+        const displayCount = Math.min(locations.length, 15);
+        const topLocations = locations.slice(0, displayCount);
+
+        const locationsHTML = topLocations.map(location => {
+            const secClass = this.getSecurityClass(location.securityStatus);
+            const secFormatted = this.formatSecurity(location.securityStatus, location.systemName);
+
+            return `
+            <div class="zkill-location-detail-card">
+                <div class="zkill-location-header">
+                    <div class="zkill-location-system-info">
+                        <a href="https://zkillboard.com/system/${sanitizeId(location.systemId)}/"
+                           target="_blank"
+                           class="zkill-location-system-name">
+                            ${escapeHtml(location.systemName)}
+                        </a>
+                        <div class="zkill-location-sec-badge ${secClass}">
+                            ${secFormatted}
+                        </div>
+                    </div>
+                    <div class="zkill-location-kills-count">
+                        ${location.kills} kills
+                    </div>
                 </div>
-                <div class="zkill-location-kills">${location.kills} kills</div>
+            </div>
+        `;
+        }).join('');
+
+        const totalKills = topLocations.reduce((sum, loc) => sum + loc.kills, 0);
+        const avgKillsPerSystem = Math.round(totalKills / topLocations.length);
+
+        return `
+        <div class="zkill-section">
+            <h3 class="zkill-section-title">
+                <span class="zkill-section-icon">🌍</span>
+                Top Operating Locations
+            </h3>
+            <div class="zkill-location-summary">
+                <div class="zkill-location-stat">
+                    <span class="zkill-location-stat-label">Top ${displayCount} Systems</span>
+                    <span class="zkill-location-stat-value">${this.formatNumber(totalKills)} kills</span>
+                </div>
+                <div class="zkill-location-stat">
+                    <span class="zkill-location-stat-label">Average per System</span>
+                    <span class="zkill-location-stat-value">${avgKillsPerSystem} kills</span>
+                </div>
+            </div>
+            <div class="zkill-locations-detail-list">
+                ${locationsHTML}
+            </div>
+        </div>
+    `;
+    }
+
+    createTopPlayersHTML(topPlayers, entityType) {
+        if (!topPlayers || topPlayers.length === 0 || entityType === 'character') {
+            return '';
+        }
+
+        const playersHTML = topPlayers.map(player => `
+        <div class="zkill-player-card"
+             data-click-action="show-character"
+             data-character-id="${sanitizeId(player.characterId)}"
+             data-character-name="${sanitizeAttribute(player.characterName)}">
+            <img src="https://images.evetech.net/characters/${sanitizeId(player.characterId)}/portrait?size=${IMAGE_PLACEHOLDER_SIZE_PX}"
+                 alt="${sanitizeAttribute(player.characterName)}"
+                 class="zkill-player-portrait"
+                 loading="lazy">
+            <div class="zkill-player-info">
+                <div class="zkill-player-name">${sanitizeCharacterName(player.characterName)}</div>
+                <div class="zkill-player-kills">${player.kills} kills</div>
             </div>
         </div>
     `).join('');
@@ -1059,11 +1127,11 @@ class ZKillStatsCard {
         return `
         <div class="zkill-section">
             <h3 class="zkill-section-title">
-                <span class="zkill-section-icon">🌍</span>
-                Top PVP Locations
+                <span class="zkill-section-icon">👤</span>
+                Top Players
             </h3>
-            <div class="zkill-locations-grid">
-                ${locationsHTML}
+            <div class="zkill-players-grid">
+                ${playersHTML}
             </div>
         </div>
     `;
@@ -1074,7 +1142,7 @@ class ZKillStatsCard {
         <div class="zkill-section zkill-tactical-overview">
             <h3 class="zkill-section-title">
                 <span class="zkill-section-icon">🎯</span>
-                Tactical Overview
+                PVP Summary
             </h3>
             <div class="zkill-tactical-grid">
                 <div class="zkill-tactical-stat ${stats.dangerRatio > 2 ? 'dangerous' : stats.dangerRatio > 1 ? 'moderate' : 'safe'}">
@@ -1082,12 +1150,12 @@ class ZKillStatsCard {
                     <div class="zkill-tactical-value">${this.formatDangerRatio(stats.dangerRatio)}</div>
                     <div class="zkill-tactical-label">K/D Ratio</div>
                 </div>
-                <div class="zkill-tactical-stat ${stats.efficiency > 80 ? 'high' : stats.efficiency > 50 ? 'moderate' : 'low'}">
+                <div class="zkill-tactical-stat ${stats.efficiency > ZKILL_EFFICIENCY_THRESHOLD_HIGH ? 'high' : stats.efficiency > ZKILL_EFFICIENCY_THRESHOLD_MEDIUM ? 'moderate' : 'low'}">
                     <div class="zkill-tactical-icon">💰</div>
                     <div class="zkill-tactical-value">${stats.efficiency.toFixed(0)}%</div>
                     <div class="zkill-tactical-label">ISK Efficiency</div>
                 </div>
-                <div class="zkill-tactical-stat ${stats.gangRatio > 70 ? 'fleet' : stats.gangRatio < 30 ? 'solo' : 'mixed'}">
+                <div class="zkill-tactical-stat ${stats.gangRatio > ZKILL_GANG_RATIO_THRESHOLD_HIGH ? 'fleet' : stats.gangRatio < ZKILL_GANG_RATIO_THRESHOLD_LOW ? 'solo' : 'mixed'}">
                     <div class="zkill-tactical-icon">👥</div>
                     <div class="zkill-tactical-value">${stats.gangRatio}%</div>
                     <div class="zkill-tactical-label">Gang Activity</div>
@@ -1102,11 +1170,136 @@ class ZKillStatsCard {
         `;
     }
 
-    createThreatAssessmentHTML(securityPreference, combatStyle, activityInsights) {
+    createTop10CombinedHTML(topShips, topPlayers, topLocations, entityType) {
+        const hasShips = topShips && topShips.length > 0;
+        const hasPlayers = topPlayers && topPlayers.length > 0 && entityType !== 'character';
+        const hasLocations = topLocations && topLocations.length > 0;
+
+        if (!hasShips && !hasPlayers && !hasLocations) {
+            return '';
+        }
+
+        const shipsHTML = hasShips ? topShips.slice(0, 10).map(ship => `
+            <div class="zkill-top10-item">
+                <img src="https://images.evetech.net/types/${sanitizeId(ship.shipTypeID)}/icon?size=${IMAGE_PLACEHOLDER_SIZE_PX}"
+                     alt="${sanitizeAttribute(ship.shipName)}"
+                     class="zkill-top10-icon"
+                     loading="lazy">
+                <div class="zkill-top10-info">
+                    <div class="zkill-top10-name">${escapeHtml(ship.shipName)}</div>
+                    <div class="zkill-top10-value">${ship.kills} kills</div>
+                </div>
+            </div>
+        `).join('') : '<div class="zkill-top10-empty">No ship data</div>';
+
+        const playersHTML = hasPlayers ? topPlayers.slice(0, 10).map(player => `
+            <div class="zkill-top10-item"
+                 data-click-action="show-character"
+                 data-character-id="${sanitizeId(player.characterId)}"
+                 data-character-name="${sanitizeAttribute(player.characterName)}">
+                <img src="https://images.evetech.net/characters/${sanitizeId(player.characterId)}/portrait?size=${IMAGE_PLACEHOLDER_SIZE_PX}"
+                     alt="${sanitizeAttribute(player.characterName)}"
+                     class="zkill-top10-portrait"
+                     loading="lazy">
+                <div class="zkill-top10-info">
+                    <div class="zkill-top10-name">${sanitizeCharacterName(player.characterName)}</div>
+                    <div class="zkill-top10-value">${player.kills} kills</div>
+                </div>
+            </div>
+        `).join('') : (entityType === 'character' ? '' : '<div class="zkill-top10-empty">No player data</div>');
+
+        const locationsHTML = hasLocations ? topLocations.slice(0, 10).map(location => {
+            const secClass = this.getSecurityClass(location.securityStatus);
+            const secFormatted = this.formatSecurity(location.securityStatus, location.systemName);
+            return `
+            <div class="zkill-top10-item">
+                <div class="zkill-top10-sec-badge ${secClass}">${secFormatted}</div>
+                <div class="zkill-top10-info">
+                    <div class="zkill-top10-name">
+                        <a href="https://zkillboard.com/system/${sanitizeId(location.systemId)}/"
+                           target="_blank"
+                           class="zkill-top10-link">
+                            ${escapeHtml(location.systemName)}
+                        </a>
+                    </div>
+                    <div class="zkill-top10-value">${location.kills} kills</div>
+                </div>
+            </div>
+        `;
+        }).join('') : '<div class="zkill-top10-empty">No location data</div>';
+
+        return `
+        <div class="zkill-top10-section">
+            <div class="zkill-top10-grid">
+                <div class="zkill-top10-column">
+                    <h4 class="zkill-top10-column-title">
+                        <span class="zkill-top10-column-icon">🌍</span>
+                        Systems
+                    </h4>
+                    <div class="zkill-top10-list">
+                        ${locationsHTML}
+                    </div>
+                </div>
+                ${entityType !== 'character' ? `
+                <div class="zkill-top10-column">
+                    <h4 class="zkill-top10-column-title">
+                        <span class="zkill-top10-column-icon">👤</span>
+                        Players
+                    </h4>
+                    <div class="zkill-top10-list">
+                        ${playersHTML}
+                    </div>
+                </div>
+                ` : ''}
+                <div class="zkill-top10-column">
+                    <h4 class="zkill-top10-column-title">
+                        <span class="zkill-top10-column-icon">🚀</span>
+                        Ships
+                    </h4>
+                    <div class="zkill-top10-list">
+                        ${shipsHTML}
+                    </div>
+                </div>
+            </div>
+        </div>
+        `;
+    }
+
+    createPlaystyleTagsHTML(combatStyle) {
+        if (!combatStyle || !combatStyle.playstyleDetails || combatStyle.playstyleDetails.length === 0) {
+            return '';
+        }
+
+        const tags = combatStyle.playstyleDetails;
+
+        return `
+        <div class="zkill-section zkill-playstyle-tags">
+            <div class="zkill-tags-container">
+                ${tags.map(tag => `<span class="zkill-tag zkill-tag-${tag.toLowerCase().replace(/[\/\s]/g, '-')}">${tag}</span>`).join('')}
+            </div>
+        </div>
+        `;
+    }
+
+    createThreatAssessmentHTML(securityPreference, combatStyle, activityInsights, shipAnalysis) {
         if (!securityPreference || !combatStyle) return '';
 
         const riskLevel = securityPreference.riskProfile === 'High Risk' ? 'high' :
             securityPreference.riskProfile === 'Risk Averse' ? 'low' : 'moderate';
+
+        const sizeHTML = shipAnalysis?.sizeBreakdown ? shipAnalysis.sizeBreakdown.slice(0, BREAKDOWN_DISPLAY_LIMIT).map(item => `
+            <div class="zkill-pref-item">
+                <div class="zkill-pref-bar">
+                    <div class="zkill-pref-fill size-${item.category.toLowerCase()}" style="width: ${item.percentage}%"></div>
+                </div>
+                <div class="zkill-pref-info">
+                    <span class="zkill-pref-category">${item.category}</span>
+                    <span class="zkill-pref-percent">${item.percentage}%</span>
+                </div>
+            </div>
+        `).join('') : '';
+
+        const specialization = shipAnalysis?.specialization;
 
         return `
         <div class="zkill-section zkill-threat-assessment">
@@ -1131,100 +1324,25 @@ class ZKillStatsCard {
                         <span class="zkill-threat-label">Playstyle:</span>
                         <span class="zkill-threat-value">${combatStyle.fleetRole}</span>
                     </div>
-                    ${combatStyle.playstyleDetails && combatStyle.playstyleDetails.length > 0 ? `
-                    <div class="zkill-threat-item">
-                        <span class="zkill-threat-label">Tags:</span>
-                        <div class="zkill-threat-tags-container">
-                            ${combatStyle.playstyleDetails.map(tag => `<span class="zkill-tag zkill-tag-${tag.toLowerCase().replace(/[\/\s]/g, '-')}">${tag}</span>`).join('')}
-                        </div>
-                    </div>
-                    ` : ''}
                     <div class="zkill-threat-item">
                         <span class="zkill-threat-label">Activity Trend:</span>
                         <span class="zkill-threat-value ${activityInsights?.trend?.toLowerCase()}">${activityInsights?.trend || 'Unknown'}</span>
                     </div>
                 </div>
-            </div>
-        </div>
-        `;
-    }
-
-    createShipPreferencesHTML(shipAnalysis, topLocations) {
-        if (!shipAnalysis) return '';
-
-        const { specialization, sizeBreakdown, topShips } = shipAnalysis;
-
-        const sizeHTML = sizeBreakdown.slice(0, 4).map(item => `
-            <div class="zkill-pref-item">
-                <div class="zkill-pref-bar">
-                    <div class="zkill-pref-fill size-${item.category.toLowerCase()}" style="width: ${item.percentage}%"></div>
-                </div>
-                <div class="zkill-pref-info">
-                    <span class="zkill-pref-category">${item.category}</span>
-                    <span class="zkill-pref-percent">${item.percentage}%</span>
-                </div>
-            </div>
-        `).join('');
-
-        const topShipsHTML = topShips.slice(0, 3).map(ship => `
-            <div class="zkill-fav-ship">
-                <img src="https://images.evetech.net/types/${ship.shipTypeID}/icon?size=32"
-                     alt="${ship.shipName}" class="zkill-fav-ship-icon" loading="lazy">
-                <div class="zkill-fav-ship-info">
-                    <div class="zkill-fav-ship-name">${ship.shipName}</div>
-                    <div class="zkill-fav-ship-kills">${ship.kills} kills</div>
-                </div>
-            </div>
-        `).join('');
-
-        const topLocsHTML = topLocations.slice(0, 3).map(loc => {
-            const securityFormatted = this.formatSecurity(loc.securityStatus, loc.systemName);
-            const securityClass = this.getSecurityClass(loc.securityStatus);
-
-            return `
-            <div class="zkill-hot-zone">
-                <div class="zkill-hot-zone-icon">
-                    <div class="zkill-system-sec ${securityClass}">
-                        ${securityFormatted}
-                    </div>
-                </div>
-                <div class="zkill-hot-zone-info">
-                    <div class="zkill-hot-zone-name">${loc.systemName}</div>
-                    <div class="zkill-hot-zone-kills">${loc.kills} kills</div>
-                </div>
-            </div>
-        `;
-        }).join('');
-
-        return `
-        <div class="zkill-section zkill-ship-prefs">
-            <h3 class="zkill-section-title">
-                <span class="zkill-section-icon">🚀</span>
-                Ship & Location Preferences
-            </h3>
-            <div class="zkill-prefs-layout">
-                <div class="zkill-ship-sizes">
-                    <h4 class="zkill-prefs-subtitle">Ship Size Preference</h4>
+                ${shipAnalysis && sizeHTML ? `
+                <div class="zkill-threat-ship-sizes">
+                    <h4 class="zkill-threat-subtitle">Ship Size Preference</h4>
+                    ${specialization ? `
                     <div class="zkill-specialization-badge">
                         <span class="zkill-spec-icon">${specialization.type === 'Generalist' ? '🔄' : '🎯'}</span>
                         <span class="zkill-spec-text">${specialization.description}</span>
                     </div>
+                    ` : ''}
                     <div class="zkill-size-breakdown">
                         ${sizeHTML}
                     </div>
                 </div>
-                <div class="zkill-favorite-ships">
-                    <h4 class="zkill-prefs-subtitle">Favourite Ships</h4>
-                    <div class="zkill-fav-ships-list">
-                        ${topShipsHTML}
-                    </div>
-                </div>
-                <div class="zkill-hot-zones">
-                    <h4 class="zkill-prefs-subtitle">Hot Zones</h4>
-                    <div class="zkill-hot-zones-list">
-                        ${topLocsHTML}
-                    </div>
-                </div>
+                ` : ''}
             </div>
         </div>
         `;
@@ -1570,11 +1688,11 @@ class ZKillStatsCard {
             security = numSec;
         }
 
-        if (security >= 0.5) {
+        if (security >= ZKILL_SECURITY_HIGH_THRESHOLD) {
             return security.toFixed(1);
-        } else if (security > 0.0) {
+        } else if (security > ZKILL_SECURITY_NULL_THRESHOLD) {
             return security.toFixed(1);
-        } else if (security === -1.0) {
+        } else if (security === ZKILL_WORMHOLE_SECURITY) {
             if (systemName && systemName[0] == 'J') {
                 return 'WH'
             }

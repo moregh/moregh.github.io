@@ -5,7 +5,7 @@
     Licensed under AGPL License.
 */
 
-import { STATS_UPDATE_DELAY, CHARACTER_COUNT_DEBOUNCE_MS } from './config.js';
+import { STATS_UPDATE_DELAY, CHARACTER_COUNT_DEBOUNCE_MS, INPUT_SECTION_HOVER_DELAY_MS } from './config.js';
 import { initDB, clearExpiredCache } from './database.js';
 import { showCharacterStats, showCorporationStats, showAllianceStats } from './zkill-card.js';
 import { clientValidate, validateEntityName } from './validation.js';
@@ -27,25 +27,8 @@ window.currentView = currentView;
 
 function setupCollapsedIndicatorClick() {
     const inputSection = domCache.get('input-section');
-    let hoverTimeout;
 
-    inputSection.addEventListener('mouseenter', () => {
-        if (inputSection.classList.contains('collapsed')) {
-            clearTimeout(hoverTimeout);
-            hoverTimeout = setTimeout(() => {
-                if (inputSection.classList.contains('collapsed')) {
-                    inputSection.style.maxHeight = 'none';
-                }
-            }, 200);
-        }
-    });
-
-    inputSection.addEventListener('mouseleave', () => {
-        clearTimeout(hoverTimeout);
-        if (inputSection.classList.contains('collapsed') && !inputSection.matches(':hover')) {
-            inputSection.style.maxHeight = '';
-        }
-    });
+    document.documentElement.style.setProperty('--input-hover-delay', `${INPUT_SECTION_HOVER_DELAY_MS}ms`);
 }
 
 

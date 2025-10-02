@@ -5,7 +5,7 @@
     Licensed under AGPL License.
 */
 
-import { MAX_ESI_CALL_SIZE, CHUNK_SIZE, CHUNK_DELAY } from './config.js';
+import { MAX_ESI_CALL_SIZE, CHUNK_SIZE, CHUNK_DELAY, ESI_BATCH_MAX_CONCURRENCY, ESI_MISSING_NAMES_WARNING_TIMEOUT_MS } from './config.js';
 import { sanitizeId } from './xss-protection.js';
 import {
     getCachedNameToId, setCachedNameToId, getCachedAffiliation, setCachedAffiliation, getCachedCorporationInfo,
@@ -373,7 +373,7 @@ async function processUncachedCorporations(uncachedIds, corpMap, startingCount, 
 
         try {
             const chunkResults = await esiClient.batchRequests(batchRequests, {
-                maxConcurrency: 8,
+                maxConcurrency: ESI_BATCH_MAX_CONCURRENCY,
                 chunkDelay: CHUNK_DELAY,
                 onProgress: (completed, total) => {
                     const overallCompleted = processedCorps + completed;
@@ -442,7 +442,7 @@ async function processUncachedAlliances(uncachedIds, allianceMap, startingCount,
 
         try {
             const chunkResults = await esiClient.batchRequests(batchRequests, {
-                maxConcurrency: 8,
+                maxConcurrency: ESI_BATCH_MAX_CONCURRENCY,
                 chunkDelay: CHUNK_DELAY,
                 onProgress: (completed, total) => {
                     const overallCompleted = processedAlliances + completed;
@@ -571,7 +571,7 @@ export async function mixedValidator(names) {
             if (missingNames.length > 0) {
                 console.warn(`Could not find ${missingNames.length} entity/entities:`, missingNames);
                 updateProgress(0, 0, `Warning: ${missingNames.length} entity names not found`);
-                await new Promise(resolve => setTimeout(resolve, 1500));
+                await new Promise(resolve => setTimeout(resolve, ESI_MISSING_NAMES_WARNING_TIMEOUT_MS));
             }
         }
 

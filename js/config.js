@@ -16,7 +16,7 @@ export const CHUNK_DELAY = 25;
 export const STATS_UPDATE_DELAY = 100;
 export const DB_NAME = 'EVETargetIntelDB';
 export const DB_VERSION = 2;
-export const VERSION = "0.8.5";
+export const VERSION = "0.8.6";
 
 export const PROGRESS_UPDATE_THROTTLE_MS = 50;
 export const TIMER_UPDATE_INTERVAL_MS = 100;
@@ -102,3 +102,69 @@ export const VIEW_DIMENSIONS = {
     list: { height: 90, itemsPerRow: 1 },
     grid: { height: 150, itemsPerRow: null }
 };
+
+export const INPUT_SECTION_HOVER_DELAY_MS = 200;
+
+export const FILTER_MIN_ENTITY_NAME_LENGTH = 3;
+export const FILTER_MAX_ENTITY_NAME_LENGTH = 50;
+export const FILTER_DEFAULT_MIN_CORP_SIZE = 1;
+export const FILTER_DEFAULT_MAX_CORP_SIZE = 500;
+export const FILTER_DEFAULT_MIN_ALLIANCE_SIZE = 1;
+export const FILTER_DEFAULT_MAX_ALLIANCE_SIZE = 10000;
+export const FILTER_NAME_DEBOUNCE_MS = 300;
+export const FILTER_CACHE_SIZE_LIMIT = 20;
+
+export const MOUSEOVER_POSITION_TOP_MULTIPLIER = 0.85;
+export const MOUSEOVER_POSITION_LEFT_MULTIPLIER = 0.5;
+export const MOUSEOVER_HIDE_DELAY_MS = 10;
+
+export const IMAGE_OBSERVER_THRESHOLD = 0.2;
+export const IMAGE_OBSERVER_ROOT_MARGIN = '20px';
+export const IMAGE_OPACITY_LOADING = 0.3;
+export const IMAGE_OPACITY_ERROR = 0.5;
+export const IMAGE_OPACITY_LOADED = 1;
+
+export const CLEANUP_ELEMENT_BATCH_SIZE = 20;
+export const TOP_ITEMS_DISPLAY_LIMIT = 3;
+export const BREAKDOWN_DISPLAY_LIMIT = 4;
+
+export const CHART_WIDTH_PX = 320;
+export const CHART_HEIGHT_PX = 180;
+export const CHART_MARGIN_TOP_PX = 20;
+export const CHART_MARGIN_RIGHT_PX = 10;
+export const CHART_MARGIN_BOTTOM_PX = 40;
+export const CHART_MARGIN_LEFT_PX = 50;
+export const CHART_BAR_SPACING_PX = 2;
+export const CHART_STEPS = 4;
+export const CHART_LABEL_INTERVAL_DIVISOR = 8;
+export const CHART_COLOR_THRESHOLD_HIGH = 0.7;
+export const CHART_COLOR_THRESHOLD_MEDIUM = 0.4;
+
+export const ENTITY_MIN_WIDTH_PX = 252;
+export const ENTITY_CARD_MIN_WIDTH_PX = 300;
+export const CONTAINER_PADDING_PX = 60;
+export const ENTITY_LOGO_SIZE_PX = 64;
+export const IMAGE_PLACEHOLDER_SIZE_PX = 32;
+
+export const ZKILL_TIMER_UPDATE_INTERVAL_MS = 100;
+export const ZKILL_PROGRESS_CONNECTING = 10;
+export const ZKILL_PROGRESS_ESI_BASE = 60;
+export const ZKILL_PROGRESS_AFFILIATIONS = 75;
+export const ZKILL_PROGRESS_PROCESSING = 90;
+export const ZKILL_RECENT_KILLS_LIMIT = 5;
+export const ZKILL_NAVIGATION_CLOSE_DELAY_MS = 350;
+export const ZKILL_NAVIGATION_HISTORY_LIMIT = 3;
+export const ZKILL_EFFICIENCY_THRESHOLD_HIGH = 80;
+export const ZKILL_EFFICIENCY_THRESHOLD_MEDIUM = 50;
+export const ZKILL_GANG_RATIO_THRESHOLD_HIGH = 70;
+export const ZKILL_GANG_RATIO_THRESHOLD_LOW = 30;
+export const ZKILL_WORMHOLE_SECURITY = -1.0;
+export const ZKILL_SECURITY_HIGH_THRESHOLD = 0.5;
+export const ZKILL_SECURITY_NULL_THRESHOLD = 0.0;
+export const ZKILL_SECURITY_WSPACE_THRESHOLD = -0.99;
+
+export const SCROLL_DETECTION_TIME_MS = 150;
+export const CONCURRENT_IMAGE_LOAD_DIVISOR = 2;
+
+export const ESI_BATCH_MAX_CONCURRENCY = 8;
+export const ESI_MISSING_NAMES_WARNING_TIMEOUT_MS = 1500;

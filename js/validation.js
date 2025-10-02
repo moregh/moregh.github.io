@@ -1,6 +1,6 @@
 /*
     EVE Target Intel - Character Name Validation
-    
+
     Copyright (C) 2025 moregh (https://github.com/moregh/)
     Licensed under AGPL License.
 */
@@ -10,7 +10,9 @@ import {
     MAX_CHARACTER_NAME_LENGTH,
     MAX_SINGLE_NAME_LENGTH,
     MAX_FAMILY_NAME_LENGTH,
-    MAX_FIRST_MIDDLE_NAME_LENGTH
+    MAX_FIRST_MIDDLE_NAME_LENGTH,
+    FILTER_MIN_ENTITY_NAME_LENGTH,
+    FILTER_MAX_ENTITY_NAME_LENGTH
 } from './config.js';
 
 export function clientValidate(name) {
@@ -31,7 +33,7 @@ export function clientValidate(name) {
 
 export function validateEntityName(name) {
     name = name.trim();
-    if (name.length < 3 || name.length > 50) return false;
+    if (name.length < FILTER_MIN_ENTITY_NAME_LENGTH || name.length > FILTER_MAX_ENTITY_NAME_LENGTH) return false;
 
     const pattern = /^[A-Za-z0-9.''\-\[\]()&+\s]+$/;
 

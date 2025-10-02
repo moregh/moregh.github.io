@@ -6,14 +6,24 @@
 */
 
 import { domCache } from './dom-cache.js';
+import {
+    FILTER_DEFAULT_MIN_CORP_SIZE,
+    FILTER_DEFAULT_MAX_CORP_SIZE,
+    FILTER_DEFAULT_MIN_ALLIANCE_SIZE,
+    FILTER_DEFAULT_MAX_ALLIANCE_SIZE,
+    FILTER_NAME_DEBOUNCE_MS,
+    FILTER_CACHE_SIZE_LIMIT,
+    FILTER_MIN_ENTITY_NAME_LENGTH,
+    FILTER_MAX_ENTITY_NAME_LENGTH
+} from './config.js';
 
 let filterState = {
     warEligibleOnly: false,
     nameSearch: '',
-    minCorpSize: 1,
-    maxCorpSize: 500,
-    minAllianceSize: 1,
-    maxAllianceSize: 10000,
+    minCorpSize: FILTER_DEFAULT_MIN_CORP_SIZE,
+    maxCorpSize: FILTER_DEFAULT_MAX_CORP_SIZE,
+    minAllianceSize: FILTER_DEFAULT_MIN_ALLIANCE_SIZE,
+    maxAllianceSize: FILTER_DEFAULT_MAX_ALLIANCE_SIZE,
     selectedCorporation: '',
     selectedAlliance: '',
     isCollapsed: true
@@ -109,7 +119,7 @@ function setupEventListeners() {
     filterElements.toggleBtn?.addEventListener('click', toggleFilters);
     filterElements.clearBtn?.addEventListener('click', clearAllFilters);
     filterElements.warEligibleOnly?.addEventListener('change', handleFilterChange);
-    filterElements.nameSearch?.addEventListener('input', debounce(handleFilterChange, 300));
+    filterElements.nameSearch?.addEventListener('input', debounce(handleFilterChange, FILTER_NAME_DEBOUNCE_MS));
 
     if (filterElements.minCorpSize) {
         filterElements.minCorpSize.addEventListener('input', handleMinCorpSizeChange);
@@ -246,10 +256,10 @@ function updateFilterState() {
     filterState = {
         warEligibleOnly: filterElements.warEligibleOnly?.checked ?? false,
         nameSearch: filterElements.nameSearch?.value.toLowerCase().trim() ?? '',
-        minCorpSize: parseInt(filterElements.minCorpSize?.value) ?? 1,
-        maxCorpSize: parseInt(filterElements.maxCorpSize?.value) ?? 500,
-        minAllianceSize: parseInt(filterElements.minAllianceSize?.value) ?? 1,
-        maxAllianceSize: parseInt(filterElements.maxAllianceSize?.value) ?? 10000,
+        minCorpSize: parseInt(filterElements.minCorpSize?.value) ?? FILTER_DEFAULT_MIN_CORP_SIZE,
+        maxCorpSize: parseInt(filterElements.maxCorpSize?.value) ?? FILTER_DEFAULT_MAX_CORP_SIZE,
+        minAllianceSize: parseInt(filterElements.minAllianceSize?.value) ?? FILTER_DEFAULT_MIN_ALLIANCE_SIZE,
+        maxAllianceSize: parseInt(filterElements.maxAllianceSize?.value) ?? FILTER_DEFAULT_MAX_ALLIANCE_SIZE,
         selectedCorporation: filterElements.corporationSelect?.value ?? '',
         selectedAlliance: filterElements.allianceSelect?.value ?? '',
         isCollapsed: filterState.isCollapsed
@@ -306,7 +316,7 @@ function applyFilters() {
     filteredResultsCache.set(currentFilterHash, filteredResults);
     lastFilterHash = currentFilterHash;
 
-    if (filteredResultsCache.size > 20) {
+    if (filteredResultsCache.size > FILTER_CACHE_SIZE_LIMIT) {
         const firstKey = filteredResultsCache.keys().next().value;
         filteredResultsCache.delete(firstKey);
     }
@@ -382,9 +392,9 @@ function clearAllFilters() {
 
     filterElements.warEligibleOnly.checked = false;
     filterElements.nameSearch.value = '';
-    filterElements.minCorpSize.value = 1;
+    filterElements.minCorpSize.value = FILTER_DEFAULT_MIN_CORP_SIZE;
     filterElements.maxCorpSize.value = filterElements.maxCorpSize.max;
-    filterElements.minAllianceSize.value = 1;
+    filterElements.minAllianceSize.value = FILTER_DEFAULT_MIN_ALLIANCE_SIZE;
     filterElements.maxAllianceSize.value = filterElements.maxAllianceSize.max;
     filterElements.allianceSelect.value = '';
     filterElements.corporationSelect.value = '';
@@ -551,8 +561,8 @@ export function getFilteredCorporations(allCorporations) {
 export function hasActiveFilters() {
     return filterState.nameSearch ||
         filterState.warEligibleOnly ||
-        filterState.minCorpSize > 1 ||
-        filterState.minAllianceSize > 1 ||
+        filterState.minCorpSize > FILTER_DEFAULT_MIN_CORP_SIZE ||
+        filterState.minAllianceSize > FILTER_DEFAULT_MIN_ALLIANCE_SIZE ||
         filterState.selectedCorporation ||
         filterState.selectedAlliance;
 }

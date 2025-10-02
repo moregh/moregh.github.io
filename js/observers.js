@@ -5,7 +5,17 @@
     Licensed under AGPL License.
 */
 
-import { PERFORMANCE_CONFIG, MAX_CONCURRENT_IMAGES } from './config.js';
+import {
+    PERFORMANCE_CONFIG,
+    MAX_CONCURRENT_IMAGES,
+    IMAGE_OBSERVER_THRESHOLD,
+    IMAGE_OBSERVER_ROOT_MARGIN,
+    IMAGE_OPACITY_LOADING,
+    IMAGE_OPACITY_ERROR,
+    IMAGE_OPACITY_LOADED,
+    SCROLL_DETECTION_TIME_MS,
+    CONCURRENT_IMAGE_LOAD_DIVISOR
+} from './config.js';
 
 export class ManagedObservers {
     constructor() {
@@ -34,8 +44,8 @@ export class ManagedObservers {
                     }
                 });
             }, {
-                rootMargin: '20px',
-                threshold: 0.2
+                rootMargin: IMAGE_OBSERVER_ROOT_MARGIN,
+                threshold: IMAGE_OBSERVER_THRESHOLD
             });
         }
         return this.imageObserver;
@@ -189,7 +199,7 @@ let lastScrollTime = 0;
 
 export function processImageQueue() {
     const now = Date.now();
-    const isScrolling = (now - lastScrollTime) < 150;
+    const isScrolling = (now - lastScrollTime) < SCROLL_DETECTION_TIME_MS;
 
     while (priorityImageQueue.length > 0 && currentlyLoading < MAX_CONCURRENT_IMAGES && imageObserverEnabled) {
         const img = priorityImageQueue.shift();
@@ -198,7 +208,7 @@ export function processImageQueue() {
         }
     }
 
-    const maxConcurrent = isScrolling ? Math.max(1, MAX_CONCURRENT_IMAGES / 2) : MAX_CONCURRENT_IMAGES;
+    const maxConcurrent = isScrolling ? Math.max(1, MAX_CONCURRENT_IMAGES / CONCURRENT_IMAGE_LOAD_DIVISOR) : MAX_CONCURRENT_IMAGES;
 
     while (imageLoadQueue.length > 0 && currentlyLoading < maxConcurrent && imageObserverEnabled) {
         const img = imageLoadQueue.shift();
@@ -221,11 +231,11 @@ function loadSingleImage(img) {
     if (!realSrc || img.src === realSrc) return;
 
     currentlyLoading++;
-    img.style.opacity = '0.3';
+    img.style.opacity = IMAGE_OPACITY_LOADING;
 
     const onLoad = () => {
         currentlyLoading--;
-        img.style.opacity = '1';
+        img.style.opacity = IMAGE_OPACITY_LOADED;
         img.removeEventListener('load', onLoad);
         img.removeEventListener('error', onError);
         delete img.dataset.loading;
@@ -235,7 +245,7 @@ function loadSingleImage(img) {
 
     const onError = () => {
         currentlyLoading--;
-        img.style.opacity = '0.5';
+        img.style.opacity = IMAGE_OPACITY_ERROR;
         img.removeEventListener('load', onLoad);
         img.removeEventListener('error', onError);
         delete img.dataset.loading;
