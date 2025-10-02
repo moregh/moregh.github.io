@@ -354,6 +354,10 @@ class ZKillboardClient {
 
                 stats.combatStyle = this.enrichCombatStyleWithKillmails(stats.combatStyle, mergedAnalysis, stats);
                 stats.securityPreference = await this.analyzeSecurityPreferenceFromKillmails(killmails, stats._rawData);
+
+                if (!stats.activityData.hasData) {
+                    stats.activityData = this.extractActivityDataFromKillmails(killmails);
+                }
             } else {
                 const mergedAnalysis = {
                     blopsAnalysis: zkillRoleAnalysis.blopsAnalysis,
@@ -1619,6 +1623,54 @@ class ZKillboardClient {
                 };
             });
     }
+    extractActivityDataFromKillmails(killmails) {
+        if (!killmails || killmails.length === 0) {
+            return {
+                hourlyData: [],
+                dailyData: [],
+                hasData: false
+            };
+        }
+
+        const hourlyTotals = new Array(24).fill(0);
+        const dailyTotals = new Array(7).fill(0);
+        const dayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+        killmails.forEach(km => {
+            const killTime = km.killmail?.killmail_time;
+            if (!killTime) return;
+
+            const date = new Date(killTime);
+            const hour = date.getUTCHours();
+            const day = date.getUTCDay();
+
+            hourlyTotals[hour]++;
+            dailyTotals[day]++;
+        });
+
+        const hourlyData = hourlyTotals.map((kills, hour) => ({
+            label: `${hour.toString().padStart(2, '0')}`,
+            value: kills,
+            hour: hour
+        }));
+
+        const dailyData = dailyTotals.map((kills, day) => ({
+            label: dayLabels[day],
+            value: kills,
+            day: day
+        }));
+
+        const hasValidData = killmails.length > 0;
+
+        return {
+            hourlyData,
+            dailyData,
+            hasData: hasValidData,
+            maxHourly: Math.max(...hourlyTotals),
+            maxDaily: Math.max(...dailyTotals)
+        };
+    }
+
     extractActivityData(data) {
         const activity = data.activity;
 

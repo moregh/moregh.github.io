@@ -480,7 +480,6 @@ class ZKillStatsCard {
 
         return `
             <div class="zkill-chart-container zkill-pie-chart-container">
-                <div class="zkill-chart-title">Operating Space</div>
                 <svg width="${size}" height="${size}" class="zkill-pie-chart">
                     ${slices}
                 </svg>
@@ -1429,7 +1428,7 @@ class ZKillStatsCard {
             participationInfo = `
                 <div class="zkill-threat-item">
                     <span class="zkill-threat-label">Active Members:</span>
-                    <span class="zkill-threat-value">${activePlayerCount.toLocaleString()} / ${memberCount.toLocaleString()} (${participationRate}%)</span>
+                    <span class="zkill-threat-value">${this.formatNumber(activePlayerCount)} / ${this.formatNumber(memberCount)} (${participationRate}%)</span>
                 </div>`;
         }
 
@@ -1899,8 +1898,6 @@ class ZKillStatsCard {
             return '0.0';
         }
     }
-
-
 }
 
 const zkillStatsCard = new ZKillStatsCard();
