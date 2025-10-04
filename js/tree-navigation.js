@@ -271,6 +271,10 @@ function selectEntity(treeItem) {
     selectedEntityType = entityType;
     selectedEntityId = entityId;
 
+    if (entityType === 'alliance' || entityType === 'corporation') {
+        toggleNode(treeItem);
+    }
+
     showEntityDetail(entityType, entityId, entityName);
 }
 

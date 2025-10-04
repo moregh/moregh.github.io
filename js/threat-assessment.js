@@ -24,7 +24,7 @@ export class ThreatAssessment {
         const securityScore = this.calculateSecurityScore(zkillStats.securityPreference);
         const soloScore = this.calculateSoloScore(zkillStats, analysis);
 
-        const totalScore = Math.round(
+        let totalScore = Math.round(
             recencyScore * this.config.RISK_WEIGHTS.RECENCY +
             frequencyScore * this.config.RISK_WEIGHTS.FREQUENCY +
             hvtScore * this.config.RISK_WEIGHTS.HVT_HUNTING +
@@ -32,6 +32,13 @@ export class ThreatAssessment {
             securityScore * this.config.RISK_WEIGHTS.SECURITY_PREFERENCE +
             soloScore * this.config.RISK_WEIGHTS.SOLO_RATIO
         );
+
+        if (zkillStats.combatStyle?.fleetRole === 'Blobber') {
+            totalScore = Math.max(0, totalScore - 15);
+        }
+        if (zkillStats.combatStyle?.fleetRole === 'Fleet Fighter') {
+            totalScore = Math.max(0, totalScore - 10);
+        }
 
         const tags = this.generateTags(zkillStats, killmailData, rawKillmails, now);
 

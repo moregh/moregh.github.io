@@ -10,25 +10,25 @@
   backdrop-filter: blur(18px);
   border: 1px solid var(--border-color);
   border-radius: 18px;
-  padding: 1.5rem 2rem;
+  padding: 1rem 1.7rem;
   margin-bottom: 1.5rem;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
   display: flex;
   justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
-  gap: 2rem;
+  gap: 1.5rem;
 }
 
 .header-title h1 {
-  font-size: 1.8rem;
+  font-size: 1.5rem;
   color: var(--primary-color);
   margin: 0;
 }
 
 .stats-inline {
   display: flex;
-  gap: 2rem;
+  gap: 1.5rem;
   flex-wrap: wrap;
 }
 
@@ -167,17 +167,17 @@
 
 .tree-item.alliance {
   font-weight: 600;
-  border-left: 2px solid #a855f7;
-  background: linear-gradient(90deg, rgba(168, 85, 247, 0.05), transparent);
+  border-left: 2px solid #3b82f6;
+  background: linear-gradient(90deg, rgba(59, 130, 246, 0.05), transparent);
 }
 
 .tree-item.alliance .tree-label {
-  color: #c084fc;
+  color: #60a5fa;
 }
 
 .tree-item.alliance .tree-icon {
-  border: 1px solid #a855f7;
-  box-shadow: 0 0 4px rgba(168, 85, 247, 0.3);
+  border: 1px solid #3b82f6;
+  box-shadow: 0 0 4px rgba(59, 130, 246, 0.3);
 }
 
 .tree-item.corporation {
@@ -286,6 +286,15 @@
 .tag-capital { background: linear-gradient(135deg, #f1c40f, #f39c12); color: #1a1a1a; }
 .tag-small-gang { background: linear-gradient(135deg, #f39c12, #e67e22); color: white; }
 .tag-adaptable { background: linear-gradient(135deg, #9b59b6, #8e44ad); color: white; }
+.tag-blops { background: linear-gradient(135deg, #2c003e, #1a1a1a); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.4); }
+.tag-cyno { background: linear-gradient(135deg, #e74c3c, #c0392b); color: white; border: 1px solid rgba(255, 255, 255, 0.2); }
+.tag-active-now { background: linear-gradient(135deg, #10b981, #059669); color: white; }
+.tag-active { background: linear-gradient(135deg, #34d399, #10b981); color: white; }
+.tag-hvt-hunter { background: linear-gradient(135deg, #dc2626, #991b1b); color: white; }
+.tag-solo-hunter { background: linear-gradient(135deg, #ef4444, #dc2626); color: white; }
+.tag-fleet-fighter { background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; }
+.tag-blob { background: linear-gradient(135deg, #6366f1, #4f46e5); color: white; }
+.tag-gate-camper { background: linear-gradient(135deg, #ec4899, #db2777); color: white; }
 
 .detail-section {
   margin-bottom: 1rem;

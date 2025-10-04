@@ -490,27 +490,41 @@ class ZKillStatsCard {
     }
 
     createSpacePieChart(breakdown) {
-        const size = 200;
-        const radius = 80;
+        const size = 220;
+        const radius = 85;
         const centerX = size / 2;
         const centerY = size / 2;
 
         const colors = {
-            'Highsec': '#4ade80',
-            'Lowsec': '#fbbf24',
-            'Nullsec': '#ef4444',
-            'Pochven': '#a855f7',
-            'W-Space': '#3b82f6'
+            'Highsec': { start: '#4ade80', end: '#22c55e' },
+            'Lowsec': { start: '#fbbf24', end: '#f59e0b' },
+            'Nullsec': { start: '#ef4444', end: '#dc2626' },
+            'Pochven': { start: '#a855f7', end: '#9333ea' },
+            'W-Space': { start: '#3b82f6', end: '#2563eb' }
         };
+
+        const gradientDefs = Object.entries(colors).map(([space, color]) => `
+            <defs>
+                <radialGradient id="gradient-${space.toLowerCase().replace(/[^a-z]/g, '')}" cx="30%" cy="30%">
+                    <stop offset="0%" style="stop-color:${color.start};stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:${color.end};stop-opacity:1" />
+                </radialGradient>
+                <filter id="shadow-${space.toLowerCase().replace(/[^a-z]/g, '')}">
+                    <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.3"/>
+                </filter>
+            </defs>
+        `).join('');
 
         let slices = '';
 
         if (breakdown.length === 1 && breakdown[0].percentage === 100) {
+            const spaceKey = breakdown[0].space.toLowerCase().replace(/[^a-z]/g, '');
             slices = `
                 <circle cx="${centerX}" cy="${centerY}" r="${radius}"
-                        fill="${colors[breakdown[0].space] || '#666'}"
-                        stroke="rgba(0, 0, 0, 0.3)"
+                        fill="url(#gradient-${spaceKey})"
+                        stroke="rgba(255, 255, 255, 0.2)"
                         stroke-width="2"
+                        filter="url(#shadow-${spaceKey})"
                         class="zkill-pie-slice">
                     <title>${breakdown[0].space}: 100%</title>
                 </circle>
@@ -532,12 +546,14 @@ class ZKillStatsCard {
                 const y2 = centerY + radius * Math.sin(endRad);
 
                 const largeArc = angle > 180 ? 1 : 0;
+                const spaceKey = item.space.toLowerCase().replace(/[^a-z]/g, '');
 
                 return `
                     <path d="M ${centerX} ${centerY} L ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2} Z"
-                          fill="${colors[item.space] || '#666'}"
-                          stroke="rgba(0, 0, 0, 0.3)"
+                          fill="url(#gradient-${spaceKey})"
+                          stroke="rgba(255, 255, 255, 0.2)"
                           stroke-width="2"
+                          filter="url(#shadow-${spaceKey})"
                           class="zkill-pie-slice">
                         <title>${item.space}: ${item.percentage}%</title>
                     </path>
@@ -545,17 +561,25 @@ class ZKillStatsCard {
             }).join('');
         }
 
-        const legend = breakdown.map(item => `
-            <div class="zkill-pie-legend-item">
-                <div class="zkill-pie-legend-color" style="background: ${colors[item.space] || '#666'}"></div>
-                <div class="zkill-pie-legend-label">${item.space}</div>
-                <div class="zkill-pie-legend-value">${item.percentage}%</div>
-            </div>
-        `).join('');
+        const legend = breakdown.map(item => {
+            const color = colors[item.space];
+            return `
+                <div class="zkill-pie-legend-item">
+                    <div class="zkill-pie-legend-color" style="background: linear-gradient(135deg, ${color.start}, ${color.end})"></div>
+                    <div class="zkill-pie-legend-label">${item.space}</div>
+                    <div class="zkill-pie-legend-value">${item.percentage}%</div>
+                </div>
+            `;
+        }).join('');
 
         return `
             <div class="zkill-chart-container zkill-pie-chart-container">
                 <svg width="${size}" height="${size}" class="zkill-pie-chart">
+                    ${gradientDefs}
+                    <circle cx="${centerX}" cy="${centerY}" r="${radius + 5}"
+                            fill="none"
+                            stroke="rgba(255, 255, 255, 0.05)"
+                            stroke-width="1"/>
                     ${slices}
                 </svg>
                 <div class="zkill-pie-legend">

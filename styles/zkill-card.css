@@ -967,15 +967,18 @@ cursor: pointer;
 .zkill-pie-chart {
     display: block;
     margin: 0 auto;
+    filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
 }
 
 .zkill-pie-slice {
-    transition: opacity 0.2s ease;
+    transition: all 0.3s ease;
     cursor: pointer;
 }
 
 .zkill-pie-slice:hover {
-    opacity: 0.8;
+    opacity: 0.9;
+    transform: scale(1.02);
+    transform-origin: center;
 }
 
 .zkill-pie-legend {
