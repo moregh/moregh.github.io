@@ -7,7 +7,8 @@
 
 .error-message,
 .warning-message,
-.info-message {
+.info-message,
+.success-message {
     display: flex;
     align-items: center;
     gap: 0.9rem;
@@ -35,9 +36,16 @@
     border-left: 3.6px solid var(--info-color)
 }
 
+.success-message {
+    background: rgba(34, 197, 94, 0.1);
+    border: 0.9px solid rgba(34, 197, 94, 0.3);
+    border-left: 3.6px solid #22c55e
+}
+
 .error-icon,
 .warning-icon,
-.info-icon {
+.info-icon,
+.success-icon {
     font-size: 1.35rem;
     flex-shrink: 0
 }
@@ -54,15 +62,21 @@
     color: var(--info-color)
 }
 
+.success-icon {
+    color: #22c55e
+}
+
 .error-content,
 .warning-content,
-.info-content {
+.info-content,
+.success-content {
     flex: 1
 }
 
 .error-title,
 .warning-title,
-.info-title {
+.info-title,
+.success-title {
     font-weight: 600;
     margin-bottom: 0.27rem
 }
@@ -79,9 +93,14 @@
     color: var(--info-color)
 }
 
+.success-title {
+    color: #22c55e
+}
+
 .error-text,
 .warning-text,
-.info-text {
+.info-text,
+.success-text {
     color: var(--text-secondary);
     font-size: 0.855rem
 }

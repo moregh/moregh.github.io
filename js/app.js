@@ -16,6 +16,7 @@ import { renderGrid, buildEntityMaps, getObserverManager, addScrollStateDetectio
 import { getZkillCardInstance } from './zkill-card.js';
 import { domCache } from './dom-cache.js';
 import { buildTreeStructure, renderTree } from './tree-navigation.js';
+import { initializeSettingsUI } from './settings-ui.js';
 
 
 let currentView = 'grid';
@@ -291,6 +292,8 @@ document.addEventListener('DOMContentLoaded', function () {
     initializeFilters(() => {
         applyFiltersToTree();
     });
+
+    initializeSettingsUI();
 
     const textarea = domCache.get('names');
     textarea.addEventListener('input', debouncedUpdateCharacterCount);

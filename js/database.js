@@ -66,6 +66,10 @@ export async function initDB() {
                 const killmailStore = db.createObjectStore('esi_killmails', { keyPath: 'killmail_id' });
                 killmailStore.createIndex('timestamp', 'timestamp');
             }
+
+            if (!db.objectStoreNames.contains('user_settings')) {
+                db.createObjectStore('user_settings', { keyPath: 'key' });
+            }
         };
     });
 }
@@ -509,5 +513,72 @@ export async function setCachedUniverseName(typeId, name, securityStatus = null)
         });
     } catch (e) {
         console.warn('Error writing universe name to cache:', e);
+    }
+}
+
+export async function getUserSettingFromDB(key) {
+    try {
+        const db = await initDB();
+        const transaction = db.transaction(['user_settings'], 'readonly');
+        const store = transaction.objectStore('user_settings');
+
+        return new Promise((resolve) => {
+            const request = store.get(key);
+
+            request.onsuccess = () => {
+                const result = request.result;
+                resolve(result ? result.value : null);
+            };
+
+            request.onerror = () => {
+                console.warn(`Error reading user setting ${key}:`, request.error);
+                resolve(null);
+            };
+        });
+    } catch (e) {
+        console.warn(`Error accessing user setting ${key}:`, e);
+        return null;
+    }
+}
+
+export async function setUserSettingInDB(key, value) {
+    try {
+        const db = await initDB();
+        const transaction = db.transaction(['user_settings'], 'readwrite');
+        const store = transaction.objectStore('user_settings');
+
+        store.put({ key, value });
+
+        return new Promise((resolve, reject) => {
+            transaction.oncomplete = () => resolve();
+            transaction.onerror = () => {
+                console.warn('Error writing user setting:', transaction.error);
+                reject(transaction.error);
+            };
+        });
+    } catch (e) {
+        console.warn('Error writing user setting:', e);
+        throw e;
+    }
+}
+
+export async function clearUserSettings() {
+    try {
+        const db = await initDB();
+        const transaction = db.transaction(['user_settings'], 'readwrite');
+        const store = transaction.objectStore('user_settings');
+
+        store.clear();
+
+        return new Promise((resolve, reject) => {
+            transaction.oncomplete = () => resolve();
+            transaction.onerror = () => {
+                console.warn('Error clearing user settings:', transaction.error);
+                reject(transaction.error);
+            };
+        });
+    } catch (e) {
+        console.warn('Error clearing user settings:', e);
+        throw e;
     }
 }

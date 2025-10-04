@@ -38,6 +38,7 @@
   <link rel="stylesheet" href="styles/zkill-card.css">
   <link rel="stylesheet" href="styles/tree-layout.css">
   <link rel="stylesheet" href="styles/footer.css">
+  <link rel="stylesheet" href="styles/settings.css">
   <link rel="stylesheet" href="styles/responsive.css">
   <link rel="apple-touch-icon" sizes="180x180" href="media/apple-touch-icon.png">
   <link rel="icon" type="image/png" sizes="512x512" href="media/android-chrome-512x512.png">
@@ -51,6 +52,8 @@
   <script type="module" src="js/config.js"></script>
   <script type="module" src="js/xss-protection.js"></script>
   <script type="module" src="js/database.js"></script>
+  <script type="module" src="js/user-settings.js"></script>
+  <script type="module" src="js/settings-ui.js"></script>
   <script type="module" src="js/observers.js"></script>
   <script type="module" src="js/validation.js"></script>
   <script type="module" src="js/esi-client.js"></script>
@@ -72,7 +75,7 @@
   </div>
   <div class="container">
     <div class="unified-header" id="unified-header" style="display: none;">
-      <div class="header-title">
+      <div class="header-left">
         <a href="#" data-action="reload-page" class="title-link">
           <h1>
             <span class="title-primary">EVE</span>
@@ -87,37 +90,44 @@
             <span class="title-secondary">Intel</span>
           </h1>
         </a>
-        <span class="version-display" id="version-display"></span>
       </div>
-      <div class="stats-inline">
-        <div class="stat-item">
-          <div class="stat-icon">👥</div>
-          <div class="stat-content">
-            <span id="total-count" class="stat-number">0</span>
-            <span class="stat-label">Characters</span>
+      <div class="header-center">
+        <div class="stats-inline">
+          <div class="stat-item">
+            <div class="stat-icon">👥</div>
+            <div class="stat-content">
+              <span id="total-count" class="stat-number">0</span>
+              <span class="stat-label">Characters</span>
+            </div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-icon">🏢</div>
+            <div class="stat-content">
+              <span id="corporation-count" class="stat-number">0</span>
+              <span class="stat-label">Corporations</span>
+            </div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-icon">🏛️</div>
+            <div class="stat-content">
+              <span id="alliance-count" class="stat-number">0</span>
+              <span class="stat-label">Alliances</span>
+            </div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-icon">⚔️</div>
+            <div class="stat-content">
+              <span id="war-eligible-count" class="stat-number">0</span>
+              <span class="stat-label">War Eligible</span>
+            </div>
           </div>
         </div>
-        <div class="stat-item">
-          <div class="stat-icon">🏢</div>
-          <div class="stat-content">
-            <span id="corporation-count" class="stat-number">0</span>
-            <span class="stat-label">Corporations</span>
-          </div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-icon">🏛️</div>
-          <div class="stat-content">
-            <span id="alliance-count" class="stat-number">0</span>
-            <span class="stat-label">Alliances</span>
-          </div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-icon">⚔️</div>
-          <div class="stat-content">
-            <span id="war-eligible-count" class="stat-number">0</span>
-            <span class="stat-label">War Eligible</span>
-          </div>
-        </div>
+      </div>
+      <div class="header-right">
+        <span class="version-badge" id="version-display"></span>
+        <button id="settings-button" title="Settings">
+          <span class="settings-icon">⚙️</span>
+        </button>
       </div>
     </div>
     <div class="input-section glass-card" id="input-section">
@@ -301,6 +311,72 @@
     </div>
     <div class="disclaimer-copyright">
       Not affiliated with or endorsed by CCP Games. EVE Online and all related characters, names, marks, and logos are intellectual property of <a href="https://www.ccpgames.com/" target="_blank">CCP hf.</a> • <a href="https://github.com/moregh/moregh.github.io/" target="_blank">EVE Target Intel</a> © 2025 <a href="https://github.com/moregh/" target="_blank">moregh</a>
+    </div>
+  </div>
+
+  <div id="settings-modal" class="settings-modal">
+    <div class="settings-dialog">
+      <div class="settings-header">
+        <h2>
+          <span class="settings-icon">⚙️</span>
+          Data Fetch Settings
+        </h2>
+        <button class="settings-close" title="Close">&times;</button>
+      </div>
+      <div class="settings-content">
+        <div class="settings-description">
+          Configure how much killmail data is fetched from zKillboard and ESI. Higher values fetch more data but take longer to process.
+        </div>
+        <form id="settings-form">
+          <div class="settings-section">
+            <div class="settings-section-title">📊 Killmail Limits</div>
+            <div class="setting-item">
+              <label class="setting-label">
+                <span>Maximum Killmails to Fetch</span>
+                <span class="setting-constraint" id="constraint-max-killmails"></span>
+              </label>
+              <input type="number" id="setting-max-killmails" class="setting-input" min="100" max="5000" step="100" required>
+              <div class="setting-help">Total number of killmails to fetch per entity from ESI</div>
+              <div class="setting-default">Default: <span class="setting-default-value" id="default-max-killmails"></span></div>
+            </div>
+          </div>
+          <div class="settings-section">
+            <div class="settings-section-title">📄 Pagination Settings</div>
+            <div class="setting-item">
+              <label class="setting-label">
+                <span>Minimum Killmails</span>
+                <span class="setting-constraint" id="constraint-min-killmails"></span>
+              </label>
+              <input type="number" id="setting-min-killmails" class="setting-input" min="50" max="500" step="10" required>
+              <div class="setting-help">Minimum number of killmails to fetch before stopping pagination</div>
+              <div class="setting-default">Default: <span class="setting-default-value" id="default-min-killmails"></span></div>
+            </div>
+            <div class="setting-item">
+              <label class="setting-label">
+                <span>Target Days Coverage</span>
+                <span class="setting-constraint" id="constraint-target-days"></span>
+              </label>
+              <input type="number" id="setting-target-days" class="setting-input" min="7" max="90" step="1" required>
+              <div class="setting-help">Target number of days of killmail history to collect</div>
+              <div class="setting-default">Default: <span class="setting-default-value" id="default-target-days"></span></div>
+            </div>
+            <div class="setting-item">
+              <label class="setting-label">
+                <span>Maximum Pages</span>
+                <span class="setting-constraint" id="constraint-max-pages"></span>
+              </label>
+              <input type="number" id="setting-max-pages" class="setting-input" min="1" max="20" step="1" required>
+              <div class="setting-help">Maximum number of zKillboard pages to fetch per entity</div>
+              <div class="setting-default">Default: <span class="setting-default-value" id="default-max-pages"></span></div>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="settings-actions">
+        <button type="button" class="settings-button settings-reset">Reset to Defaults</button>
+        <button type="button" class="settings-button settings-cancel">Cancel</button>
+        <button type="button" class="settings-button settings-save">Save Settings</button>
+      </div>
     </div>
   </div>
 </body>

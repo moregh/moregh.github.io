@@ -226,6 +226,24 @@ export function stopLoading() {
     }, LOADING_DISPLAY_DELAY_MS);
 }
 
+export function showSuccess(message) {
+    const elements = getUIElements();
+    if (elements.errorContainer) {
+        elements.errorContainer.innerHTML = `
+            <div class="success-message glass-card">
+            <div class="success-icon">✓</div>
+            <div class="success-content">
+                <div class="success-title">Success</div>
+                <div class="success-text">${message}</div>
+            </div>
+            </div>
+        `;
+        setTimeout(() => {
+            clearErrorMessage();
+        }, 3000);
+    }
+}
+
 export function showWarning(message) {
     const elements = getUIElements();
     if (elements.errorContainer) {

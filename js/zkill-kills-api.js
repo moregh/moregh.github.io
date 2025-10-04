@@ -6,7 +6,7 @@
 */
 
 import { getCachedKills, setCachedKills } from './database.js';
-import { ZKILL_PAGINATION_CONFIG } from './config.js';
+import { getRuntimePaginationConfig } from './user-settings.js';
 
 const ZKILL_CONFIG = {
     PROXY_BASE_URL: 'https://zkill2.zkillproxy.workers.dev/',
@@ -147,16 +147,17 @@ class ZKillKillsClient {
         }
 
         try {
+            const paginationConfig = await getRuntimePaginationConfig();
             const allKills = [];
             let currentPage = 1;
             let shouldContinue = true;
             let actualDailyRate = 14000;
-            const TARGET_DAYS = ZKILL_PAGINATION_CONFIG.TARGET_DAYS;
-            const MIN_KILLMAILS = ZKILL_PAGINATION_CONFIG.MIN_KILLMAILS;
-            const VERIFY_INTERVAL = ZKILL_PAGINATION_CONFIG.VERIFY_AFTER_PAGES || 5;
+            const TARGET_DAYS = paginationConfig.TARGET_DAYS;
+            const MIN_KILLMAILS = paginationConfig.MIN_KILLMAILS;
+            const VERIFY_INTERVAL = paginationConfig.VERIFY_AFTER_PAGES || 5;
             let lastVerifiedPage = 0;
 
-            while (shouldContinue && currentPage <= ZKILL_PAGINATION_CONFIG.MAX_PAGES) {
+            while (shouldContinue && currentPage <= paginationConfig.MAX_PAGES) {
                 const pageKills = await this.executeRequest(entityType, entityId, currentPage);
 
                 if (!pageKills || pageKills.length === 0) {
@@ -209,16 +210,16 @@ class ZKillKillsClient {
                             }
 
                             currentPage++;
-                            await new Promise(resolve => setTimeout(resolve, ZKILL_PAGINATION_CONFIG.PAGE_FETCH_DELAY_MS));
+                            await new Promise(resolve => setTimeout(resolve, paginationConfig.PAGE_FETCH_DELAY_MS));
                         } else {
                             currentPage++;
-                            await new Promise(resolve => setTimeout(resolve, ZKILL_PAGINATION_CONFIG.PAGE_FETCH_DELAY_MS));
+                            await new Promise(resolve => setTimeout(resolve, paginationConfig.PAGE_FETCH_DELAY_MS));
                         }
-                    } else if (currentPage >= ZKILL_PAGINATION_CONFIG.MAX_PAGES) {
+                    } else if (currentPage >= paginationConfig.MAX_PAGES) {
                         shouldContinue = false;
                     } else {
                         currentPage++;
-                        await new Promise(resolve => setTimeout(resolve, ZKILL_PAGINATION_CONFIG.PAGE_FETCH_DELAY_MS));
+                        await new Promise(resolve => setTimeout(resolve, paginationConfig.PAGE_FETCH_DELAY_MS));
                     }
                 } else {
                     break;

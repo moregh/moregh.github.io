@@ -5,7 +5,8 @@
     Licensed under AGPL License.
 */
 
-import { USER_AGENT, MAX_KILLMAILS_TO_FETCH, KILLMAIL_BATCH_SIZE, KILLMAIL_FETCH_DELAY_MS, ZKILL_CONFIG } from './config.js';
+import { USER_AGENT, KILLMAIL_BATCH_SIZE, KILLMAIL_FETCH_DELAY_MS, ZKILL_CONFIG } from './config.js';
+import { getRuntimeMaxKillmails } from './user-settings.js';
 import { showWarning } from './ui.js';
 import { getShipClassification, SHIP_TYPE_TO_GROUP } from './eve-ship-data.js';
 import { get_zkill_character_kills, get_zkill_corporation_kills, get_zkill_alliance_kills } from './zkill-kills-api.js';
@@ -322,8 +323,9 @@ class ZKillboardClient {
     }
 
     async getEntityStatsWithKillmails(entityType, entityId, options = {}) {
+        const defaultMaxKillmails = await getRuntimeMaxKillmails();
         const {
-            maxKillmails = MAX_KILLMAILS_TO_FETCH,
+            maxKillmails = defaultMaxKillmails,
             fetchKillmails = true,
             onProgress = null
         } = options;
