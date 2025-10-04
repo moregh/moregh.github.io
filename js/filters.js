@@ -567,6 +567,51 @@ export function hasActiveFilters() {
         filterState.selectedAlliance;
 }
 
+export function applyFiltersToTree() {
+    const treeContainer = document.getElementById('tree-container');
+    if (!treeContainer) return;
+
+    const allTreeNodes = treeContainer.querySelectorAll('.tree-node');
+
+    allTreeNodes.forEach(node => {
+        node.style.display = '';
+    });
+
+    if (!hasActiveFilters()) {
+        return;
+    }
+
+    const filteredCharacterIds = new Set(filteredResults.map(char => char.character_id));
+
+    allTreeNodes.forEach(node => {
+        const treeItem = node.querySelector('.tree-item');
+        if (!treeItem) return;
+
+        const entityType = treeItem.dataset.entityType;
+        const entityId = parseInt(treeItem.dataset.entityId);
+
+        if (entityType === 'character') {
+            if (!filteredCharacterIds.has(entityId)) {
+                node.style.display = 'none';
+            }
+        } else if (entityType === 'corporation') {
+            const corpCharacters = allResults.filter(char => char.corporation_id === entityId);
+            const hasVisibleCharacters = corpCharacters.some(char => filteredCharacterIds.has(char.character_id));
+
+            if (!hasVisibleCharacters) {
+                node.style.display = 'none';
+            }
+        } else if (entityType === 'alliance') {
+            const allianceCharacters = allResults.filter(char => char.alliance_id === entityId);
+            const hasVisibleCharacters = allianceCharacters.some(char => filteredCharacterIds.has(char.character_id));
+
+            if (!hasVisibleCharacters) {
+                node.style.display = 'none';
+            }
+        }
+    });
+}
+
 function debounce(func, wait) {
     let timeout;
     return function executedFunction(...args) {

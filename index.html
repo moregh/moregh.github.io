@@ -36,6 +36,7 @@
   <link rel="stylesheet" href="styles/virtual-scroll.css">
   <link rel="stylesheet" href="styles/messages.css">
   <link rel="stylesheet" href="styles/zkill-card.css">
+  <link rel="stylesheet" href="styles/tree-layout.css">
   <link rel="stylesheet" href="styles/footer.css">
   <link rel="stylesheet" href="styles/responsive.css">
   <link rel="apple-touch-icon" sizes="180x180" href="media/apple-touch-icon.png">
@@ -59,6 +60,8 @@
   <script type="module" src="js/filters.js"></script>
   <script type="module" src="js/ui.js"></script>
   <script type="module" src="js/rendering.js"></script>
+  <script type="module" src="js/tree-navigation.js"></script>
+  <script type="module" src="js/detail-panel.js"></script>
   <script type="module" src="js/app.js"></script>
 
   <div class="background-effects">
@@ -68,9 +71,9 @@
     <div class="grid-overlay"></div>
   </div>
   <div class="container">
-    <div class="header-main">
-      <a href="#" data-action="reload-page" class="title-link">
-        <div class="title-container">
+    <div class="unified-header" id="unified-header" style="display: none;">
+      <div class="header-title">
+        <a href="#" data-action="reload-page" class="title-link">
           <h1>
             <span class="title-primary">EVE</span>
             <span class="title-primary">Tar<svg class="target-icon" viewBox="0 0 24 24" fill="none"
@@ -83,61 +86,38 @@
               </svg>get</span>
             <span class="title-secondary">Intel</span>
           </h1>
-        </div>
-      </a>
-      <div class="header-stats" id="header-stats" style="display: none;">
-        <div class="stats-grid compact">
-          <div class="stat-card total-stat">
-            <div class="stat-icon">👥</div>
-            <div class="stat-content">
-              <span id="total-count" class="stat-number">0</span>
-              <div class="stat-label">Characters</div>
-            </div>
-          </div>
-          <div class="stat-card alliance-stat">
-            <div class="stat-icon">🏛️</div>
-            <div class="stat-content">
-              <span id="alliance-count" class="stat-number">0</span>
-              <div class="stat-label">Alliances</div>
-            </div>
-          </div>
-          <div class="stat-card corporation-stat">
-            <div class="stat-icon">🏢</div>
-            <div class="stat-content">
-              <span id="corporation-count" class="stat-number">0</span>
-              <div class="stat-label">Corporations</div>
-            </div>
-          </div>
-          <div class="stat-card performance-stat">
-            <div class="stat-icon">⚡</div>
-            <div class="stat-content">
-              <span id="query-time" class="stat-number">0</span>
-              <div class="stat-label">Query (ms)</div>
-            </div>
-          </div>
-          <div class="stat-card api-stat">
-            <div class="stat-icon">🌐</div>
-            <div class="stat-content">
-              <span id="esi-lookups" class="stat-number">0</span>
-              <div class="stat-label">ESI Calls</div>
-            </div>
-          </div>
-          <div class="stat-card cache-stat">
-            <div class="stat-icon">💾</div>
-            <div class="stat-content">
-              <span id="cache-info" class="stat-number">0</span>
-              <div class="stat-label">Cache Hits</div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="header-meta">
-        <span class="subtitle">EVE Intel Tool</span>
-        <a href="https://github.com/moregh/moregh.github.io/" target="_blank">
-          <span class="version-badge" id="version-display">
-            v0.0.0
-          </span>
         </a>
+        <span class="version-display" id="version-display"></span>
+      </div>
+      <div class="stats-inline">
+        <div class="stat-item">
+          <div class="stat-icon">👥</div>
+          <div class="stat-content">
+            <span id="total-count" class="stat-number">0</span>
+            <span class="stat-label">Characters</span>
+          </div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-icon">🏢</div>
+          <div class="stat-content">
+            <span id="corporation-count" class="stat-number">0</span>
+            <span class="stat-label">Corporations</span>
+          </div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-icon">🏛️</div>
+          <div class="stat-content">
+            <span id="alliance-count" class="stat-number">0</span>
+            <span class="stat-label">Alliances</span>
+          </div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-icon">⚔️</div>
+          <div class="stat-content">
+            <span id="war-eligible-count" class="stat-number">0</span>
+            <span class="stat-label">War Eligible</span>
+          </div>
+        </div>
       </div>
     </div>
     <div class="input-section glass-card" id="input-section">
@@ -160,7 +140,7 @@
             <span id="character-count" class="character-count">0 characters entered</span>
           </div>
         </div>
-        <button class="check-button" id="checkButton" onclick="validateNames()">
+        <button class="check-button" id="checkButton">
           <span class="button-text">Analyze Characters</span>
           <span class="button-icon">🔍</span>
         </button>
@@ -182,6 +162,23 @@
         <div class="loading-stats">
           <span class="progress-text" id="progressText">Waiting for ESI response...</span>
           <span id="timer" class="timer">Elapsed: 0.0s</span>
+        </div>
+        <div class="loading-details">
+          <div class="loading-detail-item">
+            <span class="loading-detail-icon">🌐</span>
+            <span class="loading-detail-label">ESI Calls:</span>
+            <span class="loading-detail-value" id="loading-esi-lookups">0</span>
+          </div>
+          <div class="loading-detail-item">
+            <span class="loading-detail-icon">💾</span>
+            <span class="loading-detail-label">Cache Hits:</span>
+            <span class="loading-detail-value" id="loading-cache-info">0</span>
+          </div>
+          <div class="loading-detail-item">
+            <span class="loading-detail-icon">📊</span>
+            <span class="loading-detail-label">Cache Size:</span>
+            <span class="loading-detail-value" id="loading-cache-size">0 entries</span>
+          </div>
         </div>
       </div>
     </div>
@@ -280,42 +277,24 @@
         </div>
       </div>
 
-      <div class="tabbed-results-container glass-card">
-        <div class="tabs-header">
-          <div class="tabs-nav">
-            <button class="tab-btn active" data-tab="characters">
-              <span class="tab-icon">👥</span>
-              <span class="tab-label">Characters</span>
-              <span class="tab-count" id="characters-tab-count">0</span>
-            </button>
-            <button class="tab-btn" data-tab="corporations">
-              <span class="tab-icon">🏢</span>
-              <span class="tab-label">Corporations</span>
-              <span class="tab-count" id="corporations-tab-count">0</span>
-            </button>
-            <button class="tab-btn" data-tab="alliances">
-              <span class="tab-icon">🏛️</span>
-              <span class="tab-label">Alliances</span>
-              <span class="tab-count" id="alliances-tab-count">0</span>
-            </button>
+      <div class="main-layout" id="main-layout">
+        <div class="tree-panel">
+          <div class="tree-header">
+            <h3>Results Tree</h3>
+            <div class="tree-controls">
+              <button class="tree-btn" id="expand-all-btn">Expand All</button>
+              <button class="tree-btn" id="collapse-all-btn">Collapse All</button>
+            </div>
           </div>
+          <div id="tree-container"></div>
         </div>
 
-        <div class="tab-content active" id="characters-tab">
-          <div id="characters-grid" class="result-grid">
-            <div class="no-results">No data yet</div>
-          </div>
-        </div>
-
-        <div class="tab-content" id="corporations-tab">
-          <div id="corporations-grid" class="result-grid corporation-grid">
-            <div class="no-results">No corporations found</div>
-          </div>
-        </div>
-
-        <div class="tab-content" id="alliances-tab">
-          <div id="alliances-grid" class="result-grid alliance-grid">
-            <div class="no-results">No alliances found</div>
+        <div class="detail-panel">
+          <div id="detail-content">
+            <div class="empty-state">
+              <div class="empty-state-icon">👈</div>
+              <div class="empty-state-text">Select an entity from the tree to view detailed information</div>
+            </div>
           </div>
         </div>
       </div>

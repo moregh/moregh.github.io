@@ -129,7 +129,7 @@ class ZKillKillsClient {
         }
     }
 
-    async getEntityKills(entityType, entityId, onProgress = null) {
+    async getEntityKills(entityType, entityId, onProgress = null, maxKills = null) {
         if (!entityType || !['characterID', 'corporationID', 'allianceID'].includes(entityType)) {
             throw new ZKillKillsError('Invalid entity type. Must be characterID, corporationID, or allianceID', 400, entityType, entityId);
         }
@@ -143,7 +143,7 @@ class ZKillKillsClient {
         const entityTypeShort = entityType.replace('ID', '');
         const cached = await getCachedKills(entityTypeShort, entityId);
         if (cached) {
-            return cached.kills;
+            return maxKills ? cached.kills.slice(0, maxKills) : cached.kills;
         }
 
         try {
@@ -164,6 +164,14 @@ class ZKillKillsClient {
                 }
 
                 allKills.push(...pageKills);
+
+                if (maxKills && allKills.length >= maxKills) {
+                    if (onProgress) {
+                        onProgress(currentPage, allKills.length, 'N/A', 'limit reached');
+                    }
+                    shouldContinue = false;
+                    break;
+                }
 
                 const meetsMinKillmails = allKills.length >= MIN_KILLMAILS;
 
@@ -217,9 +225,10 @@ class ZKillKillsClient {
                 }
             }
 
-            await setCachedKills(entityTypeShort, entityId, allKills);
+            const killsToCache = maxKills && allKills.length > maxKills ? allKills.slice(0, maxKills) : allKills;
+            await setCachedKills(entityTypeShort, entityId, killsToCache);
 
-            return allKills;
+            return killsToCache;
 
         } catch (error) {
             if (error instanceof ZKillKillsError) {
@@ -290,27 +299,27 @@ class ZKillKillsClient {
 
 const zkillKillsClient = new ZKillKillsClient();
 
-export async function get_zkill_character_kills(charId, onProgress = null) {
+export async function get_zkill_character_kills(charId, onProgress = null, maxKills = null) {
     try {
-        return await zkillKillsClient.getEntityKills('characterID', charId, onProgress);
+        return await zkillKillsClient.getEntityKills('characterID', charId, onProgress, maxKills);
     } catch (error) {
         console.error(`Failed to get character kills for ${charId}:`, error);
         return [];
     }
 }
 
-export async function get_zkill_corporation_kills(corpId, onProgress = null) {
+export async function get_zkill_corporation_kills(corpId, onProgress = null, maxKills = null) {
     try {
-        return await zkillKillsClient.getEntityKills('corporationID', corpId, onProgress);
+        return await zkillKillsClient.getEntityKills('corporationID', corpId, onProgress, maxKills);
     } catch (error) {
         console.error(`Failed to get corporation kills for ${corpId}:`, error);
         return [];
     }
 }
 
-export async function get_zkill_alliance_kills(allianceId, onProgress = null) {
+export async function get_zkill_alliance_kills(allianceId, onProgress = null, maxKills = null) {
     try {
-        return await zkillKillsClient.getEntityKills('allianceID', allianceId, onProgress);
+        return await zkillKillsClient.getEntityKills('allianceID', allianceId, onProgress, maxKills);
     } catch (error) {
         console.error(`Failed to get alliance kills for ${allianceId}:`, error);
         return [];

@@ -13,6 +13,38 @@ import { fetchKillmailsBatch } from './esi-killmails.js';
 import { analyzeKillmails, getRecentKills, getTopValueKills } from './killmail-analysis.js';
 import { APIError } from './errors.js';
 import { SecurityClassification, POCHVEN_SYSTEMS } from './zkill-card.js';
+import { assessEntityThreat } from './threat-assessment.js';
+
+function distributePercentages(items, total, getCount) {
+    if (total === 0) return items.map(item => ({ ...item, percentage: 0 }));
+
+    const percentages = items.map(item => {
+        const count = getCount(item);
+        const exact = (count / total) * 100;
+        const rounded = Math.round(exact);
+        return { item, count, exact, rounded };
+    });
+
+    let sum = percentages.reduce((s, p) => s + p.rounded, 0);
+
+    if (sum !== 100) {
+        percentages.sort((a, b) => {
+            const diffA = Math.abs(a.exact - a.rounded);
+            const diffB = Math.abs(b.exact - b.rounded);
+            return diffB - diffA;
+        });
+
+        const diff = 100 - sum;
+        for (let i = 0; i < Math.abs(diff) && i < percentages.length; i++) {
+            percentages[i].rounded += diff > 0 ? 1 : -1;
+        }
+    }
+
+    return percentages.map(p => ({
+        ...p.item,
+        percentage: p.rounded
+    }));
+}
 
 class ZKillError extends APIError {
     constructor(message, status, entityType, entityId) {
@@ -325,11 +357,11 @@ class ZKillboardClient {
             };
 
             if (entityType === 'characterID') {
-                kills = await get_zkill_character_kills(entityId, zkillProgress);
+                kills = await get_zkill_character_kills(entityId, zkillProgress, maxKillmails);
             } else if (entityType === 'corporationID') {
-                kills = await get_zkill_corporation_kills(entityId, zkillProgress);
+                kills = await get_zkill_corporation_kills(entityId, zkillProgress, maxKillmails);
             } else if (entityType === 'allianceID') {
-                kills = await get_zkill_alliance_kills(entityId, zkillProgress);
+                kills = await get_zkill_alliance_kills(entityId, zkillProgress, maxKillmails);
             }
 
             if (!kills || kills.length === 0) {
@@ -373,6 +405,8 @@ class ZKillboardClient {
                 if (!stats.activityData.hasData) {
                     stats.activityData = this.extractActivityDataFromKillmails(killmails);
                 }
+
+                stats.threatAssessment = assessEntityThreat(stats, stats.killmailData);
             } else {
                 const mergedAnalysis = {
                     blopsAnalysis: zkillRoleAnalysis.blopsAnalysis,
@@ -694,13 +728,15 @@ class ZKillboardClient {
             data.ships.push(ship.shipName);
         });
 
-        return Array.from(categoryMap.entries()).map(([category, data]) => ({
+        const items = Array.from(categoryMap.entries()).map(([category, data]) => ({
             category,
             count: data.count,
             kills: data.kills,
-            percentage: totalKills > 0 ? Math.round((data.kills / totalKills) * 100) : 0,
             ships: data.ships
-        })).sort((a, b) => b.kills - a.kills);
+        }));
+
+        const distributed = distributePercentages(items, totalKills, item => item.kills);
+        return distributed.sort((a, b) => b.kills - a.kills);
     }
 
     findSpecialization(ships, totalKills) {
@@ -786,11 +822,13 @@ class ZKillboardClient {
             }
         });
 
-        const rolePercentages = Object.entries(roleKills).map(([role, kills]) => ({
+        const roleItems = Object.entries(roleKills).map(([role, kills]) => ({
             role,
-            kills,
-            percentage: Math.round((kills / totalKills) * 100)
-        })).sort((a, b) => b.kills - a.kills);
+            kills
+        }));
+
+        const rolePercentages = distributePercentages(roleItems, totalKills, item => item.kills)
+            .sort((a, b) => b.kills - a.kills);
 
         const primaryRole = rolePercentages[0].percentage > 0 ? rolePercentages[0] : null;
         const secondaryRole = rolePercentages[1]?.percentage >= 15 ? rolePercentages[1] : null;
@@ -1212,13 +1250,16 @@ class ZKillboardClient {
             return this.analyzeSecurityPreference(fallbackData, null);
         }
 
-        const breakdown = [
-            { space: 'Highsec', kills: highsecKills, percentage: Math.round((highsecKills / total) * 100) },
-            { space: 'Lowsec', kills: lowsecKills, percentage: Math.round((lowsecKills / total) * 100) },
-            { space: 'Nullsec', kills: nullsecKills, percentage: Math.round((nullsecKills / total) * 100) },
-            { space: 'Pochven', kills: pochvenKills, percentage: Math.round((pochvenKills / total) * 100) },
-            { space: 'W-Space', kills: wspaceKills, percentage: Math.round((wspaceKills / total) * 100) }
-        ].filter(item => item.kills > 0).sort((a, b) => b.kills - a.kills);
+        const rawBreakdown = [
+            { space: 'Highsec', kills: highsecKills },
+            { space: 'Lowsec', kills: lowsecKills },
+            { space: 'Nullsec', kills: nullsecKills },
+            { space: 'Pochven', kills: pochvenKills },
+            { space: 'W-Space', kills: wspaceKills }
+        ].filter(item => item.kills > 0);
+
+        const breakdown = distributePercentages(rawBreakdown, total, item => item.kills)
+            .sort((a, b) => b.kills - a.kills);
 
         const primary = breakdown[0]?.space || 'Unknown';
         const riskProfile = this.calculateRiskProfile(fallbackData, breakdown, { rawKillmails: killmails });
@@ -1320,13 +1361,16 @@ class ZKillboardClient {
             };
         }
 
-        const breakdown = [
-            { space: 'Highsec', kills: highsecKills, percentage: Math.round((highsecKills / total) * 100) },
-            { space: 'Lowsec', kills: lowsecKills, percentage: Math.round((lowsecKills / total) * 100) },
-            { space: 'Nullsec', kills: nullsecKills, percentage: Math.round((nullsecKills / total) * 100) },
-            { space: 'Pochven', kills: pochvenKills, percentage: Math.round((pochvenKills / total) * 100) },
-            { space: 'W-Space', kills: wspaceKills, percentage: Math.round((wspaceKills / total) * 100) }
-        ].filter(item => item.kills > 0).sort((a, b) => b.kills - a.kills);
+        const rawBreakdown = [
+            { space: 'Highsec', kills: highsecKills },
+            { space: 'Lowsec', kills: lowsecKills },
+            { space: 'Nullsec', kills: nullsecKills },
+            { space: 'Pochven', kills: pochvenKills },
+            { space: 'W-Space', kills: wspaceKills }
+        ].filter(item => item.kills > 0);
+
+        const breakdown = distributePercentages(rawBreakdown, total, item => item.kills)
+            .sort((a, b) => b.kills - a.kills);
 
         const primary = breakdown[0]?.space || 'Unknown';
 
@@ -1418,17 +1462,19 @@ class ZKillboardClient {
 
         const soloRatio = totalKills > 0 ? soloKills / totalKills : 0;
         if (soloRatio > 0.5) {
-            riskScore += 15;
+            riskScore += 20;
         } else if (soloRatio > 0.3) {
-            riskScore += 8;
+            riskScore += 15;
         }
 
-        if (riskScore >= 100) return 'Extreme Risk';
-        if (riskScore >= 80) return 'Very High Risk';
-        if (riskScore >= 50) return 'High Risk';
-        if (riskScore >= 30) return 'Moderate Risk';
-        if (riskScore >= 10) return 'Low Risk';
-        return 'Minimal Risk';
+        riskScore = Math.round(riskScore);
+
+        if (riskScore >= 110) return `Extreme ${riskScore}`;
+        if (riskScore >= 90) return `Very High ${riskScore}`;
+        if (riskScore >= 70) return `High ${riskScore}`;
+        if (riskScore >= 50) return `Moderate ${riskScore}`;
+        if (riskScore >= 20) return `Low ${riskScore}`;
+        return `Minimal Risk`;
     }
 
     analyzeActivityPattern(recentKills, totalKills) {
@@ -1598,29 +1644,29 @@ class ZKillboardClient {
         let activityScore = 0;
 
         if (currentMonth >= 20) {
-            activityScore += 20;
-        } else if (currentMonth >= 10) {
             activityScore += 15;
-        } else if (currentMonth >= 5) {
+        } else if (currentMonth >= 10) {
             activityScore += 10;
+        } else if (currentMonth >= 5) {
+            activityScore += 8;
         } else if (currentMonth >= 2) {
             activityScore += 5;
         }
 
         if (activeMonths >= 5) {
-            activityScore += 15;
-        } else if (activeMonths >= 3) {
             activityScore += 10;
+        } else if (activeMonths >= 3) {
+            activityScore += 8;
         } else if (activeMonths === 1) {
             activityScore *= 0.7;
         }
 
         const monthlyConsistency = lastMonth > 0 ? Math.min(currentMonth / lastMonth, 2) : 1;
         if (monthlyConsistency > 0.8 && monthlyConsistency < 1.3) {
-            activityScore += 10;
+            activityScore += 8;
         }
 
-        return Math.min(activityScore, 40);
+        return Math.min(activityScore, 30);
     }
 
     calculateVariance(numbers) {

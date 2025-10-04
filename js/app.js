@@ -10,11 +10,12 @@ import { initDB, clearExpiredCache } from './database.js';
 import { showCharacterStats, showCorporationStats, showAllianceStats } from './zkill-card.js';
 import { clientValidate, validateEntityName } from './validation.js';
 import { mixedValidator } from './esi-api.js';
-import { initializeFilters, setResultsData, getFilteredResults, getFilteredAlliances, getFilteredCorporations } from './filters.js';
+import { initializeFilters, setResultsData, getFilteredResults, getFilteredAlliances, getFilteredCorporations, applyFiltersToTree } from './filters.js';
 import { startLoading, stopLoading, showError, updateStats, updatePerformanceStats, updateVersionDisplay, expandInputSection } from './ui.js';
 import { renderGrid, buildEntityMaps, getObserverManager, addScrollStateDetection } from './rendering.js';
 import { getZkillCardInstance } from './zkill-card.js';
 import { domCache } from './dom-cache.js';
+import { buildTreeStructure, renderTree } from './tree-navigation.js';
 
 
 let currentView = 'grid';
@@ -44,13 +45,6 @@ document.addEventListener('click', function (event) {
     const clickableElement = event.target.closest('[data-clickable]');
     if (clickableElement) {
         handleZkillStatsClick(clickableElement);
-        return;
-    }
-
-    const tabButton = event.target.closest('.tab-btn');
-    if (tabButton) {
-        const tabName = tabButton.dataset.tab;
-        switchTab(tabName);
         return;
     }
 
@@ -119,62 +113,6 @@ function summariseEntities(results) {
 }
 
 
-function switchTab(tabName) {
-
-    currentTab = tabName;
-
-    domCache.queryAll('.tab-btn').forEach(btn => {
-        btn.classList.remove('active');
-    });
-    document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
-
-    domCache.queryAll('.tab-content').forEach(content => {
-        content.classList.remove('active');
-    });
-    domCache.get(`${tabName}-tab`).classList.add('active');
-
-    updateTabCounts();
-    updateTabDisplay();
-}
-
-function updateTabDisplay() {
-    if (currentTab === 'characters') {
-
-        getObserverManager().cleanupDeadElements();
-
-        const filteredResults = getFilteredResults();
-        renderGrid("characters-grid", filteredResults, 'character');
-
-    } else if (currentTab === 'alliances') {
-        const filteredAlliances = getFilteredAlliances(allSummaryData.alliance);
-        renderGrid("alliances-grid", filteredAlliances, 'alliance');
-
-    } else if (currentTab === 'corporations') {
-        const filteredCorporations = getFilteredCorporations(allSummaryData.corporation);
-        renderGrid("corporations-grid", filteredCorporations, 'corporation');
-    }
-}
-
-function updateTabCounts() {
-    const charactersCount = domCache.get('characters-tab-count');
-    const alliancesCount = domCache.get('alliances-tab-count');
-    const corporationsCount = domCache.get('corporations-tab-count');
-
-    if (charactersCount) {
-        const filteredResults = getFilteredResults();
-        charactersCount.textContent = filteredResults.length;
-    }
-
-    if (alliancesCount) {
-        const filteredAlliances = getFilteredAlliances(allSummaryData.alliance);
-        alliancesCount.textContent = filteredAlliances.length;
-    }
-
-    if (corporationsCount) {
-        const filteredCorporations = getFilteredCorporations(allSummaryData.corporation);
-        corporationsCount.textContent = filteredCorporations.length;
-    }
-}
 
 let characterCountTimeout = null;
 
@@ -254,8 +192,18 @@ export async function validateNames() {
         const { allCorps, allAlliances } = summariseEntities(results);
         allSummaryData.alliance = allAlliances;
         allSummaryData.corporation = allCorps;
-        updateTabCounts();
-        updateTabDisplay();
+
+        const treeData = buildTreeStructure(results);
+        renderTree(treeData);
+
+        const zkillCard = getZkillCardInstance();
+        zkillCard.updateEntityMaps();
+        zkillCard.setCompleteResults(results);
+
+        const unifiedHeader = domCache.get('unified-header');
+        if (unifiedHeader) {
+            unifiedHeader.style.display = 'flex';
+        }
 
         setTimeout(() => {
             updateStats(allResults);
@@ -341,8 +289,7 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     initializeFilters(() => {
-        updateTabCounts();
-        updateTabDisplay();
+        applyFiltersToTree();
     });
 
     const textarea = domCache.get('names');
@@ -353,7 +300,10 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    window.validateNames = validateNames;
+    const checkButton = domCache.get('checkButton');
+    if (checkButton) {
+        checkButton.addEventListener('click', validateNames);
+    }
 
     window.addEventListener('beforeunload', () => {
         getObserverManager().cleanup();

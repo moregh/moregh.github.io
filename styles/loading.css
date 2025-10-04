@@ -115,3 +115,35 @@
 .timer {
     font-weight: 500
 }
+
+.loading-details {
+    display: flex;
+    gap: 2rem;
+    margin-top: 0.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-color);
+    width: 100%;
+    max-width: 500px;
+    justify-content: center;
+}
+
+.loading-detail-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+}
+
+.loading-detail-icon {
+    font-size: 1rem;
+}
+
+.loading-detail-label {
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.loading-detail-value {
+    color: var(--primary-color);
+    font-weight: 600;
+}

@@ -6,6 +6,38 @@
 */
 
 import { SHIP_TYPE_TO_GROUP } from './eve-ship-data.js';
+import { THREAT_ASSESSMENT } from './config.js';
+
+function distributePercentages(items, total, getCount) {
+    if (total === 0) return items.map(item => ({ ...item, percentage: 0 }));
+
+    const percentages = items.map(item => {
+        const count = getCount(item);
+        const exact = (count / total) * 100;
+        const rounded = Math.round(exact);
+        return { item, count, exact, rounded };
+    });
+
+    let sum = percentages.reduce((s, p) => s + p.rounded, 0);
+
+    if (sum !== 100) {
+        percentages.sort((a, b) => {
+            const diffA = Math.abs(a.exact - a.rounded);
+            const diffB = Math.abs(b.exact - b.rounded);
+            return diffB - diffA;
+        });
+
+        const diff = 100 - sum;
+        for (let i = 0; i < Math.abs(diff) && i < percentages.length; i++) {
+            percentages[i].rounded += diff > 0 ? 1 : -1;
+        }
+    }
+
+    return percentages.map(p => ({
+        ...p.item,
+        percentage: p.rounded
+    }));
+}
 
 export function analyzeKillmails(killmails, entityType = null, entityId = null) {
     if (!Array.isArray(killmails) || killmails.length === 0) {
@@ -25,7 +57,8 @@ export function analyzeKillmails(killmails, entityType = null, entityId = null) 
         targetPreferences: analyzeTargetPreferences(killmails),
         engagementPatterns: analyzeEngagementPatterns(killmails),
         blopsAnalysis: analyzeBlackOpsActivity(killmails, entityType, entityId),
-        cynoAnalysis: analyzeCynoActivity(killmails, entityType, entityId)
+        cynoAnalysis: analyzeCynoActivity(killmails, entityType, entityId),
+        capitalAnalysis: analyzeCapitalActivity(killmails, entityType, entityId)
     };
 
     return analysis;
@@ -60,9 +93,9 @@ function analyzeFleetSizes(killmails) {
 
     const sizeRanges = {
         solo: sizes.filter(s => s === 1).length,
-        small: sizes.filter(s => s >= 2 && s <= 5).length,
-        medium: sizes.filter(s => s >= 6 && s <= 15).length,
-        large: sizes.filter(s => s >= 16 && s <= 30).length,
+        small: sizes.filter(s => s >= 2 && s <= 10).length,
+        medium: sizes.filter(s => s >= 11 && s <= 25).length,
+        large: sizes.filter(s => s >= 26 && s <= 40).length,
         blob: sizes.filter(s => s > 30).length
     };
 
@@ -160,7 +193,7 @@ function analyzeSoloVsFleet(killmails) {
         const attackers = km.killmail?.attackers?.length || 0;
         if (attackers === 1) {
             soloKills++;
-        } else if (attackers <= 5) {
+        } else if (attackers <= 10) {
             smallGangKills++;
         } else {
             fleetKills++;
@@ -169,20 +202,28 @@ function analyzeSoloVsFleet(killmails) {
 
     const total = killmails.length;
 
-    return {
-        solo: {
-            count: soloKills,
-            percentage: total > 0 ? Math.round((soloKills / total) * 100) : 0
-        },
-        smallGang: {
-            count: smallGangKills,
-            percentage: total > 0 ? Math.round((smallGangKills / total) * 100) : 0
-        },
-        fleet: {
-            count: fleetKills,
-            percentage: total > 0 ? Math.round((fleetKills / total) * 100) : 0
-        }
-    };
+    if (total === 0) {
+        return {
+            solo: { count: 0, percentage: 0 },
+            smallGang: { count: 0, percentage: 0 },
+            fleet: { count: 0, percentage: 0 }
+        };
+    }
+
+    const items = [
+        { type: 'solo', count: soloKills },
+        { type: 'smallGang', count: smallGangKills },
+        { type: 'fleet', count: fleetKills }
+    ];
+
+    const distributed = distributePercentages(items, total, item => item.count);
+
+    const result = {};
+    distributed.forEach(item => {
+        result[item.type] = { count: item.count, percentage: item.percentage };
+    });
+
+    return result;
 }
 
 function calculateAverageValue(killmails) {
@@ -288,9 +329,9 @@ function analyzeHighValueTargets(killmails) {
     }
 
     const thresholds = {
-        high: 1000000000,     // 1B ISK
-        veryHigh: 5000000000, // 5B ISK
-        extreme: 10000000000  // 10B ISK
+        high: THREAT_ASSESSMENT.HVT.VALUE_THRESHOLD_HIGH,
+        veryHigh: THREAT_ASSESSMENT.HVT.VALUE_THRESHOLD_VERY_HIGH,
+        extreme: THREAT_ASSESSMENT.HVT.VALUE_THRESHOLD_EXTREME
     };
 
     const hvtKills = {
@@ -313,14 +354,16 @@ function analyzeHighValueTargets(killmails) {
     const timeSpread = analyzeHVTTimeSpread(hvtKills.high);
 
     let confidence = 'low';
-    if (totalKills >= 150 && hvtCount >= 15) confidence = 'very high';
-    else if (totalKills >= 100 && hvtCount >= 10) confidence = 'high';
-    else if (totalKills >= 50 && hvtCount >= 5) confidence = 'medium';
-    else if (totalKills >= 20 && hvtCount >= 3) confidence = 'low';
+    if (totalKills >= THREAT_ASSESSMENT.HVT.CONFIDENCE_THRESHOLD_VERY_HIGH && hvtCount >= 15) confidence = 'very high';
+    else if (totalKills >= THREAT_ASSESSMENT.HVT.CONFIDENCE_THRESHOLD_HIGH && hvtCount >= 10) confidence = 'high';
+    else if (totalKills >= THREAT_ASSESSMENT.HVT.CONFIDENCE_THRESHOLD_MEDIUM && hvtCount >= THREAT_ASSESSMENT.HVT.MIN_KILLS_FOR_DETECTION) confidence = 'medium';
+    else if (totalKills >= THREAT_ASSESSMENT.HVT.CONFIDENCE_THRESHOLD_LOW && hvtCount >= 3) confidence = 'low';
     else confidence = 'insufficient';
 
     const avgKillValue = calculateAverageValue(killmails);
-    const isHVTHunter = avgKillValue > 1000000000 && ((hvtCount >= 10 && hvtFrequency >= 0.08) || (hvtCount >= 5 && hvtFrequency >= 0.15));
+    const isHVTHunter = avgKillValue > THREAT_ASSESSMENT.HVT.VALUE_THRESHOLD_HIGH &&
+        ((hvtCount >= 10 && hvtFrequency >= THREAT_ASSESSMENT.HVT.MIN_FREQUENCY_PERCENT/100) ||
+         (hvtCount >= THREAT_ASSESSMENT.HVT.MIN_KILLS_FOR_DETECTION && hvtFrequency >= THREAT_ASSESSMENT.HVT.MIN_FREQUENCY_PERCENT_STRICT/100));
 
     return {
         isHVTHunter,
@@ -389,11 +432,14 @@ function analyzeTargetPreferences(killmails) {
     const preferredSize = Object.entries(shipSizes)
         .sort((a, b) => b[1] - a[1])[0];
 
+    const sizeItems = Object.entries(shipSizes).map(([size, count]) => ({ size, count }));
+    const distributedSizes = distributePercentages(sizeItems, totalVictims, item => item.count);
+
     return {
         shipSizes: Object.fromEntries(
-            Object.entries(shipSizes).map(([size, count]) => [
-                size,
-                { count, percentage: Math.round((count / totalVictims) * 100) }
+            distributedSizes.map(item => [
+                item.size,
+                { count: item.count, percentage: item.percentage }
             ])
         ),
         preferredTargetSize: preferredSize ? preferredSize[0] : 'Mixed',
@@ -515,17 +561,8 @@ function analyzeBlackOpsActivity(killmails, entityType = null, entityId = null) 
         };
     }
 
-    const BLACK_OPS_GROUP_ID = 898;
-
-    const BLACK_OPS_SHIP_IDS = [
-        22456, // Panther
-        22464, // Widow
-        22466, // Redeemer
-        22460, // Sin
-        28844, // Marshal (AT ship)
-        42125, // Virtuoso (AT ship)
-        42246  // Chameleon (AT ship)
-    ];
+    const BLACK_OPS_GROUP_ID = THREAT_ASSESSMENT.BLOPS.GROUP_ID;
+    const BLACK_OPS_SHIP_IDS = THREAT_ASSESSMENT.BLOPS.SHIP_IDS;
 
     let blopsKillCount = 0;
     let blopsShipsUsed = new Set();
@@ -561,13 +598,14 @@ function analyzeBlackOpsActivity(killmails, entityType = null, entityId = null) 
     const blopsFrequency = totalKills > 0 ? blopsKillCount / totalKills : 0;
 
     let confidence = 'insufficient';
-    if (totalKills >= 150 && blopsKillCount >= 10) confidence = 'very high';
-    else if (totalKills >= 100 && blopsKillCount >= 7) confidence = 'high';
-    else if (totalKills >= 50 && blopsKillCount >= 5) confidence = 'medium';
-    else if (totalKills >= 20 && blopsKillCount >= 3) confidence = 'low';
+    if (totalKills >= THREAT_ASSESSMENT.BLOPS.CONFIDENCE_THRESHOLD_VERY_HIGH && blopsKillCount >= 10) confidence = 'very high';
+    else if (totalKills >= THREAT_ASSESSMENT.BLOPS.CONFIDENCE_THRESHOLD_HIGH && blopsKillCount >= 7) confidence = 'high';
+    else if (totalKills >= THREAT_ASSESSMENT.BLOPS.CONFIDENCE_THRESHOLD_MEDIUM && blopsKillCount >= THREAT_ASSESSMENT.BLOPS.MIN_KILLS_FOR_DETECTION) confidence = 'medium';
+    else if (totalKills >= THREAT_ASSESSMENT.BLOPS.CONFIDENCE_THRESHOLD_LOW && blopsKillCount >= 3) confidence = 'low';
     else if (blopsKillCount >= 2) confidence = 'minimal';
 
-    const isBlopsUser = (blopsKillCount >= 8 && blopsFrequency >= 0.08) || (blopsKillCount >= 5 && blopsFrequency >= 0.15);
+    const isBlopsUser = (blopsKillCount >= THREAT_ASSESSMENT.BLOPS.MIN_KILLS_FOR_HIGH_CONFIDENCE && blopsFrequency >= THREAT_ASSESSMENT.BLOPS.MIN_FREQUENCY_PERCENT/100) ||
+                        (blopsKillCount >= THREAT_ASSESSMENT.BLOPS.MIN_KILLS_FOR_DETECTION && blopsFrequency >= THREAT_ASSESSMENT.BLOPS.MIN_FREQUENCY_PERCENT_STRICT/100);
 
     const blopsFleetDetected = detectBlopsFleetActivity(killmails, BLACK_OPS_SHIP_IDS);
 
@@ -626,18 +664,8 @@ function analyzeCynoActivity(killmails, entityType = null, entityId = null) {
         };
     }
 
-    const CYNO_SHIP_IDS = [
-        670,    // Capsule (often used for suicide cynos)
-        33328,  // Prospect (covert cyno)
-        33816,  // Endurance (covert cyno capable)
-        11129,  // Talos (common cyno ship)
-        11176,  // Brutix (common cyno ship)
-        28710,  // Sunesis (common cyno ship)
-        33470,  // Astero (covert cyno)
-        11172   // Catalyst (common cheap cyno)
-    ];
-
-    const FORCE_RECON_SHIP_GROUP_ID = 833;
+    const CYNO_SHIP_IDS = THREAT_ASSESSMENT.CYNO.SHIP_IDS;
+    const FORCE_RECON_SHIP_GROUP_ID = THREAT_ASSESSMENT.CYNO.FORCE_RECON_GROUP_ID;
 
     let cynoKillCount = 0;
     let cynoShipsUsed = new Set();
@@ -681,18 +709,18 @@ function analyzeCynoActivity(killmails, entityType = null, entityId = null) {
     const cynoFrequency = totalKills > 0 ? cynoKillCount / totalKills : 0;
 
     let confidence = 'insufficient';
-    if (totalKills >= 150 && cynoKillCount >= 12) confidence = 'very high';
-    else if (totalKills >= 100 && cynoKillCount >= 8) confidence = 'high';
-    else if (totalKills >= 50 && cynoKillCount >= 5) confidence = 'medium';
-    else if (totalKills >= 20 && cynoKillCount >= 3) confidence = 'low';
+    if (totalKills >= THREAT_ASSESSMENT.CYNO.CONFIDENCE_THRESHOLD_VERY_HIGH && cynoKillCount >= 12) confidence = 'very high';
+    else if (totalKills >= THREAT_ASSESSMENT.CYNO.CONFIDENCE_THRESHOLD_HIGH && cynoKillCount >= 8) confidence = 'high';
+    else if (totalKills >= THREAT_ASSESSMENT.CYNO.CONFIDENCE_THRESHOLD_MEDIUM && cynoKillCount >= 5) confidence = 'medium';
+    else if (totalKills >= THREAT_ASSESSMENT.CYNO.CONFIDENCE_THRESHOLD_LOW && cynoKillCount >= THREAT_ASSESSMENT.CYNO.MIN_KILLS_FOR_DETECTION) confidence = 'low';
     else if (cynoKillCount >= 2) confidence = 'minimal';
 
-    const isCynoPilot = cynoFrequency >= 0.10;
+    const isCynoPilot = cynoFrequency >= THREAT_ASSESSMENT.CYNO.MIN_FREQUENCY_PERCENT/100;
 
     let cynoRole = 'Unknown';
     if (suspiciousCynoPatterns >= 2) {
         cynoRole = 'Hot Drop Cyno';
-    } else if (cynoKillCount >= 3) {
+    } else if (cynoKillCount >= THREAT_ASSESSMENT.CYNO.MIN_KILLS_FOR_DETECTION) {
         cynoRole = 'Cyno Alt';
     }
 
@@ -704,6 +732,59 @@ function analyzeCynoActivity(killmails, entityType = null, entityId = null) {
         uniqueCynoShips: cynoShipsUsed.size,
         cynoRole,
         hotDropSupport: suspiciousCynoPatterns,
+        sampleSize: totalKills
+    };
+}
+
+function analyzeCapitalActivity(killmails, entityType = null, entityId = null) {
+    if (!killmails.length) {
+        return {
+            isCapitalPilot: false,
+            capitalKillCount: 0,
+            capitalFrequency: 0
+        };
+    }
+
+    const CAPITAL_GROUP_IDS = [485, 547, 659, 30, 1538, 4594, 883];
+
+    let capitalKillCount = 0;
+    let capitalShipsUsed = new Set();
+
+    killmails.forEach(km => {
+        const attackers = km.killmail?.attackers || [];
+
+        let playerAttacker = null;
+        if (entityType === 'characterID' && entityId) {
+            playerAttacker = attackers.find(a => a.character_id === entityId);
+        } else if (entityType === 'corporationID' && entityId) {
+            playerAttacker = attackers.find(a => a.corporation_id === entityId);
+        } else if (entityType === 'allianceID' && entityId) {
+            playerAttacker = attackers.find(a => a.alliance_id === entityId);
+        } else {
+            playerAttacker = attackers.find(a => a.character_id && a.final_blow);
+        }
+
+        if (!playerAttacker) return;
+
+        const playerShipId = playerAttacker.ship_type_id;
+        const playerGroupId = SHIP_TYPE_TO_GROUP[playerShipId];
+
+        if (playerGroupId && CAPITAL_GROUP_IDS.includes(playerGroupId)) {
+            capitalShipsUsed.add(playerShipId);
+            capitalKillCount++;
+        }
+    });
+
+    const totalKills = killmails.length;
+    const capitalFrequency = totalKills > 0 ? capitalKillCount / totalKills : 0;
+
+    const isCapitalPilot = capitalKillCount >= THREAT_ASSESSMENT.TAGS.CAPITAL_PILOT_MIN_KILLS;
+
+    return {
+        isCapitalPilot,
+        capitalKillCount,
+        capitalFrequency: Math.round(capitalFrequency * 100),
+        uniqueCapitalShips: capitalShipsUsed.size,
         sampleSize: totalKills
     };
 }

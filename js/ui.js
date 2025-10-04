@@ -47,7 +47,10 @@ function getLoadingElements() {
         loadingElements = {
             container: domCache.get("loading-container"),
             resultsSection: domCache.get("results-section"),
-            checkButton: domCache.get("checkButton")
+            checkButton: domCache.get("checkButton"),
+            esiLookups: domCache.get("loading-esi-lookups"),
+            cacheInfo: domCache.get("loading-cache-info"),
+            cacheSize: domCache.get("loading-cache-size")
         };
     }
     return loadingElements;
@@ -91,6 +94,28 @@ export function updateProgress(current, total, stage = null) {
     }
 
     lastProgressUpdate = now;
+}
+
+export async function updateLoadingDetails() {
+    const loadingElements = getLoadingElements();
+    const { esiLookups, localLookups } = getCounters();
+    const recordCount = await getCacheRecordCount();
+
+    requestAnimationFrame(() => {
+        if (loadingElements.esiLookups) {
+            loadingElements.esiLookups.textContent = esiLookups;
+        }
+        if (loadingElements.cacheInfo) {
+            loadingElements.cacheInfo.textContent = localLookups;
+        }
+        if (loadingElements.cacheSize) {
+            if (recordCount === 1) {
+                loadingElements.cacheSize.textContent = '1 entry';
+            } else {
+                loadingElements.cacheSize.textContent = `${recordCount.toLocaleString()} entries`;
+            }
+        }
+    });
 }
 
 function updateTimer() {
@@ -144,6 +169,16 @@ export function startLoading() {
         if (progressElements.text) {
             progressElements.text.textContent = 'Processed: 0 / 0';
         }
+
+        if (loadingElements.esiLookups) {
+            loadingElements.esiLookups.textContent = '0';
+        }
+        if (loadingElements.cacheInfo) {
+            loadingElements.cacheInfo.textContent = '0';
+        }
+        if (loadingElements.cacheSize) {
+            loadingElements.cacheSize.textContent = '0 entries';
+        }
     });
 
     queryStartTime = performance.now();
@@ -176,10 +211,6 @@ export function stopLoading() {
         requestAnimationFrame(() => {
             if (loadingElements.resultsSection) {
                 loadingElements.resultsSection.classList.add("show");
-            }
-
-            if (uiElements.headerStats) {
-                uiElements.headerStats.style.display = 'flex';
             }
 
             if (uiElements.inputSection) {
@@ -238,8 +269,7 @@ function getStatsElements() {
             allianceCount: domCache.get("alliance-count"),
             corporationCount: domCache.get("corporation-count"),
             totalCount: domCache.get("total-count"),
-            allianceTotal: domCache.get("alliance-total"),
-            corporationTotal: domCache.get("corporation-total")
+            warEligibleCount: domCache.get("war-eligible-count")
         };
     }
     return statsElements;
@@ -250,13 +280,19 @@ export function updateStats(allResults) {
 
     const uniqueAlliances = new Set();
     const uniqueCorporations = new Set();
+    let warEligibleCount = 0;
 
-    allResults.forEach(character => {
-        if (character.alliance_id) {
-            uniqueAlliances.add(character.alliance_id);
+    allResults.forEach(result => {
+        if (result.character_name) {
+            if (result.war_eligible) {
+                warEligibleCount++;
+            }
         }
-        if (character.corporation_id) {
-            uniqueCorporations.add(character.corporation_id);
+        if (result.alliance_id) {
+            uniqueAlliances.add(result.alliance_id);
+        }
+        if (result.corporation_id) {
+            uniqueCorporations.add(result.corporation_id);
         }
     });
 
@@ -267,8 +303,7 @@ export function updateStats(allResults) {
     if (elements.allianceCount) elements.allianceCount.textContent = allianceCount;
     if (elements.corporationCount) elements.corporationCount.textContent = corporationCount;
     if (elements.totalCount) elements.totalCount.textContent = totalLen;
-    if (elements.allianceTotal) elements.allianceTotal.textContent = allianceCount;
-    if (elements.corporationTotal) elements.corporationTotal.textContent = corporationCount;
+    if (elements.warEligibleCount) elements.warEligibleCount.textContent = warEligibleCount;
     updateTitle(totalLen, totalLen);
 }
 

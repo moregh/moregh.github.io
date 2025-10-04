@@ -19,9 +19,9 @@ import {
     BREAKDOWN_DISPLAY_LIMIT
 } from './config.js';
 import { getEntityMaps } from './rendering.js';
-import { esiClient } from './esi-client.js';
+import { getCounters } from './esi-api.js';
 import { sanitizeCharacterName, sanitizeCorporationName, sanitizeAllianceName, sanitizeId, sanitizeAttribute, escapeHtml } from './xss-protection.js';
-import { getCachedUniverseName, setCachedUniverseName, getCachedAffiliation, setCachedAffiliation } from './database.js';
+import { getCachedUniverseName, setCachedUniverseName, getCachedAffiliation, setCachedAffiliation, getCacheRecordCount } from './database.js';
 
 const POCHVEN_SYSTEMS = [
     'Skarkon', 'Archee', 'Kino', 'Konola', 'Krirald', 'Nalvula', 'Nani',
@@ -934,9 +934,7 @@ class ZKillStatsCard {
         const recentKillsHTML = await this.createRecentKillsHTML(stats.killmailData, entityType, entityId);
 
         return `
-        ${this.createMembersDropdownHTML(entityType, entityId)}
-        ${this.createPlaystyleTagsHTML(stats.combatStyle)}
-        ${this.createThreatAssessmentHTML(stats.securityPreference, stats.combatStyle, stats.activityInsights, stats.shipAnalysis)}
+        ${this.createThreatAssessmentHTML(stats.securityPreference, stats.combatStyle, stats.activityInsights, stats.shipAnalysis, stats.threatAssessment)}
         ${this.createTacticalOverviewHTML(stats)}
         ${this.createTop10CombinedHTML(stats.topShips, stats.topPlayers, stats.topLocations, entityType)}
         ${this.createKillmailInsightsHTML(stats.killmailData)}
@@ -1440,44 +1438,57 @@ class ZKillStatsCard {
         `;
     }
 
-    createThreatAssessmentHTML(securityPreference, combatStyle, activityInsights, shipAnalysis) {
+    createThreatAssessmentHTML(securityPreference, combatStyle, activityInsights, shipAnalysis, threatAssessment) {
         if (!securityPreference || !combatStyle) return '';
 
         const memberCount = combatStyle.memberCount;
         const activePlayerCount = combatStyle.activePlayerCount;
 
-        let baseRiskLevel = securityPreference.riskProfile === 'High Risk' ? 'high' :
-            securityPreference.riskProfile === 'Risk Averse' ? 'low' : 'moderate';
+        let riskLevel = 'moderate';
+        let adjustedRiskProfile = securityPreference.riskProfile || 'Unknown';
 
-        let riskLevel = baseRiskLevel;
-        let adjustedRiskProfile = securityPreference.riskProfile;
+        if (threatAssessment) {
+            adjustedRiskProfile = threatAssessment.riskLevel;
+            const score = threatAssessment.totalScore;
+            if (score >= 90) riskLevel = 'high';
+            else if (score >= 70) riskLevel = 'high';
+            else if (score >= 50) riskLevel = 'moderate';
+            else if (score >= 20) riskLevel = 'low';
+            else riskLevel = 'low';
+        } else {
+            let baseRiskLevel = securityPreference.riskProfile === 'High Risk' ? 'high' :
+                securityPreference.riskProfile === 'Risk Averse' ? 'low' : 'moderate';
 
-        if (memberCount && activePlayerCount) {
-            const participationRate = (activePlayerCount / memberCount) * 100;
+            riskLevel = baseRiskLevel;
+            adjustedRiskProfile = securityPreference.riskProfile;
 
-            if (participationRate < 1) {
-                riskLevel = 'low';
-                adjustedRiskProfile = 'Minimal Threat';
-            } else if (participationRate < 5) {
-                if (baseRiskLevel === 'high') {
+            if (memberCount && activePlayerCount) {
+                const participationRate = (activePlayerCount / memberCount) * 100;
+
+                if (participationRate < 1) {
                     riskLevel = 'low';
-                    adjustedRiskProfile = 'Low Risk';
-                } else if (baseRiskLevel === 'moderate') {
-                    riskLevel = 'low';
-                    adjustedRiskProfile = 'Low Risk';
-                }
-            } else if (participationRate < 15) {
-                if (baseRiskLevel === 'high') {
-                    riskLevel = 'moderate';
-                    adjustedRiskProfile = 'Moderate Risk';
-                }
-            } else if (participationRate >= 40) {
-                if (baseRiskLevel === 'low') {
-                    riskLevel = 'moderate';
-                    adjustedRiskProfile = 'Moderate Risk';
-                } else if (baseRiskLevel === 'moderate') {
-                    riskLevel = 'high';
-                    adjustedRiskProfile = 'High Risk';
+                    adjustedRiskProfile = 'Minimal Threat';
+                } else if (participationRate < 5) {
+                    if (baseRiskLevel === 'high') {
+                        riskLevel = 'low';
+                        adjustedRiskProfile = 'Low Risk';
+                    } else if (baseRiskLevel === 'moderate') {
+                        riskLevel = 'low';
+                        adjustedRiskProfile = 'Low Risk';
+                    }
+                } else if (participationRate < 15) {
+                    if (baseRiskLevel === 'high') {
+                        riskLevel = 'moderate';
+                        adjustedRiskProfile = 'Moderate Risk';
+                    }
+                } else if (participationRate >= 40) {
+                    if (baseRiskLevel === 'low') {
+                        riskLevel = 'moderate';
+                        adjustedRiskProfile = 'Moderate Risk';
+                    } else if (baseRiskLevel === 'moderate') {
+                        riskLevel = 'high';
+                        adjustedRiskProfile = 'High Risk';
+                    }
                 }
             }
         }
@@ -1948,6 +1959,226 @@ class ZKillStatsCard {
 
     formatSecurity(security, systemName) {
         return SecurityClassification.classify(security, systemName).label;
+    }
+
+    async showCharacterStatsInline(characterId, containerElement, characterName = null) {
+        await this.showStatsInline('character', characterId, characterName, 'characterID', containerElement);
+    }
+
+    async showCorporationStatsInline(corporationId, containerElement, corporationName = null) {
+        await this.showStatsInline('corporation', corporationId, corporationName, 'corporationID', containerElement);
+    }
+
+    async showAllianceStatsInline(allianceId, containerElement, allianceName = null) {
+        await this.showStatsInline('alliance', allianceId, allianceName, 'allianceID', containerElement);
+    }
+
+    async showStatsInline(entityType, entityId, entityName, apiType, containerElement) {
+        if (!containerElement) return;
+
+        const startTime = Date.now();
+        let timerInterval;
+        let stats;
+
+        containerElement.innerHTML = `
+            <div class="empty-state">
+                <div class="loading-spinner"></div>
+                <div class="empty-state-text zkill-loading-status">Loading ${entityType} information...</div>
+                <div class="timer" style="margin-top: 1rem; color: var(--text-secondary); font-size: 0.9rem;">Elapsed: 0.0s</div>
+                <div class="loading-details" style="display: flex; gap: 2rem; margin-top: 0.5rem; padding-top: 1rem; border-top: 1px solid var(--border-color); width: 100%; max-width: 600px; justify-content: center;">
+                    <div class="loading-detail-item" style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem;">
+                        <span class="loading-detail-icon" style="font-size: 1rem;">📥</span>
+                        <span class="loading-detail-label" style="color: var(--text-secondary); font-weight: 500;">Killmails:</span>
+                        <span class="loading-detail-value zkill-killmails" style="color: var(--primary-color); font-weight: 600;">0 / 0</span>
+                    </div>
+                    <div class="loading-detail-item" style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem;">
+                        <span class="loading-detail-icon" style="font-size: 1rem;">🌐</span>
+                        <span class="loading-detail-label" style="color: var(--text-secondary); font-weight: 500;">ESI:</span>
+                        <span class="loading-detail-value zkill-esi-calls" style="color: var(--primary-color); font-weight: 600;">0</span>
+                    </div>
+                    <div class="loading-detail-item" style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem;">
+                        <span class="loading-detail-icon" style="font-size: 1rem;">💾</span>
+                        <span class="loading-detail-label" style="color: var(--text-secondary); font-weight: 500;">Cache:</span>
+                        <span class="loading-detail-value zkill-cache-hits" style="color: var(--primary-color); font-weight: 600;">0</span>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        const updateLoadingStats = async () => {
+            const { esiLookups, localLookups } = getCounters();
+
+            const esiCallsEl = containerElement.querySelector('.zkill-esi-calls');
+            const cacheHitsEl = containerElement.querySelector('.zkill-cache-hits');
+
+            if (esiCallsEl) esiCallsEl.textContent = esiLookups;
+            if (cacheHitsEl) cacheHitsEl.textContent = localLookups;
+        };
+
+        timerInterval = setInterval(async () => {
+            const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+            const timerEl = containerElement.querySelector('.timer');
+            if (timerEl) {
+                timerEl.textContent = `Elapsed: ${elapsed}s`;
+            }
+            await updateLoadingStats();
+        }, ZKILL_TIMER_UPDATE_INTERVAL_MS);
+
+        try {
+            const options = {
+                includeKillmails: true,
+                onProgress: (stage, message, processed, total) => {
+                    const statusEl = containerElement.querySelector('.zkill-loading-status');
+                    const killmailsEl = containerElement.querySelector('.zkill-killmails');
+
+                    if (statusEl) {
+                        statusEl.textContent = message;
+                    }
+
+                    if (killmailsEl && stage === 'esi') {
+                        killmailsEl.textContent = `${processed} / ${total}`;
+                    }
+
+                    updateLoadingStats();
+                }
+            };
+            if (entityType === 'character') {
+                stats = await get_zkill_character_stats(entityId, options);
+            } else if (entityType === 'corporation') {
+                stats = await get_zkill_corporation_stats(entityId, options);
+            } else if (entityType === 'alliance') {
+                stats = await get_zkill_alliance_stats(entityId, options);
+            }
+
+            clearInterval(timerInterval);
+
+            if (!stats || (stats.totalKills === 0 && stats.totalLosses === 0)) {
+                containerElement.innerHTML = this.createEmptyStateHTML(entityName || 'Entity');
+                return;
+            }
+
+            const content = await this.createStatsHTML(stats, entityType, entityId);
+
+            const logoSize = entityType === 'character' ? CHARACTER_PORTRAIT_SIZE_PX :
+                           entityType === 'corporation' ? CORP_LOGO_SIZE_PX : ALLIANCE_LOGO_SIZE_PX;
+            const imageType = entityType === 'character' ? 'characters' :
+                            entityType === 'corporation' ? 'corporations' : 'alliances';
+            const imagePath = entityType === 'character' ? 'portrait' : 'logo';
+
+            const name = entityName || stats.entityName || `${entityType} ${entityId}`;
+            const warBadge = this.getWarEligibility(entityType, entityId) ? '<span class="detail-badge war">⚔️ War Eligible</span>' : '';
+            const memberText = (entityType !== 'character' && stats.memberCount) ?
+                `${this.formatNumber(stats.memberCount)} member${stats.memberCount !== 1 ? 's' : ''}` : '';
+
+            let affiliationBadges = '';
+            if (entityType === 'character') {
+                const character = this.completeResults.find(char => char.character_id == entityId);
+                if (character) {
+                    if (character.corporation_id && character.corporation_name) {
+                        affiliationBadges += `<span class="detail-badge detail-badge-clickable" data-click-action="show-corporation" data-corporation-id="${sanitizeId(character.corporation_id)}" data-corporation-name="${sanitizeAttribute(character.corporation_name)}" style="cursor: pointer;">🏢 ${escapeHtml(character.corporation_name)}</span>`;
+                    }
+                    if (character.alliance_id && character.alliance_name) {
+                        affiliationBadges += `<span class="detail-badge detail-badge-clickable" data-click-action="show-alliance" data-alliance-id="${sanitizeId(character.alliance_id)}" data-alliance-name="${sanitizeAttribute(character.alliance_name)}" style="cursor: pointer;">🏛️ ${escapeHtml(character.alliance_name)}</span>`;
+                    }
+                }
+            } else if (entityType === 'corporation') {
+                const character = this.completeResults.find(char => char.corporation_id == entityId);
+                if (character && character.alliance_id && character.alliance_name) {
+                    affiliationBadges += `<span class="detail-badge detail-badge-clickable" data-click-action="show-alliance" data-alliance-id="${sanitizeId(character.alliance_id)}" data-alliance-name="${sanitizeAttribute(character.alliance_name)}" style="cursor: pointer;">🏛️ ${escapeHtml(character.alliance_name)}</span>`;
+                }
+            }
+
+            let playstyleTags = '';
+            if (stats.combatStyle?.playstyleDetails?.length > 0) {
+                const tags = stats.combatStyle.playstyleDetails;
+                playstyleTags = tags.map(tag => `<span class="tag tag-${tag.toLowerCase().replace(/[\/\s]/g, '-')}">${tag}</span>`).join('');
+            }
+
+            containerElement.innerHTML = `
+                <div class="detail-header">
+                    <img src="https://images.evetech.net/${imageType}/${entityId}/${imagePath}?size=${logoSize}"
+                         alt="${name}"
+                         class="detail-avatar">
+                    <div class="detail-info">
+                        <h2 class="detail-name">${name}</h2>
+                        <div class="detail-meta">
+                            <span class="detail-badge">${entityType.charAt(0).toUpperCase() + entityType.slice(1)}</span>
+                            ${memberText ? `<span class="detail-badge">👥 ${memberText}</span>` : ''}
+                            ${affiliationBadges}
+                            ${warBadge}
+                            ${playstyleTags}
+                        </div>
+                    </div>
+                </div>
+                ${content}
+            `;
+
+            this.setupSectionToggleHandlers(containerElement);
+
+        } catch (error) {
+            clearInterval(timerInterval);
+            console.error('Error loading stats inline:', error);
+            containerElement.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">⚠️</div>
+                    <div class="empty-state-text">Error loading ${entityType} information</div>
+                </div>
+            `;
+        }
+    }
+
+    setupSectionToggleHandlers(containerElement) {
+        const sectionHeaders = containerElement.querySelectorAll('.section-header, .zkill-section-header');
+        sectionHeaders.forEach(header => {
+            header.addEventListener('click', function() {
+                const content = this.nextElementSibling;
+                const toggle = this.querySelector('.section-toggle, .zkill-section-toggle');
+                if (content && toggle) {
+                    content.classList.toggle('collapsed');
+                    toggle.classList.toggle('collapsed');
+                }
+            });
+        });
+
+        containerElement.addEventListener('click', (e) => {
+            if (e.target.closest('[data-action="toggle-members"]')) {
+                e.preventDefault();
+                e.stopPropagation();
+                const dropdown = containerElement.querySelector('#zkill-members-dropdown');
+                if (dropdown) {
+                    dropdown.classList.toggle('expanded');
+                }
+                return;
+            }
+
+            const clickableItem = e.target.closest('[data-click-action]');
+            if (clickableItem) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                const action = clickableItem.dataset.clickAction;
+
+                if (action === 'show-character') {
+                    const characterId = clickableItem.dataset.characterId;
+                    const characterName = clickableItem.dataset.characterName;
+                    if (characterId) {
+                        this.showCharacterStatsInline(characterId, containerElement, characterName);
+                    }
+                } else if (action === 'show-corporation') {
+                    const corporationId = clickableItem.dataset.corporationId;
+                    const corporationName = clickableItem.dataset.corporationName;
+                    if (corporationId) {
+                        this.showCorporationStatsInline(corporationId, containerElement, corporationName);
+                    }
+                } else if (action === 'show-alliance') {
+                    const allianceId = clickableItem.dataset.allianceId;
+                    const allianceName = clickableItem.dataset.allianceName;
+                    if (allianceId) {
+                        this.showAllianceStatsInline(allianceId, containerElement, allianceName);
+                    }
+                }
+            }
+        });
     }
 }
 

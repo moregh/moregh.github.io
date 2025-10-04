@@ -11,7 +11,7 @@ import {
     getCachedNameToId, setCachedNameToId, getCachedAffiliation, setCachedAffiliation, getCachedCorporationInfo,
     setCachedCorporationInfo, getCachedAllianceInfo, setCachedAllianceInfo, getCachedEntityName, setCachedEntityName
 } from './database.js';
-import { updateProgress, showWarning, showError } from './ui.js';
+import { updateProgress, updateLoadingDetails, showWarning, showError } from './ui.js';
 import { esiClient } from './esi-client.js';
 import { validateEntityName } from './validation.js';
 
@@ -156,6 +156,8 @@ export async function getEntityIds(names) {
             fetchedEntities.corporations.push(...(batch.corporations || []));
             fetchedEntities.alliances.push(...(batch.alliances || []));
         });
+
+        await updateLoadingDetails();
     }
 
     return {
@@ -222,6 +224,8 @@ export async function getCharacterAffiliations(characterIds) {
 
 
         fetchedAffiliations = fetchedAffiliations.flat().filter(affiliation => affiliation !== null);
+
+        await updateLoadingDetails();
     }
 
     return [...cachedAffiliations, ...fetchedAffiliations];
@@ -273,6 +277,8 @@ export async function getCorporationInfoWithCaching(uniqueCorpIds) {
     if (uncachedFromDB.length > 0) {
         await processUncachedCorporations(uncachedFromDB, corpMap, processedCorps, uniqueCorpIds.length);
     }
+
+    await updateLoadingDetails();
 
     return corpMap;
 }
@@ -327,6 +333,8 @@ export async function getAllianceInfoWithCaching(uniqueAllianceIds) {
     if (uncachedFromDB.length > 0) {
         await processUncachedAlliances(uncachedFromDB, allianceMap, processedAlliances, uniqueAllianceIds.length);
     }
+
+    await updateLoadingDetails();
 
     return allianceMap;
 }
@@ -495,7 +503,7 @@ async function processUncachedAlliances(uncachedIds, allianceMap, startingCount,
     }
 }
 
-export function buildCharacterResults(characters, affiliationMap, corpMap, allianceMap) {
+export async function buildCharacterResults(characters, affiliationMap, corpMap, allianceMap) {
     updateProgress(0, characters.length, "Building final results...");
     const results = [];
 
@@ -550,6 +558,8 @@ export function buildCharacterResults(characters, affiliationMap, corpMap, allia
         updateProgress(i + 1, characters.length, "Building final results...");
     }
 
+    await updateLoadingDetails();
+
     return results;
 }
 
@@ -593,7 +603,7 @@ export async function mixedValidator(names) {
                 getAllianceInfoWithCaching(uniqueAllianceIds)
             ]);
 
-            const characterResults = buildCharacterResults(entities.characters, affiliationMap, corpMap, allianceMap);
+            const characterResults = await buildCharacterResults(entities.characters, affiliationMap, corpMap, allianceMap);
             results.push(...characterResults);
         }
 
