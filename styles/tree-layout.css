@@ -167,6 +167,31 @@
 
 .tree-item.alliance {
   font-weight: 600;
+  border-left: 2px solid #a855f7;
+  background: linear-gradient(90deg, rgba(168, 85, 247, 0.05), transparent);
+}
+
+.tree-item.alliance .tree-label {
+  color: #c084fc;
+}
+
+.tree-item.alliance .tree-icon {
+  border: 1px solid #a855f7;
+  box-shadow: 0 0 4px rgba(168, 85, 247, 0.3);
+}
+
+.tree-item.corporation {
+  border-left: 2px solid var(--primary-color);
+  background: linear-gradient(90deg, rgba(0, 212, 255, 0.05), transparent);
+}
+
+.tree-item.corporation .tree-label {
+  color: var(--primary-color);
+}
+
+.tree-item.corporation .tree-icon {
+  border: 1px solid var(--primary-color);
+  box-shadow: 0 0 4px rgba(0, 212, 255, 0.3);
 }
 
 .tree-item.character {

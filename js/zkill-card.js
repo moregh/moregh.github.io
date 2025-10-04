@@ -20,6 +20,7 @@ import {
 } from './config.js';
 import { getEntityMaps } from './rendering.js';
 import { getCounters } from './esi-api.js';
+import { esiClient } from './esi-client.js';
 import { sanitizeCharacterName, sanitizeCorporationName, sanitizeAllianceName, sanitizeId, sanitizeAttribute, escapeHtml } from './xss-protection.js';
 import { getCachedUniverseName, setCachedUniverseName, getCachedAffiliation, setCachedAffiliation, getCacheRecordCount } from './database.js';
 
