@@ -6,7 +6,6 @@
 */
 
 import { esiClient } from './esi-client.js';
-import { showWarning } from './ui.js';
 import { getCachedKillmail, setCachedKillmail, getCachedKillmailsBatch, setCachedKillmailsBatch } from './database.js';
 
 class ESIKillmailError extends Error {
@@ -25,58 +24,13 @@ class ESIKillmailFetcher {
         this.cacheHits = 0;
     }
 
-    async fetchKillmailDetails(killmailId, hash) {
-        if (!killmailId || !hash) {
-            throw new ESIKillmailError('Killmail ID and hash are required', killmailId, hash);
-        }
-
-        const cached = await getCachedKillmail(killmailId);
-        if (cached) {
-            this.cacheHits++;
-            return cached.killmail;
-        }
-
-        const endpoint = `/killmails/${killmailId}/${hash}/`;
-
-        try {
-            this.fetchCount++;
-            const data = await esiClient.get(endpoint);
-
-            if (!data) {
-                throw new ESIKillmailError('ESI returned null data', killmailId, hash);
-            }
-
-            await setCachedKillmail(killmailId, hash, null, data);
-
-            return data;
-
-        } catch (error) {
-            this.errorCount++;
-            console.error(`Failed to fetch killmail ${killmailId}:`, error);
-
-            if (error.status === 404) {
-                console.warn(`Killmail ${killmailId} not found (404)`);
-                return null;
-            }
-
-            if (error.status === 422) {
-                console.warn(`Invalid killmail hash for ${killmailId} (422)`);
-                return null;
-            }
-
-            throw new ESIKillmailError(
-                `Failed to fetch killmail: ${error.message}`,
-                killmailId,
-                hash
-            );
-        }
-    }
-
     async fetchKillmailsBatch(kills, {
         maxConcurrency = 10,
         batchDelay = 100,
         onProgress = null,
-        maxKillmails = 100
+        maxKillmails = 100,
+        streaming = false,
+        onStreamResult = null
     } = {}) {
         if (!Array.isArray(kills) || kills.length === 0) {
             return [];
@@ -104,12 +58,16 @@ class ESIKillmailFetcher {
 
         cachedMap.forEach((cached, killmailId) => {
             const originalKill = killsToFetch.find(k => k.killmail_id === killmailId);
-            results.push({
+            const result = {
                 killmailId: cached.killmailId,
                 hash: cached.hash,
                 zkbData: originalKill?.zkb || cached.zkbData,
                 killmail: cached.killmail
-            });
+            };
+            results.push(result);
+            if (streaming && onStreamResult) {
+                onStreamResult(result);
+            }
         });
 
         for (let i = 0; i < killsNeedingFetch.length; i += maxConcurrency) {
@@ -155,7 +113,12 @@ class ESIKillmailFetcher {
             });
 
             const chunkResults = await Promise.all(chunkPromises);
-            results.push(...chunkResults.filter(r => r !== null));
+            const validResults = chunkResults.filter(r => r !== null);
+            results.push(...validResults);
+
+            if (streaming && onStreamResult) {
+                validResults.forEach(result => onStreamResult(result));
+            }
 
             if (onProgress) {
                 const processed = Math.min(i + maxConcurrency, killsNeedingFetch.length) + cachedMap.size;
@@ -168,23 +131,6 @@ class ESIKillmailFetcher {
         }
 
         return results;
-    }
-
-    getStats() {
-        return {
-            fetched: this.fetchCount,
-            errors: this.errorCount,
-            cacheHits: this.cacheHits,
-            successRate: this.fetchCount > 0
-                ? ((this.fetchCount - this.errorCount) / this.fetchCount * 100).toFixed(1) + '%'
-                : '0%'
-        };
-    }
-
-    resetStats() {
-        this.fetchCount = 0;
-        this.errorCount = 0;
-        this.cacheHits = 0;
     }
 }
 

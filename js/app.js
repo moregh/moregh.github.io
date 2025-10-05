@@ -10,9 +10,9 @@ import { initDB, clearExpiredCache } from './database.js';
 import { showCharacterStats, showCorporationStats, showAllianceStats } from './zkill-card.js';
 import { clientValidate, validateEntityName } from './validation.js';
 import { mixedValidator } from './esi-api.js';
-import { initializeFilters, setResultsData, getFilteredResults, getFilteredAlliances, getFilteredCorporations, applyFiltersToTree } from './filters.js';
+import { initializeFilters, setResultsData, applyFiltersToTree } from './filters.js';
 import { startLoading, stopLoading, showError, updateStats, updatePerformanceStats, updateVersionDisplay, expandInputSection } from './ui.js';
-import { renderGrid, buildEntityMaps, getObserverManager, addScrollStateDetection } from './rendering.js';
+import { buildEntityMaps, getObserverManager, addScrollStateDetection } from './rendering.js';
 import { getZkillCardInstance } from './zkill-card.js';
 import { domCache } from './dom-cache.js';
 import { buildTreeStructure, renderTree } from './tree-navigation.js';
@@ -22,14 +22,11 @@ import { initializeSettingsUI } from './settings-ui.js';
 let currentView = 'grid';
 let allResults = [];
 let allSummaryData = { alliance: [], corporation: [] };
-let currentTab = 'characters';
 let completeResults = [];
 
 window.currentView = currentView;
 
 function setupCollapsedIndicatorClick() {
-    const inputSection = domCache.get('input-section');
-
     document.documentElement.style.setProperty('--input-hover-delay', `${INPUT_SECTION_HOVER_DELAY_MS}ms`);
 }
 

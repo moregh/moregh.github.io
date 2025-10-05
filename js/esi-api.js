@@ -8,12 +8,13 @@
 import { MAX_ESI_CALL_SIZE, CHUNK_SIZE, CHUNK_DELAY, ESI_BATCH_MAX_CONCURRENCY, ESI_MISSING_NAMES_WARNING_TIMEOUT_MS } from './config.js';
 import { sanitizeId } from './xss-protection.js';
 import {
-    getCachedNameToId, setCachedNameToId, getCachedAffiliation, setCachedAffiliation, getCachedCorporationInfo,
+    setCachedNameToId, getCachedAffiliation, setCachedAffiliation, getCachedCorporationInfo,
     setCachedCorporationInfo, getCachedAllianceInfo, setCachedAllianceInfo, getCachedEntityName, setCachedEntityName
 } from './database.js';
 import { updateProgress, updateLoadingDetails, showWarning, showError } from './ui.js';
 import { esiClient } from './esi-client.js';
 import { validateEntityName } from './validation.js';
+import { chunkArray } from './array-utils.js';
 
 const corporationInfoCache = new Map();
 const allianceInfoCache = new Map();
@@ -40,14 +41,6 @@ export function getCounters() {
         esiLookups: stats.requests,
         localLookups: getLocalCacheHits()
     };
-}
-
-function chunkArray(array, chunkSize) {
-    const chunks = [];
-    for (let i = 0; i < array.length; i += chunkSize) {
-        chunks.push(array.slice(i, i + chunkSize));
-    }
-    return chunks;
 }
 
 async function processInChunks(items, processFn, delay = CHUNK_DELAY) {

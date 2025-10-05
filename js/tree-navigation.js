@@ -7,7 +7,7 @@
 
 import { getEntityMaps } from './rendering.js';
 import { showEntityDetail } from './detail-panel.js';
-import { sanitizeId, sanitizeAttribute } from './xss-protection.js';
+import { sanitizeAttribute } from './xss-protection.js';
 
 let currentTreeData = null;
 let selectedEntityId = null;

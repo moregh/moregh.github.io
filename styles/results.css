@@ -39,7 +39,7 @@
     background: var(--white-02);
     border-radius: 13.5px;
     border-left: 3.6px solid;
-    transition: all 0.27s ease
+    transition: all var(--transition-normal) ease
 }
 
 .stat-card:hover {
@@ -167,7 +167,7 @@
     font-size: 0.9rem;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.3s ease;
+    transition: all var(--transition-medium) ease;
     position: relative;
     margin-right: -1px;
     z-index: 1;
@@ -300,7 +300,7 @@
     border-radius: 13.5px;
     padding: 1.35rem;
     border-left: 3.6px solid var(--secondary-color);
-    transition: all 0.27s ease;
+    transition: all var(--transition-normal) ease;
     animation: slideIn 0.45s ease forwards;
     position: relative;
     overflow: hidden;
@@ -341,7 +341,7 @@
     object-fit: cover;
     border: 1.8px solid var(--white-1);
     background: var(--gradient-highlight);
-    transition: all 0.27s ease;
+    transition: all var(--transition-normal) ease;
     flex-shrink: 0;
     contain: layout;
     transform: translateZ(0);
@@ -402,7 +402,7 @@
     width: 0;
     height: 1.8px;
     background: var(--primary-color);
-    transition: width 0.27s ease;
+    transition: width var(--transition-normal) ease;
 }
 
 .entity-name a:hover {
@@ -462,7 +462,7 @@
     border-radius: 13.5px;
     padding: 1.35rem;
     border-left: 3.6px solid var(--secondary-color);
-    transition: all 0.27s ease;
+    transition: all var(--transition-normal) ease;
     animation: slideIn 0.45s ease forwards;
     position: relative;
     overflow: hidden;
@@ -575,7 +575,7 @@
     grid-template-columns: repeat(auto-fill, minmax(252px, 1fr));
     gap: 1.35rem;
     min-height: 180px;
-    transition: all 0.27s ease;
+    transition: all var(--transition-normal) ease;
     contain: layout style paint;
     overflow-anchor: none;
 }
@@ -596,7 +596,7 @@
     border-radius: 13.5px;
     padding: 1.35rem;
     border-left: 3.6px solid;
-    transition: all 0.27s ease;
+    transition: all var(--transition-normal) ease;
     animation: slideIn 0.45s ease forwards;
     opacity: 0;
     transform: translateY(18px);
@@ -617,7 +617,7 @@
     bottom: 0;
     background: var(--gradient-transparent);
     opacity: 0;
-    transition: opacity 0.27s ease;
+    transition: opacity var(--transition-normal) ease;
     pointer-events: none
 }
 
@@ -657,7 +657,7 @@
     border-radius: 10.8px;
     object-fit: cover;
     border: 1.8px solid var(--white-1);
-    transition: all 0.27s ease;
+    transition: all var(--transition-normal) ease;
     background: var(--gradient-highlight);
     contain: layout;
     transform: translateZ(0);
@@ -723,7 +723,7 @@
     width: 0;
     height: 1.8px;
     background: var(--primary-color);
-    transition: width 0.27s ease
+    transition: width var(--transition-normal) ease
 }
 
 .character-name a:hover {

@@ -6,124 +6,16 @@
 */
 
 import {
-    CHARACTER_PORTRAIT_SIZE_PX, CORP_LOGO_SIZE_PX, ALLIANCE_LOGO_SIZE_PX, MOUSEOVER_CARD_AVATAR_SIZE_PX,
-    MOUSEOVER_CARD_MAX_ITEMS, SCROLL_STATE_TIMEOUT_MS, SCROLL_THROTTLE_MS, ANIMATION_FRAME_THROTTLE_FPS,
+    CHARACTER_PORTRAIT_SIZE_PX, CORP_LOGO_SIZE_PX, ALLIANCE_LOGO_SIZE_PX,
+    SCROLL_STATE_TIMEOUT_MS, SCROLL_THROTTLE_MS, ANIMATION_FRAME_THROTTLE_FPS,
     POPUP_SHOW_DELAY, VIRTUAL_SCROLL_CONFIG, VIEW_DIMENSIONS, PERFORMANCE_CONFIG,
-    MOUSEOVER_POSITION_TOP_MULTIPLIER, MOUSEOVER_POSITION_LEFT_MULTIPLIER, MOUSEOVER_HIDE_DELAY_MS,
-    IMAGE_OBSERVER_THRESHOLD, IMAGE_OBSERVER_ROOT_MARGIN, IMAGE_PLACEHOLDER_SIZE_PX,
-    ENTITY_MIN_WIDTH_PX, ENTITY_CARD_MIN_WIDTH_PX, CONTAINER_PADDING_PX, ENTITY_LOGO_SIZE_PX,
-    CLEANUP_ELEMENT_BATCH_SIZE, TOP_ITEMS_DISPLAY_LIMIT, BREAKDOWN_DISPLAY_LIMIT
+    IMAGE_PLACEHOLDER_SIZE_PX, ENTITY_MIN_WIDTH_PX, ENTITY_CARD_MIN_WIDTH_PX, CONTAINER_PADDING_PX,
+    ENTITY_LOGO_SIZE_PX, CLEANUP_ELEMENT_BATCH_SIZE
 } from './config.js';
 import { ManagedObservers, setImageObserverEnabled } from './observers.js';
 import { sanitizeId, sanitizeAttribute } from './xss-protection.js';
 
 const observerManager = new ManagedObservers();
-
-class EventManager {
-    constructor() {
-        this.delegatedListeners = new Map();
-        this.init();
-    }
-
-    init() {
-        document.addEventListener('mouseenter', this.handleMouseEnter.bind(this), true);
-        document.addEventListener('mouseleave', this.handleMouseLeave.bind(this), true);
-    }
-
-    handleMouseEnter(event) {
-        const entityCard = event.target.closest('.entity-card, .summary-item');
-        if (entityCard && entityCard._mouseoverCard) {
-            this.showMouseoverCard(entityCard);
-        }
-
-        const mouseoverCard = event.target.closest('.mouseover-card');
-        if (mouseoverCard) {
-            mouseoverCard.classList.add('visible');
-        }
-    }
-
-    handleMouseLeave(event) {
-        const entityCard = event.target.closest('.entity-card, .summary-item');
-        if (entityCard && entityCard._mouseoverCard) {
-            this.hideMouseoverCard(entityCard);
-        }
-
-        const mouseoverCard = event.target.closest('.mouseover-card');
-        if (mouseoverCard) {
-            setTimeout(() => {
-                if (!mouseoverCard.matches(':hover')) {
-                    mouseoverCard.classList.remove('visible');
-                }
-            }, MOUSEOVER_HIDE_DELAY_MS);
-        }
-    }
-
-    showMouseoverCard(item) {
-        const card = item._mouseoverCard;
-        if (!card) return;
-
-        if (item._showTimeout) {
-            clearTimeout(item._showTimeout);
-        }
-
-        item._showTimeout = setTimeout(() => {
-            if (item.matches(':hover')) {
-                const allCards = document.querySelectorAll('.mouseover-card.visible');
-                allCards.forEach(otherCard => {
-                    if (otherCard !== card) {
-                        otherCard.classList.remove('visible');
-                    }
-                });
-
-                this.positionMouseoverCard(item, card);
-                card.classList.add('visible');
-            }
-            item._showTimeout = null;
-        }, POPUP_SHOW_DELAY);
-    }
-
-    hideMouseoverCard(item) {
-        const card = item._mouseoverCard;
-
-        if (item._showTimeout) {
-            clearTimeout(item._showTimeout);
-            item._showTimeout = null;
-        }
-
-        if (card) {
-            setTimeout(() => {
-                if (!card.matches(':hover')) {
-                    card.classList.remove('visible');
-                }
-            }, MOUSEOVER_HIDE_DELAY_MS);
-        }
-    }
-
-    positionMouseoverCard(item, card) {
-        const itemRect = item.getBoundingClientRect();
-        const parentContainer = item.closest('.summary-column') || item.closest('.tab-content') || item.closest('.result-grid');
-        const containerRect = parentContainer.getBoundingClientRect();
-
-        const relativeTop = itemRect.top - containerRect.top + (itemRect.height * MOUSEOVER_POSITION_TOP_MULTIPLIER);
-        const relativeLeft = itemRect.left - containerRect.left + (itemRect.width * MOUSEOVER_POSITION_LEFT_MULTIPLIER);
-
-        card.style.position = 'absolute';
-        card.style.top = relativeTop + 'px';
-        card.style.left = relativeLeft + 'px';
-        card.style.transform = 'translateX(-50%)';
-    }
-
-    cleanup() {
-        document.querySelectorAll('.entity-card, .summary-item').forEach(item => {
-            if (item._showTimeout) {
-                clearTimeout(item._showTimeout);
-                item._showTimeout = null;
-            }
-        });
-    }
-}
-
-const eventManager = new EventManager();
 
 class ElementPool {
     constructor(createFn, resetFn, maxSize = PERFORMANCE_CONFIG.MAX_ELEMENT_POOL_SIZE) {
@@ -151,19 +43,10 @@ class ElementPool {
             this.pool.push(element);
         }
     }
-
-    clear() {
-        this.pool = [];
-    }
-
-    getStats() {
-        return { created: this.created, reused: this.reused, pooled: this.pool.length };
-    }
 }
 
 let characterElementPool;
 let entityCardPool;
-let mouseoverCardPool;
 
 function initializeElementPools() {
     characterElementPool = new ElementPool(
@@ -174,11 +57,6 @@ function initializeElementPools() {
     entityCardPool = new ElementPool(
         () => createBaseEntityCardElement(),
         (element) => resetEntityCardElement(element)
-    );
-
-    mouseoverCardPool = new ElementPool(
-        () => createBaseMouseoverCardElement(),
-        (element) => resetMouseoverCardElement(element)
     );
 }
 
@@ -292,12 +170,6 @@ function createBaseEntityCardElement() {
     return template.content.firstElementChild;
 }
 
-function createBaseMouseoverCardElement() {
-    const div = document.createElement("div");
-    div.className = "mouseover-card";
-    return div;
-}
-
 function resetCharacterElement(element) {
     if (!element) return;
 
@@ -349,15 +221,6 @@ function resetEntityCardElement(element) {
     if (link) { link.href = "#"; link.textContent = ""; }
     if (countNumber) countNumber.textContent = "";
     if (countLabel) countLabel.textContent = "";
-
-    delete element._mouseoverCard;
-}
-
-function resetMouseoverCardElement(element) {
-    if (!element) return;
-    element.className = "mouseover-card";
-    element.innerHTML = "";
-    element.style.cssText = "";
 }
 
 function updateImageSrc(imgElement, newSrc) {
@@ -430,85 +293,6 @@ function createEmptyStateHTML(icon, text, className) {
             <div class="no-results-text">${text}</div>
         </div>
     `;
-}
-
-export function createMouseoverCard(entity, type) {
-    const card = document.createElement("div");
-    card.className = "mouseover-card";
-
-    let content = '';
-    let items = [];
-    const maxItems = MOUSEOVER_CARD_MAX_ITEMS;
-
-    if (type === 'alliance') {
-        const corps = allianceToCorpsMap.get(entity.id) || [];
-        items = corps.slice(0, maxItems);
-
-        if (entity.isDirect && corps.length === 0) {
-            content = `
-        <div class="mouseover-card-header">${entity.name}</div>
-        <div class="mouseover-card-content">
-          <div class="mouseover-card-item direct-entity-info">
-            <div class="mouseover-card-name">
-              <span>Searched directly - no corporation data available</span>
-            </div>
-          </div>
-        </div>
-      `;
-        } else {
-            content = `
-        <div class="mouseover-card-header">Corporations in ${entity.name}</div>
-        <div class="mouseover-card-content">
-          ${items.map(corp => `
-            <div class="mouseover-card-item zkill-card-clickable" data-entity-type="corporation" data-entity-id="${corp.id}" data-entity-name="${corp.name}">
-              <img src="https://images.evetech.net/corporations/${corp.id}/logo?size=${CORP_LOGO_SIZE_PX}"
-                   alt="${corp.name}" class="mouseover-card-avatar" loading="lazy">
-              <div class="mouseover-card-name">
-                <span>${corp.name}</span>
-              </div>
-              <div class="summary-count">${corp.count}</div>
-            </div>
-          `).join('')}
-          ${corps.length > maxItems ? `<div class="mouseover-card-more">... and ${corps.length - maxItems} more corporations</div>` : ''}
-        </div>
-      `;
-        }
-    } else if (type === 'corporation') {
-        const characters = corpToCharactersMap.get(entity.id) || [];
-        items = characters.slice(0, maxItems);
-
-        if (entity.isDirect && characters.length === 0) {
-            content = `
-        <div class="mouseover-card-header">${entity.name}</div>
-        <div class="mouseover-card-content">
-          <div class="mouseover-card-item direct-entity-info">
-            <div class="mouseover-card-name">
-              <span>Searched directly - no character data available</span>
-            </div>
-          </div>
-        </div>
-      `;
-        } else {
-            content = `
-        <div class="mouseover-card-header">Characters in ${entity.name}</div>
-        <div class="mouseover-card-content">
-          ${items.map(char => `
-            <div class="mouseover-card-item zkill-card-clickable" data-entity-type="character" data-entity-id="${char.character_id}" data-entity-name="${char.character_name}">
-              <img src="https://images.evetech.net/characters/${char.character_id}/portrait?size=${MOUSEOVER_CARD_AVATAR_SIZE_PX}"
-                   alt="${char.character_name}" class="mouseover-card-avatar" loading="lazy">
-              <div class="mouseover-card-name">
-                <span>${char.character_name}</span>
-              </div>
-            </div>
-          `).join('')}
-          ${characters.length > maxItems ? `<div class="mouseover-card-more">... and ${characters.length - maxItems} more characters</div>` : ''}
-        </div>
-      `;
-        }
-    }
-
-    card.innerHTML = content;
-    return card;
 }
 
 export function updateElementContent(element, character) {
@@ -681,10 +465,10 @@ export function createEntityCard({ id, name, count, type, war_eligible, isDirect
                     <div class="entity-details">
                         <div class="entity-count">
                             ${isDirect && sanitizedCount === 1 ?
-                                '<span class="count-label direct-entity">Direct Search</span>' :
-                                `<span class="count-number">${sanitizedCount}</span>
+            '<span class="count-label direct-entity">Direct Search</span>' :
+            `<span class="count-number">${sanitizedCount}</span>
                                  <span class="count-label">${sanitizedCount === 1 ? 'Member' : 'Members'}</span>`
-                            }
+        }
                         </div>
                     </div>
                 </div>
@@ -698,9 +482,6 @@ export function createEntityCard({ id, name, count, type, war_eligible, isDirect
     if (nameLink) {
         nameLink.textContent = name;
     }
-
-    const mouseoverCard = createMouseoverCard({ id: sanitizedId, name: name, count: sanitizedCount, war_eligible, isDirect }, sanitizedType);
-    item._mouseoverCard = mouseoverCard;
 
     requestAnimationFrame(() => {
         const entityLogo = item.querySelector('.entity-logo');
@@ -768,7 +549,7 @@ export function setupEntityScrolling(containerId, items, type) {
         padding: VIRTUAL_SCROLL_CONFIG.CONTENT_PADDING,
         gridTemplateColumns: `repeat(auto-fill, minmax(${minWidth}, 1fr))`
     });
-    
+
     const elements = items.map(item => createEntityCard(item));
     elements.forEach(element => content.appendChild(element));
     const itemHeight = VIEW_DIMENSIONS.grid.height;
@@ -778,17 +559,6 @@ export function setupEntityScrolling(containerId, items, type) {
     spacer.appendChild(content);
     container.innerHTML = "";
     container.appendChild(spacer);
-    const summaryColumn = container.closest('.summary-column');
-    const tabContent = container.closest('.tab-content');
-    const parentContainer = summaryColumn || tabContent || container.parentElement;
-
-    if (parentContainer) {
-        elements.forEach(element => {
-            if (element._mouseoverCard) {
-                parentContainer.appendChild(element._mouseoverCard);
-            }
-        });
-    }
 
     requestAnimationFrame(() => {
         const images = container.querySelectorAll('img[data-src]');
@@ -1233,7 +1003,7 @@ export function addScrollStateDetection() {
             e.target.classList.add('scrolling');
             setImageObserverEnabled(false);
             clearTimeout(scrollTimeout);
-            
+
             scrollTimeout = setTimeout(() => {
                 e.target.classList.remove('scrolling');
                 setImageObserverEnabled(true);

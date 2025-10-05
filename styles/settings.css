@@ -168,6 +168,30 @@
     border-color: var(--white-2);
 }
 
+.setting-input-error {
+    border-color: var(--danger-color) !important;
+    background: rgba(255, 71, 87, 0.05);
+}
+
+.setting-input-error:focus {
+    box-shadow: 0 0 0 3px rgba(255, 71, 87, 0.15) !important;
+}
+
+.setting-error {
+    color: var(--danger-color);
+    font-size: 0.85rem;
+    margin-top: 0.4rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.setting-error::before {
+    content: '⚠️';
+    font-size: 0.9rem;
+}
+
 .setting-help {
     color: var(--text-secondary);
     font-size: 0.85rem;

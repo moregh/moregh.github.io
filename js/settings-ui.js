@@ -44,6 +44,19 @@ export function initializeSettingsUI() {
             closeSettingsModal();
         }
     });
+
+    const inputs = [
+        'setting-max-killmails',
+        'setting-min-killmails',
+        'setting-target-days',
+        'setting-max-pages'
+    ];
+    inputs.forEach(id => {
+        const input = document.getElementById(id);
+        if (input) {
+            input.addEventListener('input', () => clearFieldError(id));
+        }
+    });
 }
 
 async function openSettingsModal() {
@@ -74,23 +87,81 @@ function closeSettingsModal() {
 }
 
 async function saveSettings() {
-    try {
-        const maxKillmails = parseInt(document.getElementById('setting-max-killmails').value);
-        const minKillmails = parseInt(document.getElementById('setting-min-killmails').value);
-        const targetDays = parseInt(document.getElementById('setting-target-days').value);
-        const maxPages = parseInt(document.getElementById('setting-max-pages').value);
+    clearAllErrors();
 
-        await setUserSetting('MAX_KILLMAILS_TO_FETCH', maxKillmails);
-        await setUserSetting('ZKILL_MIN_KILLMAILS', minKillmails);
-        await setUserSetting('ZKILL_TARGET_DAYS', targetDays);
-        await setUserSetting('ZKILL_MAX_PAGES', maxPages);
+    const settings = [
+        { id: 'setting-max-killmails', key: 'MAX_KILLMAILS_TO_FETCH' },
+        { id: 'setting-min-killmails', key: 'ZKILL_MIN_KILLMAILS' },
+        { id: 'setting-target-days', key: 'ZKILL_TARGET_DAYS' },
+        { id: 'setting-max-pages', key: 'ZKILL_MAX_PAGES' }
+    ];
 
-        showSuccess('Settings saved successfully');
-        closeSettingsModal();
-    } catch (error) {
-        console.error('Error saving settings:', error);
-        showError(error.message || 'Failed to save settings');
+    let hasErrors = false;
+
+    for (const setting of settings) {
+        const value = parseInt(document.getElementById(setting.id).value);
+        const result = await setUserSetting(setting.key, value);
+
+        if (!result.success) {
+            showFieldError(setting.id, result.error);
+            hasErrors = true;
+        }
     }
+
+    if (hasErrors) {
+        return;
+    }
+
+    showSuccess('Settings saved successfully');
+    closeSettingsModal();
+}
+
+function showFieldError(inputId, message) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+
+    const item = input.closest('.setting-item');
+    if (!item) return;
+
+    input.classList.add('setting-input-error');
+
+    let errorDiv = item.querySelector('.setting-error');
+    if (!errorDiv) {
+        errorDiv = document.createElement('div');
+        errorDiv.className = 'setting-error';
+        const helpDiv = item.querySelector('.setting-help');
+        if (helpDiv) {
+            helpDiv.after(errorDiv);
+        } else {
+            input.after(errorDiv);
+        }
+    }
+    errorDiv.textContent = message;
+}
+
+function clearFieldError(inputId) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+
+    input.classList.remove('setting-input-error');
+
+    const item = input.closest('.setting-item');
+    if (!item) return;
+
+    const errorDiv = item.querySelector('.setting-error');
+    if (errorDiv) {
+        errorDiv.remove();
+    }
+}
+
+function clearAllErrors() {
+    const inputs = document.querySelectorAll('.setting-input-error');
+    inputs.forEach(input => {
+        input.classList.remove('setting-input-error');
+    });
+
+    const errors = document.querySelectorAll('.setting-error');
+    errors.forEach(error => error.remove());
 }
 
 async function resetSettings() {

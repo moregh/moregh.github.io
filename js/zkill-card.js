@@ -11,18 +11,15 @@ import {
     ZKILL_TIMER_UPDATE_INTERVAL_MS, ZKILL_PROGRESS_CONNECTING, ZKILL_PROGRESS_ESI_BASE, ZKILL_PROGRESS_AFFILIATIONS,
     ZKILL_PROGRESS_PROCESSING, ZKILL_RECENT_KILLS_LIMIT, ZKILL_NAVIGATION_CLOSE_DELAY_MS, ZKILL_NAVIGATION_HISTORY_LIMIT,
     ZKILL_EFFICIENCY_THRESHOLD_HIGH, ZKILL_EFFICIENCY_THRESHOLD_MEDIUM, ZKILL_GANG_RATIO_THRESHOLD_HIGH,
-    ZKILL_GANG_RATIO_THRESHOLD_LOW, ZKILL_WORMHOLE_SECURITY, ZKILL_SECURITY_HIGH_THRESHOLD,
-    ZKILL_SECURITY_NULL_THRESHOLD, ZKILL_SECURITY_WSPACE_THRESHOLD, IMAGE_PLACEHOLDER_SIZE_PX,
-    CHART_WIDTH_PX, CHART_HEIGHT_PX, CHART_MARGIN_TOP_PX, CHART_MARGIN_RIGHT_PX, CHART_MARGIN_BOTTOM_PX,
-    CHART_MARGIN_LEFT_PX, CHART_BAR_SPACING_PX, CHART_STEPS, CHART_LABEL_INTERVAL_DIVISOR,
-    CHART_COLOR_THRESHOLD_HIGH, CHART_COLOR_THRESHOLD_MEDIUM, TOP_ITEMS_DISPLAY_LIMIT,
-    BREAKDOWN_DISPLAY_LIMIT
+    ZKILL_GANG_RATIO_THRESHOLD_LOW, IMAGE_PLACEHOLDER_SIZE_PX, CHART_WIDTH_PX, CHART_HEIGHT_PX, CHART_MARGIN_TOP_PX,
+    CHART_MARGIN_RIGHT_PX, CHART_MARGIN_BOTTOM_PX, CHART_MARGIN_LEFT_PX, CHART_BAR_SPACING_PX, CHART_STEPS,
+    CHART_LABEL_INTERVAL_DIVISOR, CHART_COLOR_THRESHOLD_HIGH, CHART_COLOR_THRESHOLD_MEDIUM, BREAKDOWN_DISPLAY_LIMIT
 } from './config.js';
 import { getEntityMaps } from './rendering.js';
 import { getCounters } from './esi-api.js';
 import { esiClient } from './esi-client.js';
 import { sanitizeCharacterName, sanitizeCorporationName, sanitizeAllianceName, sanitizeId, sanitizeAttribute, escapeHtml } from './xss-protection.js';
-import { getCachedUniverseName, setCachedUniverseName, getCachedAffiliation, setCachedAffiliation, getCacheRecordCount } from './database.js';
+import { getCachedUniverseName, setCachedUniverseName, getCachedAffiliation, setCachedAffiliation } from './database.js';
 
 const POCHVEN_SYSTEMS = [
     'Skarkon', 'Archee', 'Kino', 'Konola', 'Krirald', 'Nalvula', 'Nani',
@@ -47,12 +44,12 @@ const SecurityClassification = {
         if (systemName && POCHVEN_SYSTEMS.includes(systemName)) {
             return { cssClass: 'sec-pochven', label: 'POCH', color: '#4A90E2' };
         }
-        if (systemName && systemName[0] == 'J' && 
-                systemName.length == 7 && security < -0.99) {
-            return { cssClass: 'sec-wspace', label: 'WH', color: '#B10DC9' };    
+        if (systemName && systemName[0] == 'J' &&
+            systemName.length == 7 && security < -0.99) {
+            return { cssClass: 'sec-wspace', label: 'WH', color: '#B10DC9' };
         }
         if (systemName === 'Thera') {
-            return { cssClass: 'sec-wspace', label: 'WH', color: '#B10DC9' };    
+            return { cssClass: 'sec-wspace', label: 'WH', color: '#B10DC9' };
         }
 
         const rounded = Math.round(security * 10) / 10;
@@ -855,13 +852,18 @@ class ZKillStatsCard {
     }
 
     getOrgSize(memberCount) {
-        if (!memberCount) return 'N/A';
-        if (memberCount < 10) return 'Micro';
-        if (memberCount < 50) return 'Small';
-        if (memberCount < 250) return 'Medium';
-        if (memberCount < 1000) return 'Large';
+        if (!memberCount) return 'Unknown';
+        if (memberCount < 10) return 'Tiny';
+        if (memberCount < 30) return 'Very Small';
+        if (memberCount < 75) return 'Small';
+        if (memberCount < 200) return 'Medium';
+        if (memberCount < 500) return 'Large';
+        if (memberCount < 1500) return 'Very Large';
+        if (memberCount < 5000) return 'Huge';
+        if (memberCount < 15000) return 'Enormous';
         return 'Massive';
     }
+
 
     async populateStatsData(stats, entityType, entityId, entityName) {
         if (!this.currentModal) return;
@@ -880,80 +882,6 @@ class ZKillStatsCard {
         }
     }
 
-
-    createMembersDropdownHTML(entityType, entityId) {
-        const isCorporation = entityType === 'corporation';
-        const members = isCorporation
-            ? this.corpToCharactersMap.get(parseInt(entityId)) || []
-            : this.allianceToCorpsMap.get(parseInt(entityId)) || [];
-
-        if (members.length === 0) return '';
-
-        const config = isCorporation
-            ? {
-                icon: '👥',
-                title: 'Corporation Members',
-                action: 'show-character',
-                idKey: 'character-id',
-                nameKey: 'character-name',
-                imgType: 'characters',
-                imgPath: 'portrait',
-                sanitizeName: sanitizeCharacterName,
-                getDetails: () => 'Character'
-            }
-            : {
-                icon: '🏢',
-                title: 'Member Corporations',
-                action: 'show-corporation',
-                idKey: 'corporation-id',
-                nameKey: 'corporation-name',
-                imgType: 'corporations',
-                imgPath: 'logo',
-                sanitizeName: sanitizeCorporationName,
-                getDetails: (item) => `${item.count} member${item.count !== 1 ? 's' : ''}`
-            };
-
-        const membersHTML = members.map(member => {
-            const id = isCorporation ? member.character_id : member.id;
-            const name = isCorporation ? member.character_name : member.name;
-
-            return `
-                <div class="zkill-member-item"
-                     data-click-action="${config.action}"
-                     data-${config.idKey}="${id}"
-                     data-${config.nameKey}="${sanitizeAttribute(name)}">
-                    <img src="https://images.evetech.net/${config.imgType}/${sanitizeId(id)}/${config.imgPath}?size=${IMAGE_PLACEHOLDER_SIZE_PX}"
-                         alt="${sanitizeAttribute(name)}"
-                         class="zkill-member-avatar"
-                         loading="lazy">
-                    <div class="zkill-member-info">
-                        <div class="zkill-member-name">${config.sanitizeName(name)}</div>
-                        <div class="zkill-member-details">${config.getDetails(member)}</div>
-                    </div>
-                </div>
-            `;
-        }).join('');
-
-        return `
-            <div class="zkill-members-section">
-                <div class="zkill-members-dropdown" id="zkill-members-dropdown">
-                    <div class="zkill-members-header" data-action="toggle-members">
-                        <div class="zkill-members-title">
-                            <span class="zkill-section-icon">${config.icon}</span>
-                            ${config.title}
-                            <span class="zkill-members-count">${members.length}</span>
-                        </div>
-                        <div class="zkill-members-toggle">▼</div>
-                    </div>
-                    <div class="zkill-members-list">
-                        <div class="zkill-members-content">
-                            ${membersHTML}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
 
     async createStatsHTML(stats, entityType, entityId) {
         const recentKillsHTML = await this.createRecentKillsHTML(stats.killmailData, entityType, entityId);
@@ -1007,11 +935,11 @@ class ZKillStatsCard {
                 </div>
                 <div class="zkill-stat-item zkill-stat-item-compact">
                     <div class="zkill-stat-label">Biggest</div>
-                    <div class="zkill-stat-value zkill-stat-value-isk">${this.formatISK(analysis.mostExpensiveKill.value)}</div>
+                    <div class="zkill-stat-value zkill-stat-value-isk">${this.formatNumber(analysis.mostExpensiveKill.value)}</div>
                 </div>
                 <div class="zkill-stat-item zkill-stat-item-compact">
                     <div class="zkill-stat-label">Average</div>
-                    <div class="zkill-stat-value zkill-stat-value-isk">${this.formatISK(analysis.avgValue)}</div>
+                    <div class="zkill-stat-value zkill-stat-value-isk">${this.formatNumber(analysis.avgValue)}</div>
                 </div>
             </div>
         </div>
@@ -1040,7 +968,7 @@ class ZKillStatsCard {
         const killsHTML = killsWithNames.map(kill => {
             const date = new Date(kill.time);
             const relativeTime = this.getRelativeTime(date);
-            const iskValue = this.formatISK(kill.value);
+            const iskValue = this.formatNumber(kill.value);
 
             const secStatus = kill.systemSecurity !== undefined && kill.systemSecurity !== null
                 ? kill.systemSecurity.toFixed(1)
@@ -1142,184 +1070,18 @@ class ZKillStatsCard {
         }
     }
 
-    createRecentActivityHtml(activePvPData) {
-        if (activePvPData.characters === 1 &&
-            activePvPData.ships === 0 &&
-            activePvPData.totalKills === 0 &&
-            activePvPData.systems === 0 &&
-            activePvPData.regions === 0) {
-            return '';
-        }
-        return `
-        <div class="zkill-section">
-            <h3 class="zkill-section-title">
-                Recent PvP Activity
-            </h3>
-            <div class="zkill-activity-grid">
-                <div class="zkill-activity-card">
-                    <div class="zkill-activity-icon">👤</div>
-                    <div class="zkill-activity-number">${activePvPData.characters}</div>
-                    <div class="zkill-activity-label">Characters</div>
-                </div>
-                <div class="zkill-activity-card">
-                    <div class="zkill-activity-icon">🚀</div>
-                    <div class="zkill-activity-number">${activePvPData.ships}</div>
-                    <div class="zkill-activity-label">Ship Types</div>
-                </div>
-                <div class="zkill-activity-card">
-                    <div class="zkill-activity-icon">⚔️</div>
-                    <div class="zkill-activity-number">${activePvPData.totalKills}</div>
-                    <div class="zkill-activity-label">Recent Kills</div>
-                </div>
-                <div class="zkill-activity-card">
-                    <div class="zkill-activity-icon">🌍</div>
-                    <div class="zkill-activity-number">${activePvPData.systems}</div>
-                    <div class="zkill-activity-label">Systems</div>
-                </div>
-                <div class="zkill-activity-card">
-                    <div class="zkill-activity-icon">🗺️</div>
-                    <div class="zkill-activity-number">${activePvPData.regions}</div>
-                    <div class="zkill-activity-label">Regions</div>
-                </div>
-            </div>
-        </div>
-        `;
-    }
-
-    createTopShipsHTML(ships) {
-        if (!ships || ships.length === 0) {
-            return '';
-        }
-
-        const shipsHTML = ships.map(ship => `
-        <div class="zkill-ship-card">
-            <div class="zkill-ship-info">
-                <img src="https://images.evetech.net/types/${sanitizeId(ship.shipTypeID)}/icon?size=${IMAGE_PLACEHOLDER_SIZE_PX}"
-                     alt="${sanitizeAttribute(ship.shipName)}"
-                     class="zkill-ship-icon"
-                     loading="lazy">
-                <div class="zkill-ship-details">
-                    <div class="zkill-ship-name">
-                        <a href="https://zkillboard.com/ship/${sanitizeId(ship.shipTypeID)}/"
-                           target="_blank"
-                           style="color: var(--primary-color); text-decoration: none; font-weight: 600;">
-                            ${escapeHtml(ship.shipName)}
-                        </a>
-                    </div>
-                    <div class="zkill-ship-group">${escapeHtml(ship.groupName)}</div>
-                </div>
-            </div>
-            <div class="zkill-ship-kills">${ship.kills} kill${ship.kills !== 1 ? 's' : ''}</div>
-        </div>
-    `).join('');
-
-        return `
-        <div class="zkill-section">
-            <h3 class="zkill-section-title">
-                <span class="zkill-section-icon">🚀</span>
-                Most Used Ships
-            </h3>
-            <div class="zkill-ships-grid">
-                ${shipsHTML}
-            </div>
-        </div>
-    `;
-    }
-
-    createTopLocationsHTML(locations) {
-        if (!locations || locations.length === 0) {
-            return '';
-        }
-
-        const displayCount = Math.min(locations.length, 15);
-        const topLocations = locations.slice(0, displayCount);
-
-        const locationsHTML = topLocations.map(location => {
-            const secClass = this.getSecurityClass(location.securityStatus, location.systemName);
-            const secFormatted = this.formatSecurity(location.securityStatus, location.systemName);
-
-            return `
-            <div class="zkill-location-detail-card">
-                <div class="zkill-location-header">
-                    <div class="zkill-location-system-info">
-                        <a href="https://zkillboard.com/system/${sanitizeId(location.systemId)}/"
-                           target="_blank"
-                           class="zkill-location-system-name">
-                            ${escapeHtml(location.systemName)}
-                        </a>
-                        <div class="zkill-location-sec-badge ${secClass}">
-                            ${secFormatted}
-                        </div>
-                    </div>
-                    <div class="zkill-location-kills-count">
-                        ${location.kills} kills
-                    </div>
-                </div>
-            </div>
-        `;
-        }).join('');
-
-        const totalKills = topLocations.reduce((sum, loc) => sum + loc.kills, 0);
-        const avgKillsPerSystem = Math.round(totalKills / topLocations.length);
-
-        return `
-        <div class="zkill-section">
-            <h3 class="zkill-section-title">
-                <span class="zkill-section-icon">🌍</span>
-                Top Operating Locations
-            </h3>
-            <div class="zkill-location-summary">
-                <div class="zkill-location-stat">
-                    <span class="zkill-location-stat-label">Top ${displayCount} Systems</span>
-                    <span class="zkill-location-stat-value">${this.formatNumber(totalKills)} kills</span>
-                </div>
-                <div class="zkill-location-stat">
-                    <span class="zkill-location-stat-label">Average per System</span>
-                    <span class="zkill-location-stat-value">${avgKillsPerSystem} kills</span>
-                </div>
-            </div>
-            <div class="zkill-locations-detail-list">
-                ${locationsHTML}
-            </div>
-        </div>
-    `;
-    }
-
-    createTopPlayersHTML(topPlayers, entityType) {
-        if (!topPlayers || topPlayers.length === 0 || entityType === 'character') {
-            return '';
-        }
-
-        const playersHTML = topPlayers.map(player => `
-        <div class="zkill-player-card"
-             data-click-action="show-character"
-             data-character-id="${sanitizeId(player.characterId)}"
-             data-character-name="${sanitizeAttribute(player.characterName)}">
-            <img src="https://images.evetech.net/characters/${sanitizeId(player.characterId)}/portrait?size=${IMAGE_PLACEHOLDER_SIZE_PX}"
-                 alt="${sanitizeAttribute(player.characterName)}"
-                 class="zkill-player-portrait"
-                 loading="lazy">
-            <div class="zkill-player-info">
-                <div class="zkill-player-name">${sanitizeCharacterName(player.characterName)}</div>
-                <div class="zkill-player-kills">${player.kills} kills</div>
-            </div>
-        </div>
-    `).join('');
-
-        return `
-        <div class="zkill-section">
-            <h3 class="zkill-section-title">
-                <span class="zkill-section-icon">👤</span>
-                Top Players
-            </h3>
-            <div class="zkill-players-grid">
-                ${playersHTML}
-            </div>
-        </div>
-    `;
-    }
-
     createTacticalOverviewHTML(stats) {
+        let gangRatio = stats.gangRatio;
+        let gangLabel = 'Gang Activity';
+
+        if (stats.killmailData?.analysis?.soloVsFleet) {
+            const soloVsFleet = stats.killmailData.analysis.soloVsFleet;
+            gangRatio = 100 - (soloVsFleet.solo?.percentage || 0);
+            gangLabel = `Gang Activity`;
+        } else {
+            gangLabel = 'Gang Activity';
+        }
+
         return `
         <div class="zkill-section zkill-tactical-overview">
             <h3 class="zkill-section-title">
@@ -1337,10 +1099,10 @@ class ZKillStatsCard {
                     <div class="zkill-tactical-value">${stats.efficiency.toFixed(0)}%</div>
                     <div class="zkill-tactical-label">ISK Efficiency</div>
                 </div>
-                <div class="zkill-tactical-stat ${stats.gangRatio > ZKILL_GANG_RATIO_THRESHOLD_HIGH ? 'fleet' : stats.gangRatio < ZKILL_GANG_RATIO_THRESHOLD_LOW ? 'solo' : 'mixed'}">
+                <div class="zkill-tactical-stat ${gangRatio > ZKILL_GANG_RATIO_THRESHOLD_HIGH ? 'fleet' : gangRatio < ZKILL_GANG_RATIO_THRESHOLD_LOW ? 'solo' : 'mixed'}">
                     <div class="zkill-tactical-icon">👥</div>
-                    <div class="zkill-tactical-value">${stats.gangRatio}%</div>
-                    <div class="zkill-tactical-label">Gang Activity</div>
+                    <div class="zkill-tactical-value">${gangRatio}%</div>
+                    <div class="zkill-tactical-label">${gangLabel}</div>
                 </div>
                 <div class="zkill-tactical-stat">
                     <div class="zkill-tactical-icon">📊</div>
@@ -1442,22 +1204,6 @@ class ZKillStatsCard {
                         ${shipsHTML}
                     </div>
                 </div>
-            </div>
-        </div>
-        `;
-    }
-
-    createPlaystyleTagsHTML(combatStyle) {
-        if (!combatStyle || !combatStyle.playstyleDetails || combatStyle.playstyleDetails.length === 0) {
-            return '';
-        }
-
-        const tags = combatStyle.playstyleDetails;
-
-        return `
-        <div class="zkill-section zkill-playstyle-tags">
-            <div class="zkill-tags-container">
-                ${tags.map(tag => `<span class="zkill-tag zkill-tag-${tag.toLowerCase().replace(/[\/\s]/g, '-')}">${tag}</span>`).join('')}
             </div>
         </div>
         `;
@@ -1589,47 +1335,6 @@ class ZKillStatsCard {
         `;
     }
 
-    createActivityPatternsHTML(activityInsights, activePvPData, activityData) {
-        if (!activityInsights) return '';
-
-        return `
-        <div class="zkill-section zkill-activity-patterns">
-            <h3 class="zkill-section-title">
-                <span class="zkill-section-icon">📈</span>
-                Activity Patterns
-            </h3>
-            <div class="zkill-patterns-layout">
-                <div class="zkill-pattern-summary">
-                    <div class="zkill-pattern-item">
-                        <div class="zkill-pattern-icon">⏰</div>
-                        <div class="zkill-pattern-info">
-                            <div class="zkill-pattern-value">${activityInsights.primeTime}</div>
-                            <div class="zkill-pattern-label">Prime Time</div>
-                        </div>
-                    </div>
-                    <div class="zkill-pattern-item">
-                        <div class="zkill-pattern-icon">📅</div>
-                        <div class="zkill-pattern-info">
-                            <div class="zkill-pattern-value">${activityInsights.consistency}</div>
-                            <div class="zkill-pattern-label">Consistency</div>
-                        </div>
-                    </div>
-                    <div class="zkill-pattern-item">
-                        <div class="zkill-pattern-icon trend-${activityInsights.trend.toLowerCase()}">
-                            ${activityInsights.trend === 'Increasing' ? '📈' : activityInsights.trend === 'Decreasing' ? '📉' : '📊'}
-                        </div>
-                        <div class="zkill-pattern-info">
-                            <div class="zkill-pattern-value">${activityInsights.trend}</div>
-                            <div class="zkill-pattern-label">Trend</div>
-                        </div>
-                    </div>
-                </div>
-                ${this.createActivityChartsHTML(activityData)}
-            </div>
-        </div>
-        `;
-    }
-
     createCombinedStatsAndChartsHTML(stats, securityPreference, activityInsights, activePvPData, activityData) {
         const spaceChart = securityPreference && securityPreference.breakdown && securityPreference.breakdown.length > 0
             ? this.createSpacePieChart(securityPreference.breakdown)
@@ -1659,7 +1364,7 @@ class ZKillStatsCard {
                         </div>
                         <div class="zkill-detail-item">
                             <span class="zkill-detail-label">ISK</span>
-                            <span class="zkill-detail-value">${this.formatISK(stats.iskDestroyed)}</span>
+                            <span class="zkill-detail-value">${this.formatNumber(stats.iskDestroyed)}</span>
                         </div>
                     </div>
                     <div class="zkill-detail-group losses">
@@ -1674,7 +1379,7 @@ class ZKillStatsCard {
                         </div>
                         <div class="zkill-detail-item">
                             <span class="zkill-detail-label">ISK</span>
-                            <span class="zkill-detail-value">${this.formatISK(stats.iskLost)}</span>
+                            <span class="zkill-detail-value">${this.formatNumber(stats.iskLost)}</span>
                         </div>
                     </div>
                     ${hasActivityInsights ? `
@@ -1739,183 +1444,6 @@ class ZKillStatsCard {
         `;
     }
 
-    createShipAnalysisHTML(shipAnalysis) {
-        if (!shipAnalysis || !shipAnalysis.topShips.length) return '';
-
-        const { specialization, sizeBreakdown, techBreakdown, roleBreakdown, diversity, totalShipTypes } = shipAnalysis;
-
-        const sizeHTML = sizeBreakdown.map(item => `
-            <div class="zkill-breakdown-item">
-                <div class="zkill-breakdown-label">${item.category}</div>
-                <div class="zkill-breakdown-bar">
-                    <div class="zkill-breakdown-fill" style="width: ${item.percentage}%"></div>
-                </div>
-                <div class="zkill-breakdown-value">${item.percentage}%</div>
-            </div>
-        `).join('');
-
-        const techHTML = techBreakdown.map(item => `
-            <div class="zkill-breakdown-item">
-                <div class="zkill-breakdown-label">${item.category}</div>
-                <div class="zkill-breakdown-bar">
-                    <div class="zkill-breakdown-fill tech-${item.category.toLowerCase()}" style="width: ${item.percentage}%"></div>
-                </div>
-                <div class="zkill-breakdown-value">${item.percentage}%</div>
-            </div>
-        `).join('');
-
-        return `
-        <div class="zkill-section">
-            <h3 class="zkill-section-title">
-                <span class="zkill-section-icon">🛸</span>
-                Ship Usage Analysis
-            </h3>
-            <div class="zkill-analysis-grid">
-                <div class="zkill-analysis-card">
-                    <div class="zkill-analysis-header">
-                        <div class="zkill-analysis-title">Specialization</div>
-                        <div class="zkill-analysis-icon">${specialization.type === 'Generalist' ? '🔄' : '🎯'}</div>
-                    </div>
-                    <div class="zkill-specialization">
-                        <div class="zkill-spec-type">${specialization.type}</div>
-                        <div class="zkill-spec-focus">${specialization.focus}</div>
-                        <div class="zkill-spec-description">${specialization.description}</div>
-                    </div>
-                </div>
-                <div class="zkill-analysis-card">
-                    <div class="zkill-analysis-header">
-                        <div class="zkill-analysis-title">Diversity Index</div>
-                        <div class="zkill-analysis-icon">📊</div>
-                    </div>
-                    <div class="zkill-diversity">
-                        <div class="zkill-diversity-score">${Math.round(diversity)}%</div>
-                        <div class="zkill-diversity-label">Ship Variety</div>
-                        <div class="zkill-diversity-info">${totalShipTypes} different ships</div>
-                    </div>
-                </div>
-            </div>
-            <div class="zkill-breakdowns">
-                <div class="zkill-breakdown-section">
-                    <h4 class="zkill-breakdown-title">Ship Size Preference</h4>
-                    ${sizeHTML}
-                </div>
-                <div class="zkill-breakdown-section">
-                    <h4 class="zkill-breakdown-title">Tech Level Usage</h4>
-                    ${techHTML}
-                </div>
-            </div>
-        </div>
-        `;
-    }
-
-    createCombatStyleHTML(combatStyle) {
-        if (!combatStyle) return '';
-
-        const secondaryRoleHTML = combatStyle.secondaryRole ? `
-                <div class="zkill-combat-card">
-                    <div class="zkill-combat-icon">🎯</div>
-                    <div class="zkill-combat-label">Secondary Role</div>
-                    <div class="zkill-combat-value">${combatStyle.secondaryRole.role} (${combatStyle.secondaryRole.percentage}%)</div>
-                </div>` : '';
-
-        return `
-        <div class="zkill-section">
-            <h3 class="zkill-section-title">
-                <span class="zkill-section-icon">⚔️</span>
-                Combat Style Profile
-            </h3>
-            <div class="zkill-combat-grid">
-                <div class="zkill-combat-card">
-                    <div class="zkill-combat-icon">⚔️</div>
-                    <div class="zkill-combat-label">Primary Role</div>
-                    <div class="zkill-combat-value">${combatStyle.primaryRole?.role || 'Unknown'} (${combatStyle.primaryRole?.percentage || 0}%)</div>
-                </div>${secondaryRoleHTML}
-                <div class="zkill-combat-card">
-                    <div class="zkill-combat-icon">👥</div>
-                    <div class="zkill-combat-label">Playstyle</div>
-                    <div class="zkill-combat-value">${combatStyle.fleetRole}</div>
-                    ${combatStyle.fleetSizeRange ? `<div class="zkill-combat-subtext">${combatStyle.fleetSizeRange.avg.toFixed(1)} avg fleet size</div>` : ''}
-                </div>
-                <div class="zkill-combat-card">
-                    <div class="zkill-combat-icon">📊</div>
-                    <div class="zkill-combat-label">Gang Activity</div>
-                    <div class="zkill-combat-value">${combatStyle.gangPreference}%</div>
-                </div>
-            </div>
-        </div>
-        `;
-    }
-
-    createActivityInsightsHTML(activityInsights) {
-        if (!activityInsights) return '';
-
-        return `
-        <div class="zkill-section">
-            <h3 class="zkill-section-title">
-                <span class="zkill-section-icon">📈</span>
-                Activity Insights
-            </h3>
-            <div class="zkill-insights-grid">
-                <div class="zkill-insight-card">
-                    <div class="zkill-insight-icon trend-${activityInsights.trend.toLowerCase()}">
-                        ${activityInsights.trend === 'Increasing' ? '📈' : activityInsights.trend === 'Decreasing' ? '📉' : '📊'}
-                    </div>
-                    <div class="zkill-insight-label">Activity Trend</div>
-                    <div class="zkill-insight-value">${activityInsights.trend}</div>
-                </div>
-                <div class="zkill-insight-card">
-                    <div class="zkill-insight-icon">⏰</div>
-                    <div class="zkill-insight-label">Prime Time</div>
-                    <div class="zkill-insight-value">${activityInsights.primeTime}</div>
-                </div>
-                <div class="zkill-insight-card">
-                    <div class="zkill-insight-icon">📅</div>
-                    <div class="zkill-insight-label">Consistency</div>
-                    <div class="zkill-insight-value">${activityInsights.consistency}</div>
-                </div>
-                <div class="zkill-insight-card">
-                    <div class="zkill-insight-icon">🎯</div>
-                    <div class="zkill-insight-label">Recent Activity</div>
-                    <div class="zkill-insight-value">${activityInsights.recentActivity} kills</div>
-                </div>
-            </div>
-        </div>
-        `;
-    }
-
-    createSecurityPreferenceHTML(securityPreference) {
-        if (!securityPreference || !securityPreference.breakdown.length) return '';
-
-        const breakdownHTML = securityPreference.breakdown.map(item => `
-            <div class="zkill-security-item">
-                <div class="zkill-security-space ${item.space.toLowerCase()}">${item.space}</div>
-                <div class="zkill-security-bar">
-                    <div class="zkill-security-fill ${item.space.toLowerCase()}" style="width: ${item.percentage}%"></div>
-                </div>
-                <div class="zkill-security-percentage">${item.percentage}%</div>
-                <div class="zkill-security-kills">${item.kills} kills</div>
-            </div>
-        `).join('');
-
-        return `
-        <div class="zkill-section">
-            <h3 class="zkill-section-title">
-                <span class="zkill-section-icon">🛡️</span>
-                Security Space Preference
-            </h3>
-            <div class="zkill-security-profile">
-                <div class="zkill-security-summary">
-                    <div class="zkill-security-primary">Primary: <strong>${securityPreference.primary}</strong></div>
-                    <div class="zkill-security-risk">Risk Profile: <strong>${securityPreference.riskProfile}</strong></div>
-                </div>
-                <div class="zkill-security-breakdown">
-                    ${breakdownHTML}
-                </div>
-            </div>
-        </div>
-        `;
-    }
-
     createEmptyStateHTML(entityName) {
         return `
             <div class="zkill-empty">
@@ -1966,20 +1494,12 @@ class ZKillStatsCard {
 
     formatNumber(num) {
         const thresholds = [
-            [1000000, 'M'],
-            [1000, 'k']
-        ];
-        return this.formatValue(num, thresholds);
-    }
-
-    formatISK(isk) {
-        const thresholds = [
             [1000000000000, 'T'],
             [1000000000, 'B'],
             [1000000, 'M'],
             [1000, 'k']
         ];
-        return this.formatValue(isk, thresholds);
+        return this.formatValue(num, thresholds);
     }
 
     formatSecurity(security, systemName) {
@@ -2085,9 +1605,9 @@ class ZKillStatsCard {
             const content = await this.createStatsHTML(stats, entityType, entityId);
 
             const logoSize = entityType === 'character' ? CHARACTER_PORTRAIT_SIZE_PX :
-                           entityType === 'corporation' ? CORP_LOGO_SIZE_PX : ALLIANCE_LOGO_SIZE_PX;
+                entityType === 'corporation' ? CORP_LOGO_SIZE_PX : ALLIANCE_LOGO_SIZE_PX;
             const imageType = entityType === 'character' ? 'characters' :
-                            entityType === 'corporation' ? 'corporations' : 'alliances';
+                entityType === 'corporation' ? 'corporations' : 'alliances';
             const imagePath = entityType === 'character' ? 'portrait' : 'logo';
 
             const name = entityName || stats.entityName || `${entityType} ${entityId}`;
@@ -2097,7 +1617,21 @@ class ZKillStatsCard {
 
             let affiliationBadges = '';
             if (entityType === 'character') {
-                const character = this.completeResults.find(char => char.character_id == entityId);
+                let character = this.completeResults.find(char => char.character_id == entityId);
+
+                if (!character) {
+                    const affiliation = await this.fetchEntityAffiliations('character', entityId);
+                    if (affiliation) {
+                        character = {
+                            character_id: entityId,
+                            corporation_id: affiliation.corporation_id,
+                            corporation_name: await this.fetchEntityName('corporation', affiliation.corporation_id),
+                            alliance_id: affiliation.alliance_id,
+                            alliance_name: affiliation.alliance_id ? await this.fetchEntityName('alliance', affiliation.alliance_id) : null
+                        };
+                    }
+                }
+
                 if (character) {
                     if (character.corporation_id && character.corporation_name) {
                         affiliationBadges += `<span class="detail-badge detail-badge-clickable" data-click-action="show-corporation" data-corporation-id="${sanitizeId(character.corporation_id)}" data-corporation-name="${sanitizeAttribute(character.corporation_name)}" style="cursor: pointer;">🏢 ${escapeHtml(character.corporation_name)}</span>`;
@@ -2107,7 +1641,18 @@ class ZKillStatsCard {
                     }
                 }
             } else if (entityType === 'corporation') {
-                const character = this.completeResults.find(char => char.corporation_id == entityId);
+                let character = this.completeResults.find(char => char.corporation_id == entityId);
+
+                if (!character) {
+                    const affiliation = await this.fetchEntityAffiliations('corporation', entityId);
+                    if (affiliation && affiliation.alliance_id) {
+                        character = {
+                            alliance_id: affiliation.alliance_id,
+                            alliance_name: await this.fetchEntityName('alliance', affiliation.alliance_id)
+                        };
+                    }
+                }
+
                 if (character && character.alliance_id && character.alliance_name) {
                     affiliationBadges += `<span class="detail-badge detail-badge-clickable" data-click-action="show-alliance" data-alliance-id="${sanitizeId(character.alliance_id)}" data-alliance-name="${sanitizeAttribute(character.alliance_name)}" style="cursor: pointer;">🏛️ ${escapeHtml(character.alliance_name)}</span>`;
                 }
@@ -2155,7 +1700,7 @@ class ZKillStatsCard {
     setupSectionToggleHandlers(containerElement) {
         const sectionHeaders = containerElement.querySelectorAll('.section-header, .zkill-section-header');
         sectionHeaders.forEach(header => {
-            header.addEventListener('click', function() {
+            header.addEventListener('click', function () {
                 const content = this.nextElementSibling;
                 const toggle = this.querySelector('.section-toggle, .zkill-section-toggle');
                 if (content && toggle) {

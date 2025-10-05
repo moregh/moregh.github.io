@@ -4,8 +4,6 @@
     Copyright (C) 2025 moregh (https://github.com/moregh/)
     Licensed under AGPL License.
 */
-import { ALLOWED_IMAGE_URLS } from './config.js';
-
 const HTML_ENTITIES = {
     '&': '&amp;',
     '<': '&lt;',

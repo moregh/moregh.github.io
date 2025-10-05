@@ -18,7 +18,7 @@
     font-family: inherit;
     font-weight: 500;
     text-decoration: none;
-    transition: all 0.2s ease;
+    transition: all var(--transition-normal) ease;
     user-select: none;
 }
 
@@ -32,7 +32,7 @@
     font-family: inherit;
     text-decoration: none;
     user-select: none;
-    transition: all 0.2s ease;
+    transition: all var(--transition-normal) ease;
     background: var(--white-05);
     border: 1px solid var(--white-1);
     border-radius: var(--radius-medium);
@@ -44,11 +44,11 @@
 
 .btn-toggle:hover {
     background: var(--white-08);
-    border-color: rgba(0, 212, 255, 0.3);
+    border-color: var(--border-glow);
 }
 
 .btn-toggle .toggle-icon {
-    transition: transform 0.2s ease;
+    transition: transform var(--transition-normal) ease;
     font-size: 0.7rem;
 }
 
@@ -70,7 +70,7 @@
     padding: 0.4rem 0.8rem;
     color: var(--danger-color);
     font-size: 0.85rem;
-    transition: all 0.2s ease;
+    transition: all var(--transition-normal) ease;
 }
 
 .btn-clear:hover {
@@ -97,10 +97,10 @@
     border-radius: 50px;
     font-size: 0.99rem;
     font-weight: 600;
-    box-shadow: 0 3.6px 18px rgba(0, 212, 255, 0.3), inset 0 0.9px 0 var(--white-2);
+    box-shadow: 0 3.6px 18px var(--border-glow), inset 0 0.9px 0 var(--white-2);
     position: relative;
     overflow: hidden;
-    transition: all 0.27s ease;
+    transition: all var(--transition-normal) ease;
 }
 
 .btn-primary::before,
@@ -112,7 +112,7 @@
     width: 100%;
     height: 100%;
     background: linear-gradient(90deg, transparent, var(--white-2), transparent);
-    transition: left 0.45s ease;
+    transition: left var(--transition-slow) ease;
 }
 
 .btn-primary:hover,
@@ -151,7 +151,7 @@
     background: var(--white-03);
     border-radius: 13.5px;
     border-left: 3.6px solid;
-    transition: all 0.27s ease;
+    transition: all var(--transition-normal) ease;
     animation: slideIn 0.45s ease forwards;
     opacity: 0;
     transform: translateY(18px);
@@ -168,7 +168,7 @@
     bottom: 0;
     background: var(--gradient-transparent);
     opacity: 0;
-    transition: opacity 0.27s ease;
+    transition: opacity var(--transition-normal) ease;
     pointer-events: none;
 }
 
@@ -258,5 +258,233 @@
 .badge-info {
     background: rgba(0, 212, 255, 0.1);
     color: var(--primary-color);
-    border: 0.9px solid rgba(0, 212, 255, 0.2);
+    border: 0.9px solid var(--border-glow);
+}
+
+/* ============================
+   Message Components
+   ============================ */
+
+/*
+    EVE Target Intel - Error, Warning and Info Messages
+    
+    Copyright (C) 2025 moregh (https://github.com/moregh/)
+    Licensed under AGPL License.
+*/
+
+.error-message,
+.warning-message,
+.info-message,
+.success-message {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    border-radius: 13.5px;
+    padding: 1.35rem;
+    margin: 0.9rem 0;
+    animation: slideIn 0.45s ease
+}
+
+.error-message {
+    background: rgba(248, 113, 113, 0.1);
+    border: 0.9px solid rgba(248, 113, 113, 0.3);
+    border-left: 3.6px solid var(--danger-color)
+}
+
+.warning-message {
+    background: rgba(251, 191, 36, 0.1);
+    border: 0.9px solid rgba(251, 191, 36, 0.3);
+    border-left: 3.6px solid var(--warning-color)
+}
+
+.info-message {
+    background: rgba(34, 197, 94, 0.1);
+    border: 0.9px solid rgba(34, 197, 94, 0.3);
+    border-left: 3.6px solid var(--info-color)
+}
+
+.success-message {
+    background: rgba(34, 197, 94, 0.1);
+    border: 0.9px solid rgba(34, 197, 94, 0.3);
+    border-left: 3.6px solid #22c55e
+}
+
+.error-icon,
+.warning-icon,
+.info-icon,
+.success-icon {
+    font-size: 1.35rem;
+    flex-shrink: 0
+}
+
+.error-icon {
+    color: var(--danger-color)
+}
+
+.warning-icon {
+    color: var(--warning-color)
+}
+
+.info-icon {
+    color: var(--info-color)
+}
+
+.success-icon {
+    color: #22c55e
+}
+
+.error-content,
+.warning-content,
+.info-content,
+.success-content {
+    flex: 1
+}
+
+.error-title,
+.warning-title,
+.info-title,
+.success-title {
+    font-weight: 600;
+    margin-bottom: 0.27rem
+}
+
+.error-title {
+    color: var(--danger-color)
+}
+
+.warning-title {
+    color: var(--warning-color)
+}
+
+.info-title {
+    color: var(--info-color)
+}
+
+.success-title {
+    color: #22c55e
+}
+
+.error-text,
+.warning-text,
+.info-text,
+.success-text {
+    color: var(--text-secondary);
+    font-size: 0.855rem
+}
+
+/* ============================
+   Footer Components
+   ============================ */
+
+/*
+    EVE Target Intel - Footer and Legal Sections
+    
+    Copyright (C) 2025 moregh (https://github.com/moregh/)
+    Licensed under AGPL License.
+*/
+
+.disclaimer-copyright {
+    margin-top: 2.5rem;
+    padding: 1.2rem 2rem 0.8rem;
+    text-align: center;
+    font-size: 0.8rem;
+    line-height: 1.4;
+    position: relative;
+    overflow: visible;
+    background: linear-gradient(135deg, rgba(251, 191, 36, 0.08) 0%, rgba(251, 191, 36, 0.04) 50%, rgba(251, 191, 36, 0.08) 100%);
+    border: 0.9px solid rgba(251, 191, 36, 0.2);
+    border-radius: 13.5px;
+    color: var(--text-secondary);
+    backdrop-filter: blur(12px);
+    box-shadow: 0 4px 16px rgba(251, 191, 36, 0.1);
+    margin-bottom: 1rem;
+}
+
+.disclaimer-copyright::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(251, 191, 36, 0.3), transparent);
+    opacity: 0.6
+}
+
+.disclaimer-copyright::after {
+    content: 'ℹ️';
+    position: absolute;
+    top: -18px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--background-dark);
+    padding: 0.2rem 0.6rem;
+    border-radius: 50%;
+    font-size: 1rem;
+    filter: drop-shadow(0 0 8px rgba(251, 191, 36, 0.5));
+    border: 2px solid rgba(251, 191, 36, 0.3);
+    box-shadow: 0 0 0 3px var(--background-dark);
+    animation: warningGlow 3s ease-in-out infinite;
+}
+
+
+.disclaimer-copyright:hover {
+    border-color: rgba(251, 191, 36, 0.3);
+    box-shadow: 0 6px 20px rgba(251, 191, 36, 0.15);
+    transform: translateY(-1px);
+    transition: all 0.3s ease
+}
+
+.disclaimer-copyright a {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-weight: 600;
+    letter-spacing: 0.025em;
+    position: relative;
+    transition: all 0.3s ease;
+    padding: 0.2rem 0.4rem;
+    border-radius: 6px;
+    background: rgba(0, 212, 255, 0.08);
+    border: 1px solid rgba(0, 212, 255, 0.15)
+}
+
+.disclaimer-copyright a::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 50%;
+    width: 0;
+    height: 1.5px;
+    background: var(--gradient-primary);
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    transform: translateX(-50%);
+    border-radius: 1px
+}
+
+.disclaimer-copyright a:hover {
+    color: var(--primary-light);
+    background: rgba(0, 212, 255, 0.15);
+    border-color: rgba(0, 212, 255, 0.3);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 212, 255, 0.2)
+}
+
+.disclaimer-copyright a:hover::after {
+    width: calc(100% - 0.8rem)
+}
+
+.disclaimer-copyright a:focus {
+    outline: none;
+    background: rgba(0, 212, 255, 0.2);
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.3)
+}
+
+.disclaimer-copyright a:active {
+    transform: translateY(0);
+    transition-duration: 0.1s
+}
+
+.container>.disclaimer-copyright {
+    margin-top: 2.5rem
 }

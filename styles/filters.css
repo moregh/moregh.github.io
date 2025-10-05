@@ -41,7 +41,7 @@
 }
 
 .toggle-icon {
-    transition: transform 0.2s ease;
+    transition: transform var(--transition-normal) ease;
     font-size: 0.7rem
 }
 
@@ -60,7 +60,7 @@
 .filters-content {
     max-height: 0;
     overflow: hidden;
-    transition: max-height 0.3s ease
+    transition: max-height var(--transition-medium) ease
 }
 
 .filters-section:not(.collapsed) .filters-content {
@@ -109,14 +109,14 @@
     padding: 0.6rem 0.8rem;
     color: var(--text-primary);
     font-size: 0.85rem;
-    transition: all 0.2s ease
+    transition: all var(--transition-normal) ease
 }
 
 .filter-input:focus {
     outline: none;
     border-color: var(--primary-color);
     background: var(--white-05);
-    box-shadow: 0 0 8px rgba(0, 212, 255, 0.2)
+    box-shadow: 0 0 8px var(--border-glow)
 }
 
 .filter-input::placeholder {
@@ -136,7 +136,7 @@
     cursor: pointer;
     font-size: 0.85rem;
     color: var(--text-primary);
-    transition: color 0.2s ease
+    transition: color var(--transition-normal) ease
 }
 
 .checkbox-label:hover {
@@ -153,7 +153,7 @@
     border: 1px solid var(--white-3);
     border-radius: 3px;
     position: relative;
-    transition: all 0.2s ease;
+    transition: all var(--transition-normal) ease;
     background: var(--white-02)
 }
 
@@ -210,7 +210,7 @@
     background: var(--primary-color);
     border-radius: 50%;
     cursor: pointer;
-    transition: all 0.2s ease
+    transition: all var(--transition-normal) ease
 }
 
 .filter-slider::-webkit-slider-thumb:hover {
@@ -225,7 +225,7 @@
     border-radius: 50%;
     cursor: pointer;
     border: none;
-    transition: all 0.2s ease
+    transition: all var(--transition-normal) ease
 }
 
 .filter-slider::-moz-range-thumb:hover {
@@ -265,7 +265,7 @@
     background: var(--white-1);
     border-radius: 11px;
     margin-right: 0.8rem;
-    transition: all 0.3s ease;
+    transition: all var(--transition-medium) ease;
     cursor: pointer;
     vertical-align: middle
 }
@@ -279,7 +279,7 @@
     height: 18px;
     background: white;
     border-radius: 50%;
-    transition: all 0.3s ease;
+    transition: all var(--transition-medium) ease;
     transform: translateX(0)
 }
 
@@ -308,7 +308,7 @@
     padding: 0.6rem 0.8rem;
     color: var(--text-primary);
     font-size: 0.85rem;
-    transition: all 0.2s ease;
+    transition: all var(--transition-normal) ease;
     appearance: none;
     background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
     background-position: right 0.5rem center;
@@ -321,7 +321,7 @@
     outline: none;
     border-color: var(--primary-color);
     background: var(--white-05);
-    box-shadow: 0 0 8px rgba(0, 212, 255, 0.2)
+    box-shadow: 0 0 8px var(--border-glow)
 }
 
 .filter-select option {

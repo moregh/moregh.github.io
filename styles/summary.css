@@ -1,5 +1,5 @@
 /*
-    EVE Target Intel - Summary Section and Mouseover Cards
+    EVE Target Intel - Summary Section
 
     Copyright (C) 2025 moregh (https://github.com/moregh/)
     Licensed under AGPL License.
@@ -42,8 +42,6 @@
     align-items: center
 }
 
-/* summary toggle button styles moved to components.css */
-
 .summary-section.collapsed .toggle-icon {
     transform: rotate(-90deg)
 }
@@ -51,7 +49,7 @@
 .summary-wrapper {
     max-height: 1000px;
     overflow: visible;
-    transition: max-height 0.3s ease
+    transition: max-height var(--transition-medium) ease
 }
 
 .summary-section.collapsed .summary-wrapper {
@@ -128,14 +126,12 @@
     border-radius: 10.8px;
     padding: 0.9rem;
     border-left: 2.7px solid var(--secondary-color);
-    transition: all 0.27s ease;
+    transition: all var(--transition-normal) ease;
     animation: slideIn 0.45s ease forwards;
     min-height: 3.5rem;
     position: relative;
     z-index: 1
 }
-
-/* .summary-item:hover styles moved to .summary-card:hover in components.css */
 
 .summary-logo {
     width: 36px;
@@ -163,7 +159,7 @@
 .summary-name a {
     color: var(--primary-color);
     text-decoration: none;
-    transition: color 0.18s ease
+    transition: color var(--transition-fast) ease
 }
 
 .summary-name a:hover {
@@ -194,109 +190,6 @@
     min-height: 180px
 }
 
-.mouseover-card {
-    position: absolute;
-    width: 320px;
-    max-height: 400px;
-    background: var(--background-dark);
-    backdrop-filter: blur(18px);
-    border: 1px solid rgba(0, 212, 255, 0.5);
-    border-radius: var(--radius-xl);
-    box-shadow: 0 9px 36px rgba(0, 0, 0, 0.4), inset 0 0.9px 0 var(--white-1);
-    padding: 1.2rem;
-    z-index: 9999;
-    opacity: 0;
-    visibility: hidden;
-    transition: all 0.25s ease;
-    overflow-y: auto;
-    pointer-events: none
-}
-
-.mouseover-card.visible {
-    opacity: 1;
-    visibility: visible;
-    pointer-events: auto;
-    z-index: 10000
-}
-
-.mouseover-card-header {
-    font-size: 0.9rem;
-    font-weight: 600;
-    color: var(--primary-color);
-    margin-bottom: 0.8rem;
-    text-align: center;
-    border-bottom: 1px solid var(--border-color);
-    padding-bottom: 0.5rem
-}
-
-.mouseover-card-content {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem
-}
-
-.mouseover-card-item {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    padding: 0.4rem 0.6rem;
-    background: var(--white-02);
-    border-radius: var(--radius-small);
-    border-left: 2px solid var(--secondary-color);
-    transition: all 0.2s ease;
-    cursor: pointer;
-    position: relative
-}
-
-.mouseover-card-item:hover {
-    background: var(--white-05);
-    transform: translateX(2px)
-}
-
-.zkill-card-clickable {
-    cursor: pointer
-}
-
-.zkill-card-clickable:hover {
-    background: var(--white-08) !important;
-    transform: translateX(3px) !important
-}
-
-.mouseover-card-avatar {
-    width: 24px;
-    height: 24px;
-    border-radius: 4px;
-    object-fit: cover;
-    border: 1px solid var(--white-1);
-    background: var(--gradient-highlight);
-    transition: opacity 0.3s ease;
-}
-
-.mouseover-card-name {
-    font-size: 0.8rem;
-    color: var(--text-primary);
-    flex: 1
-}
-
-.mouseover-card-name span {
-    color: var(--primary-color);
-    transition: color 0.18s ease
-}
-
-.zkill-card-clickable:hover .mouseover-card-name span {
-    color: var(--primary-light)
-}
-
-.mouseover-card-more {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    text-align: center;
-    padding: 0.5rem;
-    border-top: 1px solid var(--border-color);
-    margin-top: 0.5rem
-}
-
-.summary-logo:not([src]),
-.mouseover-card-avatar:not([src]) {
+.summary-logo:not([src]) {
     opacity: 0.5
 }

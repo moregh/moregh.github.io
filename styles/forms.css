@@ -67,7 +67,7 @@
 }
 
 .input-section.collapsed:hover .collapsed-indicator {
-    transition: color 0.2s ease;
+    transition: color var(--transition-normal) ease;
     transition-delay: var(--input-hover-delay, 0.2s);
     color: var(--primary-color);
 }
@@ -79,7 +79,7 @@
     font-size: 0.9rem;
     padding: 0.5rem 0;
     cursor: pointer;
-    transition: color 0.2s ease
+    transition: color var(--transition-normal) ease
 }
 
 .input-section.collapsed .collapsed-indicator {
@@ -116,7 +116,7 @@
     border-radius: 18px;
     font-size: 0.765rem;
     font-weight: 500;
-    border: 0.9px solid rgba(0, 212, 255, 0.2)
+    border: 0.9px solid var(--border-glow)
 }
 
 .shortcut-hint {
@@ -140,14 +140,14 @@ textarea {
     font-size: 13.5px;
     font-family: 'JetBrains Mono', 'Consolas', monospace;
     resize: vertical;
-    transition: all 0.27s ease;
+    transition: all var(--transition-normal) ease;
     line-height: 1.35
 }
 
 textarea:focus {
     outline: none;
     border-color: var(--primary-color);
-    box-shadow: 0 0 27px rgba(0, 212, 255, 0.2);
+    box-shadow: 0 0 27px var(--border-glow);
     background: var(--white-05)
 }
 
@@ -169,14 +169,10 @@ textarea::placeholder {
     font-weight: 500
 }
 
-/* check-button styles moved to components.css */
-
 .button-icon {
     font-size: 1.08rem;
     filter: drop-shadow(0 0 4.5px currentColor)
 }
-
-/* Button styles moved to components.css */
 
 .view-icon {
     font-size: 0.9rem

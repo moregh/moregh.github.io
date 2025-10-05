@@ -29,19 +29,3 @@ export class ServerError extends APIError {
         this.name = 'ServerError';
     }
 }
-
-export class NotFoundError extends APIError {
-    constructor(message, response = null, context = {}) {
-        super(message, 404, response, context);
-        this.name = 'NotFoundError';
-    }
-}
-
-export class ValidationError extends Error {
-    constructor(message, field = null, value = null) {
-        super(message);
-        this.name = 'ValidationError';
-        this.field = field;
-        this.value = value;
-    }
-}

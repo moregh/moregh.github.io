@@ -5,16 +5,17 @@
     Licensed under AGPL License.
 */
 
-import { USER_AGENT, KILLMAIL_BATCH_SIZE, KILLMAIL_FETCH_DELAY_MS, ZKILL_CONFIG } from './config.js';
+import { KILLMAIL_BATCH_SIZE, KILLMAIL_FETCH_DELAY_MS, ZKILL_CONFIG } from './config.js';
 import { getRuntimeMaxKillmails } from './user-settings.js';
 import { showWarning } from './ui.js';
 import { getShipClassification, SHIP_TYPE_TO_GROUP } from './eve-ship-data.js';
 import { get_zkill_character_kills, get_zkill_corporation_kills, get_zkill_alliance_kills } from './zkill-kills-api.js';
 import { fetchKillmailsBatch } from './esi-killmails.js';
 import { analyzeKillmails, getRecentKills, getTopValueKills } from './killmail-analysis.js';
-import { APIError } from './errors.js';
-import { SecurityClassification, POCHVEN_SYSTEMS } from './zkill-card.js';
+import { SecurityClassification } from './zkill-card.js';
 import { assessEntityThreat } from './threat-assessment.js';
+import { ZKillError, computePoW, getProxyParam, executeWithRetry } from './zkill-utils.js';
+import { calculateTimezoneFromHourlyData, calculateTimezoneFromKillmails } from './timezone-utils.js';
 
 function distributePercentages(items, total, getCount) {
     if (total === 0) return items.map(item => ({ ...item, percentage: 0 }));
@@ -45,15 +46,6 @@ function distributePercentages(items, total, getCount) {
         ...p.item,
         percentage: p.rounded
     }));
-}
-
-class ZKillError extends APIError {
-    constructor(message, status, entityType, entityId) {
-        super(message, status, null, { entityType, entityId });
-        this.name = 'ZKillError';
-        this.entityType = entityType;
-        this.entityId = entityId;
-    }
 }
 
 class ZKillRateLimiter {
@@ -137,10 +129,6 @@ class ZKillStatsCache {
         });
     }
 
-    clear() {
-        this.cache.clear();
-    }
-
     getStats() {
         let expired = 0;
         let valid = 0;
@@ -165,46 +153,13 @@ class ZKillboardClient {
         this.requestCount = 0;
     }
 
-    async computePoW(id, difficulty = ZKILL_CONFIG.POW_DIFFICULTY) {
-        const ts = Math.floor(Date.now() / 1000);
-        let nonce = 0;
-        const targetPrefix = '0'.repeat(difficulty / 4);
-
-        while (true) {
-            const input = `${id}|${nonce}|${ts}`;
-            const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
-            const hashHex = [...new Uint8Array(buf)]
-                .map(x => x.toString(16).padStart(2, "0"))
-                .join("");
-
-            if (hashHex.startsWith(targetPrefix)) {
-                return { nonce, ts, hash: hashHex };
-            }
-            nonce++;
-
-
-            if (nonce > 1000000) {
-                throw new ZKillError('Proof-of-work computation failed - too many iterations', 500);
-            }
-        }
-    }
-    async executeRequest(entityType, entityId, retryCount = 0) {
+    async executeRequest(entityType, entityId) {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), ZKILL_CONFIG.REQUEST_TIMEOUT_MS);
 
         try {
-            const entityTypeMap = {
-                'characterID': 'character',
-                'corporationID': 'corporation',
-                'allianceID': 'alliance'
-            };
-
-            const proxyParam = entityTypeMap[entityType];
-            if (!proxyParam) {
-                throw new ZKillError(`Unsupported entity type: ${entityType}`, 400);
-            }
-
-            const { nonce, ts, hash } = await this.computePoW(entityId);
+            const proxyParam = getProxyParam(entityType);
+            const { nonce, ts, hash } = await computePoW(entityId);
 
             const proxyUrl = `${ZKILL_CONFIG.PROXY_BASE_URL}?${proxyParam}=${entityId}&nonce=${nonce}&ts=${ts}&hash=${hash}`;
 
@@ -224,13 +179,13 @@ class ZKillboardClient {
                 if (response.status === 404) {
                     return null;
                 } else if (response.status === 429 || response.status === 420) {
-                    throw new ZKillError('Rate limited by proxy. Please try again later.', 429);
+                    throw new ZKillError('Rate limited by proxy. Please try again later.', 429, entityType, entityId);
                 } else if (response.status >= 500) {
-                    throw new ZKillError(`Proxy server error (${response.status})`, response.status);
+                    throw new ZKillError(`Proxy server error (${response.status})`, response.status, entityType, entityId);
                 } else if (response.status === 400) {
-                    throw new ZKillError('Invalid proof-of-work or request format', 400);
+                    throw new ZKillError('Invalid proof-of-work or request format', 400, entityType, entityId);
                 } else {
-                    throw new ZKillError(`Proxy request failed: ${response.status} ${response.statusText}`, response.status);
+                    throw new ZKillError(`Proxy request failed: ${response.status} ${response.statusText}`, response.status, entityType, entityId);
                 }
             }
 
@@ -241,24 +196,14 @@ class ZKillboardClient {
                 return data;
             } catch (parseError) {
                 console.warn('Failed to parse JSON response:', text.substring(0, 200));
-                throw new ZKillError('Invalid JSON response from proxy', 422);
+                throw new ZKillError('Invalid JSON response from proxy', 422, entityType, entityId);
             }
 
         } catch (error) {
             clearTimeout(timeoutId);
 
             if (error.name === 'AbortError') {
-                throw new ZKillError('Request timed out. Please try again.', 408);
-            }
-
-            if (retryCount < ZKILL_CONFIG.MAX_RETRIES &&
-                (error.status >= 500 || error.status === 408 || error.status === 429)) {
-
-                const backoffDelay = Math.min(1000 * Math.pow(2, retryCount), 10000);
-                console.warn(`Proxy request failed, retrying in ${backoffDelay}ms (attempt ${retryCount + 1}/${ZKILL_CONFIG.MAX_RETRIES})`);
-
-                await new Promise(resolve => setTimeout(resolve, backoffDelay));
-                return this.executeRequest(entityType, entityId, retryCount + 1);
+                throw new ZKillError('Request timed out. Please try again.', 408, entityType, entityId);
             }
 
             throw error;
@@ -293,7 +238,11 @@ class ZKillboardClient {
 
         try {
             const rawData = await this.rateLimiter.scheduleRequest(() =>
-                this.executeRequest(entityType, entityId)
+                executeWithRetry(
+                    () => this.executeRequest(entityType, entityId),
+                    entityType,
+                    entityId
+                )
             );
 
             if (!rawData) {
@@ -343,8 +292,15 @@ class ZKillboardClient {
                 onProgress('zkill', 'Fetching kill IDs from zKillboard...', 0, 0);
             }
 
-            let kills = [];
+            const allKills = [];
+            const allKillmails = [];
+            const pendingESIKills = [];
+            let zkillComplete = false;
+            let esiComplete = false;
+            let totalZkillKills = 0;
+
             const zkillProgress = (page, totalKills, estimatedDays, status) => {
+                totalZkillKills = totalKills;
                 if (onProgress) {
                     let message = `Fetching page ${page} (${totalKills} kills`;
                     if (estimatedDays) {
@@ -358,32 +314,74 @@ class ZKillboardClient {
                 }
             };
 
-            if (entityType === 'characterID') {
-                kills = await get_zkill_character_kills(entityId, zkillProgress, maxKillmails);
-            } else if (entityType === 'corporationID') {
-                kills = await get_zkill_corporation_kills(entityId, zkillProgress, maxKillmails);
-            } else if (entityType === 'allianceID') {
-                kills = await get_zkill_alliance_kills(entityId, zkillProgress, maxKillmails);
-            }
+            const processKillsPage = async (pageKills, isCached) => {
+                if (isCached) {
+                    allKills.push(...pageKills);
+                    pendingESIKills.push(...pageKills);
+                    return;
+                }
 
-            if (!kills || kills.length === 0) {
+                allKills.push(...pageKills);
+                pendingESIKills.push(...pageKills);
+            };
+
+            const { get_zkill_kills_streaming } = await import('./zkill-kills-api.js');
+
+            const zkillPromise = (async () => {
+                try {
+                    await get_zkill_kills_streaming(entityType, entityId, processKillsPage, zkillProgress, maxKillmails);
+                    zkillComplete = true;
+                    if (onProgress) {
+                        onProgress('zkill', `Collected ${allKills.length} kill IDs`, 100, 0);
+                    }
+                } catch (error) {
+                    console.error('Error in zkill streaming:', error);
+                    zkillComplete = true;
+                }
+            })();
+
+            const esiPromise = (async () => {
+                while (!zkillComplete || pendingESIKills.length > 0) {
+                    if (pendingESIKills.length === 0) {
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                        continue;
+                    }
+
+                    const batchSize = Math.min(KILLMAIL_BATCH_SIZE * 2, pendingESIKills.length);
+                    const killsToProcess = pendingESIKills.splice(0, batchSize);
+
+                    if (killsToProcess.length > 0) {
+                        await fetchKillmailsBatch(killsToProcess, {
+                            maxConcurrency: KILLMAIL_BATCH_SIZE,
+                            batchDelay: KILLMAIL_FETCH_DELAY_MS,
+                            maxKillmails: maxKillmails - allKillmails.length,
+                            streaming: true,
+                            onStreamResult: (result) => {
+                                allKillmails.push(result);
+                            },
+                            onProgress: (processed, total, successCount, failedCount) => {
+                                if (onProgress) {
+                                    const totalExpected = zkillComplete ? allKills.length : Math.max(allKills.length, totalZkillKills);
+                                    onProgress('esi', `Fetching killmails from ESI (${allKillmails.length}/${totalExpected})...`, allKillmails.length, totalExpected);
+                                }
+                            }
+                        });
+
+                        if (allKillmails.length >= maxKillmails) {
+                            break;
+                        }
+                    }
+                }
+                esiComplete = true;
+            })();
+
+            await Promise.all([zkillPromise, esiPromise]);
+
+            if (!allKills || allKills.length === 0) {
                 return stats;
             }
 
-            if (onProgress) {
-                onProgress('zkill', `Collected ${kills.length} kill IDs`, 100, 0);
-            }
-
-            const killmails = await fetchKillmailsBatch(kills, {
-                maxConcurrency: KILLMAIL_BATCH_SIZE,
-                batchDelay: KILLMAIL_FETCH_DELAY_MS,
-                maxKillmails: maxKillmails,
-                onProgress: (processed, total, successCount, failedCount) => {
-                    if (onProgress) {
-                        onProgress('esi', `Fetching killmails from ESI (${processed}/${total})...`, processed, total);
-                    }
-                }
-            });
+            const killmails = allKillmails;
 
             if (killmails && killmails.length > 0) {
                 const detailedAnalysis = analyzeKillmails(killmails, entityType, entityId);
@@ -823,12 +821,12 @@ class ZKillboardClient {
             } else if (category.includes('interceptor')) {
                 roleKills.tackle += kills;
             } else if (category.includes('electronic attack') || category.includes('recon') ||
-                       groupName.includes('electronic') || groupName.includes('recon')) {
+                groupName.includes('electronic') || groupName.includes('recon')) {
                 roleKills.ewar += kills;
             } else if (category.includes('covert ops') || category.includes('stealth bomber')) {
                 roleKills.scout += kills;
             } else if (category.includes('command') || groupName.includes('command') ||
-                       category.includes('carrier') || category.includes('force auxiliary')) {
+                category.includes('carrier') || category.includes('force auxiliary')) {
                 roleKills.support += kills;
             } else if (ship.classification.role === 'Combat') {
                 roleKills.dps += kills;
@@ -1058,16 +1056,17 @@ class ZKillboardClient {
             playstyleDetails.push('Capital');
         }
 
-        if (soloVsFleet.solo.percentage > 50) {
-            enhancedFleetRole = 'Lone Wolf';
-            playstyleDetails.push('Solo');
-        } else if (soloVsFleet.smallGang.percentage > 50) {
+        
+        if (soloVsFleet.smallGang.percentage > 50) {
             enhancedFleetRole = 'Small Gang Specialist';
             playstyleDetails.push('Small Gang');
         } else if (soloVsFleet.fleet.percentage > 60 && fleetSize.average > 30) {
             enhancedFleetRole = 'Blobber';
-        } else if (soloVsFleet.fleet.percentage > 40) {
+        } else if (soloVsFleet.fleet.percentage > 50) {
             enhancedFleetRole = 'Fleet Fighter';
+        } else if (soloVsFleet.solo.percentage > 50) {
+            enhancedFleetRole = 'Lone Wolf';
+            playstyleDetails.push('Solo');
         } else {
             enhancedFleetRole = 'Adaptable';
         }
@@ -1141,10 +1140,9 @@ class ZKillboardClient {
         }
 
         const activeMonths = monthEntries.length;
-        const consistency = activeMonths >= 6 ? 'Very Consistent' :
-            activeMonths >= 3 ? 'Moderately Active' :
+        const consistency = activeMonths >= 6 ? 'High' :
+            activeMonths >= 3 ? 'Moderate' :
                 activeMonths >= 1 ? 'Sporadic' : 'Inactive';
-
         let primeTime = 'Unknown';
         let timezone = 'Unknown';
         const hasActivityData = activity && activity.max && Object.keys(activity).length > 1;
@@ -1159,27 +1157,9 @@ class ZKillboardClient {
                 }
             }
 
-            const maxHour = hourlyTotals.indexOf(Math.max(...hourlyTotals));
-            primeTime = `${maxHour.toString().padStart(2, '0')}:00 EVE`;
-
-            const eutzEarlyKills = [14, 15, 16, 17, 18].reduce((sum, h) => sum + hourlyTotals[h], 0);
-            const eutzLateKills = [19, 20, 21, 22, 23].reduce((sum, h) => sum + hourlyTotals[h], 0);
-            const ustzEarlyKills = [0, 1, 2, 3, 4].reduce((sum, h) => sum + hourlyTotals[h], 0);
-            const ustzLateKills = [5, 6, 7, 8, 9].reduce((sum, h) => sum + hourlyTotals[h], 0);
-            const autzKills = [10, 11, 12, 13].reduce((sum, h) => sum + hourlyTotals[h], 0);
-
-            const timezones = [
-                { name: 'Early EUTZ', kills: eutzEarlyKills },
-                { name: 'Late EUTZ', kills: eutzLateKills },
-                { name: 'Early USTZ', kills: ustzEarlyKills },
-                { name: 'Late USTZ', kills: ustzLateKills },
-                { name: 'AUTZ', kills: autzKills }
-            ];
-
-            const maxTZ = timezones.reduce((max, tz) => tz.kills > max.kills ? tz : max, { kills: 0 });
-            if (maxTZ.kills > 0) {
-                timezone = maxTZ.name;
-            }
+            const timezoneResult = calculateTimezoneFromHourlyData(hourlyTotals);
+            primeTime = timezoneResult.primeTime.replace(' EVE Time', ' EVE');
+            timezone = timezoneResult.timezone;
         }
 
         return {
@@ -1193,42 +1173,7 @@ class ZKillboardClient {
     }
 
     calculateTimezoneFromKillmails(killmails) {
-        if (!killmails || killmails.length === 0) {
-            return { timezone: 'Unknown', primeTime: 'Unknown' };
-        }
-
-        const hourlyTotals = new Array(24).fill(0);
-
-        killmails.forEach(km => {
-            const killTime = km.killmail?.killmail_time;
-            if (killTime) {
-                const date = new Date(killTime);
-                const hour = date.getUTCHours();
-                hourlyTotals[hour]++;
-            }
-        });
-
-        const maxHour = hourlyTotals.indexOf(Math.max(...hourlyTotals));
-        const primeTime = `${maxHour.toString().padStart(2, '0')}:00 EVE Time`;
-
-        const eutzEarlyKills = [14, 15, 16, 17, 18].reduce((sum, h) => sum + hourlyTotals[h], 0);
-        const eutzLateKills = [19, 20, 21, 22, 23].reduce((sum, h) => sum + hourlyTotals[h], 0);
-        const ustzEarlyKills = [0, 1, 2, 3, 4].reduce((sum, h) => sum + hourlyTotals[h], 0);
-        const ustzLateKills = [5, 6, 7, 8, 9].reduce((sum, h) => sum + hourlyTotals[h], 0);
-        const autzKills = [10, 11, 12, 13].reduce((sum, h) => sum + hourlyTotals[h], 0);
-
-        const timezones = [
-            { name: 'Early EUTZ', kills: eutzEarlyKills },
-            { name: 'Late EUTZ', kills: eutzLateKills },
-            { name: 'Early USTZ', kills: ustzEarlyKills },
-            { name: 'Late USTZ', kills: ustzLateKills },
-            { name: 'AUTZ', kills: autzKills }
-        ];
-
-        const maxTZ = timezones.reduce((max, tz) => tz.kills > max.kills ? tz : max, { kills: 0 });
-        const timezone = maxTZ.kills > 0 ? maxTZ.name : 'Unknown';
-
-        return { timezone, primeTime };
+        return calculateTimezoneFromKillmails(killmails);
     }
 
     async analyzeSecurityPreferenceFromKillmails(killmails, fallbackData) {
@@ -1867,9 +1812,6 @@ class ZKillboardClient {
         };
     }
 
-    clearCache() {
-        this.cache.clear();
-    }
 }
 
 const zkillClient = new ZKillboardClient();

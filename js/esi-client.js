@@ -34,7 +34,6 @@ class ESIServerError extends ServerError {
 export class ESIClient {
     constructor() {
         this.requestCount = 0;
-        this.cacheHeaders = new Map();
         this.rateLimitState = {
             remaining: null,
             reset: null,
@@ -52,54 +51,6 @@ export class ESIClient {
 
     resetStats() {
         this.requestCount = 0;
-    }
-
-    parseCacheHeaders(response, endpoint) {
-        const cacheControl = response.headers.get('cache-control');
-        const expires = response.headers.get('expires');
-        const etag = response.headers.get('etag');
-        const lastModified = response.headers.get('last-modified');
-
-        let maxAge = null;
-        if (cacheControl) {
-            const maxAgeMatch = cacheControl.match(/max-age=(\d+)/);
-            if (maxAgeMatch) {
-                maxAge = parseInt(maxAgeMatch[1]);
-            }
-        }
-
-        const cacheInfo = {
-            maxAge,
-            expires: expires ? new Date(expires) : null,
-            etag,
-            lastModified: lastModified ? new Date(lastModified) : null,
-            cachedAt: new Date(),
-            endpoint
-        };
-
-        this.cacheHeaders.set(endpoint, cacheInfo);
-        return cacheInfo;
-    }
-
-    isCacheValid(endpoint) {
-        const cacheInfo = this.cacheHeaders.get(endpoint);
-        if (!cacheInfo) return false;
-
-        const now = new Date();
-
-
-        if (cacheInfo.maxAge !== null) {
-            const expiresAt = new Date(cacheInfo.cachedAt.getTime() + (cacheInfo.maxAge * 1000));
-            return now < expiresAt;
-        }
-
-
-        if (cacheInfo.expires) {
-            return now < cacheInfo.expires;
-        }
-
-
-        return false;
     }
 
     updateRateLimitState(response) {
@@ -137,15 +88,9 @@ export class ESIClient {
     }
 
     async handleResponse(response, endpoint) {
-
         this.updateRateLimitState(response);
 
-
-        this.parseCacheHeaders(response, endpoint);
-
-
         if (response.ok) {
-
             try {
                 const data = await response.json();
                 return data;

@@ -46,7 +46,7 @@
     height: 1.6rem;
     color: var(--primary-color);
     transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-    filter: drop-shadow(0 0 8px rgba(0, 212, 255, 0.3))
+    filter: drop-shadow(0 0 8px var(--border-glow))
 }
 
 .title-link:hover .target-icon {
@@ -104,12 +104,12 @@
     border-radius: 20px;
     font-size: 0.75rem;
     font-weight: 700;
-    border: 1px solid rgba(0, 212, 255, 0.3);
+    border: 1px solid var(--border-glow);
     white-space: nowrap;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    box-shadow: 0 2px 8px rgba(0, 212, 255, 0.2);
-    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px var(--border-glow);
+    transition: all var(--transition-medium) ease;
 }
 
 .subtitle {
@@ -127,12 +127,12 @@
     border-radius: 15px;
     font-size: 0.75rem;
     font-weight: 700;
-    border: 1px solid rgba(0, 212, 255, 0.3);
+    border: 1px solid var(--border-glow);
     white-space: nowrap;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    box-shadow: 0 2px 8px rgba(0, 212, 255, 0.2);
-    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px var(--border-glow);
+    transition: all var(--transition-medium) ease;
     text-decoration: none;
     display: inline-block;
     position: relative;
@@ -153,13 +153,13 @@
 .version-badge:active {
     transform: translateY(-1px);
     transition-duration: 0.1s;
-    box-shadow: 0 3px 10px rgba(0, 212, 255, 0.3);
+    box-shadow: 0 3px 10px var(--border-glow);
 }
 
 /* Focus State for Accessibility */
 .version-badge:focus {
     outline: none;
-    box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.5), 0 4px 12px rgba(0, 212, 255, 0.3);
+    box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.5), 0 4px 12px var(--border-glow);
     border-color: var(--primary-color);
 }
 
@@ -233,7 +233,7 @@
     background: var(--white-02);
     border-radius: 8px;
     border-left: 2px solid;
-    transition: all 0.27s ease;
+    transition: all var(--transition-normal) ease;
     min-width: auto;
     flex-shrink: 0
 }

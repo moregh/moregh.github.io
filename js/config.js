@@ -16,7 +16,7 @@ export const CHUNK_DELAY = 25;
 export const STATS_UPDATE_DELAY = 100;
 export const DB_NAME = 'EVETargetIntelDB';
 export const DB_VERSION = 3;
-export const VERSION = "0.10.2";
+export const VERSION = "0.10.3";
 
 export const PROGRESS_UPDATE_THROTTLE_MS = 50;
 export const TIMER_UPDATE_INTERVAL_MS = 100;
@@ -42,8 +42,6 @@ export const USER_NOTIFICATION_DISPLAY_MS = 1500;
 export const CHARACTER_PORTRAIT_SIZE_PX = 64;
 export const CORP_LOGO_SIZE_PX = 32;
 export const ALLIANCE_LOGO_SIZE_PX = 32;
-export const MOUSEOVER_CARD_AVATAR_SIZE_PX = 32;
-export const MOUSEOVER_CARD_MAX_ITEMS = 10;
 
 export const PERFORMANCE_CONFIG = {
     VIRTUAL_SCROLL_BUFFER: 10,
@@ -121,10 +119,6 @@ export const FILTER_DEFAULT_MIN_ALLIANCE_SIZE = 1;
 export const FILTER_DEFAULT_MAX_ALLIANCE_SIZE = 10000;
 export const FILTER_NAME_DEBOUNCE_MS = 300;
 export const FILTER_CACHE_SIZE_LIMIT = 20;
-
-export const MOUSEOVER_POSITION_TOP_MULTIPLIER = 0.85;
-export const MOUSEOVER_POSITION_LEFT_MULTIPLIER = 0.5;
-export const MOUSEOVER_HIDE_DELAY_MS = 10;
 
 export const IMAGE_OBSERVER_THRESHOLD = 0.2;
 export const IMAGE_OBSERVER_ROOT_MARGIN = '20px';

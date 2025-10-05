@@ -15,10 +15,10 @@ const DEFAULT_SETTINGS = {
 };
 
 const SETTING_CONSTRAINTS = {
-    MAX_KILLMAILS_TO_FETCH: { min: 100, max: 5000 },
-    ZKILL_MIN_KILLMAILS: { min: 50, max: 500 },
-    ZKILL_TARGET_DAYS: { min: 7, max: 90 },
-    ZKILL_MAX_PAGES: { min: 1, max: 20 }
+    MAX_KILLMAILS_TO_FETCH: { min: 1, max: 4000 },  // zkill max
+    ZKILL_MIN_KILLMAILS: { min: 1, max: 4000 },
+    ZKILL_TARGET_DAYS: { min: 1, max: 3652 },  // 10 years
+    ZKILL_MAX_PAGES: { min: 1, max: 20 }  // zkill max
 };
 
 let settingsCache = null;
@@ -42,14 +42,14 @@ export async function getUserSetting(key) {
 
 export async function setUserSetting(key, value) {
     if (DEFAULT_SETTINGS[key] === undefined) {
-        throw new Error(`Unknown setting: ${key}`);
+        return { success: false, error: `Unknown setting: ${key}` };
     }
 
     const constraint = SETTING_CONSTRAINTS[key];
     if (constraint) {
         const numValue = parseInt(value);
         if (isNaN(numValue) || numValue < constraint.min || numValue > constraint.max) {
-            throw new Error(`Setting ${key} must be between ${constraint.min} and ${constraint.max}`);
+            return { success: false, error: `Must be between ${constraint.min} and ${constraint.max}` };
         }
         value = numValue;
     }
@@ -59,6 +59,8 @@ export async function setUserSetting(key, value) {
 
     if (!settingsCache) settingsCache = {};
     settingsCache[key] = value;
+
+    return { success: true };
 }
 
 export async function getAllUserSettings() {

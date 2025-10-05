@@ -52,8 +52,8 @@ export default {
 
       const page = pageParam ? parseInt(pageParam, 10) : 1;
 
-      if (page < 1 || page > 100) {
-        return jsonError("Page parameter must be between 1 and 100", 400, false);
+      if (page < 1 || page > 20) {
+        return jsonError("Page parameter must be between 1 and 20", 400, false);
       }
 
       if (killsType === "character") {

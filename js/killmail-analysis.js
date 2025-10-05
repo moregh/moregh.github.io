@@ -362,8 +362,8 @@ function analyzeHighValueTargets(killmails) {
 
     const avgKillValue = calculateAverageValue(killmails);
     const isHVTHunter = avgKillValue > THREAT_ASSESSMENT.HVT.VALUE_THRESHOLD_HIGH &&
-        ((hvtCount >= 10 && hvtFrequency >= THREAT_ASSESSMENT.HVT.MIN_FREQUENCY_PERCENT/100) ||
-         (hvtCount >= THREAT_ASSESSMENT.HVT.MIN_KILLS_FOR_DETECTION && hvtFrequency >= THREAT_ASSESSMENT.HVT.MIN_FREQUENCY_PERCENT_STRICT/100));
+        ((hvtCount >= 10 && hvtFrequency >= THREAT_ASSESSMENT.HVT.MIN_FREQUENCY_PERCENT / 100) ||
+            (hvtCount >= THREAT_ASSESSMENT.HVT.MIN_KILLS_FOR_DETECTION && hvtFrequency >= THREAT_ASSESSMENT.HVT.MIN_FREQUENCY_PERCENT_STRICT / 100));
 
     return {
         isHVTHunter,
@@ -533,7 +533,7 @@ function analyzeKillSpacing(timestamps) {
 
     const gaps = [];
     for (let i = 1; i < timestamps.length; i++) {
-        gaps.push((timestamps[i] - timestamps[i-1]) / (1000 * 60));
+        gaps.push((timestamps[i] - timestamps[i - 1]) / (1000 * 60));
     }
 
     const avgMinutes = gaps.reduce((sum, gap) => sum + gap, 0) / gaps.length;
@@ -604,8 +604,8 @@ function analyzeBlackOpsActivity(killmails, entityType = null, entityId = null) 
     else if (totalKills >= THREAT_ASSESSMENT.BLOPS.CONFIDENCE_THRESHOLD_LOW && blopsKillCount >= 3) confidence = 'low';
     else if (blopsKillCount >= 2) confidence = 'minimal';
 
-    const isBlopsUser = (blopsKillCount >= THREAT_ASSESSMENT.BLOPS.MIN_KILLS_FOR_HIGH_CONFIDENCE && blopsFrequency >= THREAT_ASSESSMENT.BLOPS.MIN_FREQUENCY_PERCENT/100) ||
-                        (blopsKillCount >= THREAT_ASSESSMENT.BLOPS.MIN_KILLS_FOR_DETECTION && blopsFrequency >= THREAT_ASSESSMENT.BLOPS.MIN_FREQUENCY_PERCENT_STRICT/100);
+    const isBlopsUser = (blopsKillCount >= THREAT_ASSESSMENT.BLOPS.MIN_KILLS_FOR_HIGH_CONFIDENCE && blopsFrequency >= THREAT_ASSESSMENT.BLOPS.MIN_FREQUENCY_PERCENT / 100) ||
+        (blopsKillCount >= THREAT_ASSESSMENT.BLOPS.MIN_KILLS_FOR_DETECTION && blopsFrequency >= THREAT_ASSESSMENT.BLOPS.MIN_FREQUENCY_PERCENT_STRICT / 100);
 
     const blopsFleetDetected = detectBlopsFleetActivity(killmails, BLACK_OPS_SHIP_IDS);
 
@@ -715,7 +715,7 @@ function analyzeCynoActivity(killmails, entityType = null, entityId = null) {
     else if (totalKills >= THREAT_ASSESSMENT.CYNO.CONFIDENCE_THRESHOLD_LOW && cynoKillCount >= THREAT_ASSESSMENT.CYNO.MIN_KILLS_FOR_DETECTION) confidence = 'low';
     else if (cynoKillCount >= 2) confidence = 'minimal';
 
-    const isCynoPilot = cynoFrequency >= THREAT_ASSESSMENT.CYNO.MIN_FREQUENCY_PERCENT/100;
+    const isCynoPilot = cynoFrequency >= THREAT_ASSESSMENT.CYNO.MIN_FREQUENCY_PERCENT / 100;
 
     let cynoRole = 'Unknown';
     if (suspiciousCynoPatterns >= 2) {
