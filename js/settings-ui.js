@@ -10,6 +10,7 @@ import { showSuccess, showError } from './ui.js';
 
 let settingsModal = null;
 let settingsForm = null;
+let isModalOpening = false;
 
 export function initializeSettingsUI() {
     const settingsButton = document.getElementById('settings-button');
@@ -21,7 +22,10 @@ export function initializeSettingsUI() {
         return;
     }
 
-    settingsButton.addEventListener('click', openSettingsModal);
+    settingsButton.addEventListener('click', async () => {
+        if (isModalOpening) return;
+        await openSettingsModal();
+    });
 
     const closeButton = settingsModal.querySelector('.settings-close');
     const cancelButton = settingsModal.querySelector('.settings-cancel');
@@ -60,6 +64,9 @@ export function initializeSettingsUI() {
 }
 
 async function openSettingsModal() {
+    if (isModalOpening) return;
+
+    isModalOpening = true;
     try {
         const currentSettings = await getAllUserSettings();
         const defaults = getDefaultSettings();
@@ -78,6 +85,8 @@ async function openSettingsModal() {
     } catch (error) {
         console.error('Error opening settings:', error);
         showError('Failed to load settings');
+    } finally {
+        isModalOpening = false;
     }
 }
 

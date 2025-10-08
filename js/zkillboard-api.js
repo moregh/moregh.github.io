@@ -1699,6 +1699,29 @@ class ZKillboardClient {
                 };
             });
     }
+
+    buildActivityDataFromTotals(hourlyTotals, dailyTotals, dayLabels, hasValidData) {
+        const hourlyData = hourlyTotals.map((kills, hour) => ({
+            label: `${hour.toString().padStart(2, '0')}`,
+            value: kills,
+            hour: hour
+        }));
+
+        const dailyData = dailyTotals.map((kills, day) => ({
+            label: dayLabels[day] || `Day ${day}`,
+            value: kills,
+            day: day
+        }));
+
+        return {
+            hourlyData,
+            dailyData,
+            hasData: hasValidData,
+            maxHourly: Math.max(...hourlyTotals),
+            maxDaily: Math.max(...dailyTotals)
+        };
+    }
+
     extractActivityDataFromKillmails(killmails) {
         if (!killmails || killmails.length === 0) {
             return {
@@ -1724,27 +1747,7 @@ class ZKillboardClient {
             dailyTotals[day]++;
         });
 
-        const hourlyData = hourlyTotals.map((kills, hour) => ({
-            label: `${hour.toString().padStart(2, '0')}`,
-            value: kills,
-            hour: hour
-        }));
-
-        const dailyData = dailyTotals.map((kills, day) => ({
-            label: dayLabels[day],
-            value: kills,
-            day: day
-        }));
-
-        const hasValidData = killmails.length > 0;
-
-        return {
-            hourlyData,
-            dailyData,
-            hasData: hasValidData,
-            maxHourly: Math.max(...hourlyTotals),
-            maxDaily: Math.max(...dailyTotals)
-        };
+        return this.buildActivityDataFromTotals(hourlyTotals, dailyTotals, dayLabels, killmails.length > 0);
     }
 
     extractActivityData(data) {
@@ -1784,25 +1787,7 @@ class ZKillboardClient {
             }
         }
 
-        const hourlyData = hourlyTotals.map((kills, hour) => ({
-            label: `${hour.toString().padStart(2, '0')}`,
-            value: kills,
-            hour: hour
-        }));
-
-        const dailyData = dailyTotals.map((kills, day) => ({
-            label: dayLabels[day] || `Day ${day}`,
-            value: kills,
-            day: day
-        }));
-
-        return {
-            hourlyData,
-            dailyData,
-            hasData: hasValidData,
-            maxHourly: Math.max(...hourlyTotals),
-            maxDaily: Math.max(...dailyTotals)
-        };
+        return this.buildActivityDataFromTotals(hourlyTotals, dailyTotals, dayLabels, hasValidData);
     }
     getStats() {
         return {

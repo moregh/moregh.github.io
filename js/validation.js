@@ -15,7 +15,7 @@ import {
     FILTER_MAX_ENTITY_NAME_LENGTH
 } from './config.js';
 
-export function clientValidate(name) {
+export function validateCharacterName(name) {
     name = name.trim();
     if (name.length < MIN_CHARACTER_NAME_LENGTH || name.length > MAX_CHARACTER_NAME_LENGTH) return false;
     let pattern = /^[A-Za-z0-9.''-]+( [A-Za-z0-9.''-]+)*$/;
@@ -30,6 +30,8 @@ export function clientValidate(name) {
     }
     return true;
 }
+
+export const clientValidate = validateCharacterName;
 
 export function validateEntityName(name) {
     name = name.trim();

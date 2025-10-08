@@ -57,10 +57,7 @@ const SecurityClassification = {
         if (rounded >= 0.5) {
             return { cssClass: 'sec-high', label: rounded.toFixed(1), color: '#2ECC40' };
         }
-        if (rounded >= 0.1) {
-            return { cssClass: 'sec-low', label: rounded.toFixed(1), color: '#FF851B' };
-        }
-        if (rounded >= 0.0) {
+        if (rounded > 0.0) {
             return { cssClass: 'sec-low', label: rounded.toFixed(1), color: '#FF851B' };
         }
         return { cssClass: 'sec-null', label: rounded.toFixed(1), color: '#FF4136' };

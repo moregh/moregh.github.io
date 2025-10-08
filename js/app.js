@@ -19,12 +19,9 @@ import { buildTreeStructure, renderTree } from './tree-navigation.js';
 import { initializeSettingsUI } from './settings-ui.js';
 
 
-let currentView = 'grid';
 let allResults = [];
 let allSummaryData = { alliance: [], corporation: [] };
 let completeResults = [];
-
-window.currentView = currentView;
 
 function setupCollapsedIndicatorClick() {
     document.documentElement.style.setProperty('--input-hover-delay', `${INPUT_SECTION_HOVER_DELAY_MS}ms`);
@@ -306,6 +303,10 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     window.addEventListener('beforeunload', () => {
+        if (characterCountTimeout) {
+            clearTimeout(characterCountTimeout);
+            characterCountTimeout = null;
+        }
         getObserverManager().cleanup();
     });
 

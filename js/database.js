@@ -86,7 +86,7 @@ async function getCachedData(storeName, key, processResult) {
         const transaction = db.transaction([storeName], 'readonly');
         const store = transaction.objectStore(storeName);
 
-        return new Promise((resolve) => {
+        return new Promise((resolve, reject) => {
             const request = store.get(key);
 
             request.onsuccess = () => {
@@ -100,12 +100,12 @@ async function getCachedData(storeName, key, processResult) {
 
             request.onerror = () => {
                 console.warn(`Error reading ${storeName} cache for ${key}:`, request.error);
-                resolve(null);
+                reject(request.error);
             };
         });
     } catch (e) {
         console.warn(`Error accessing ${storeName} cache for ${key}:`, e);
-        return null;
+        throw e;
     }
 }
 
@@ -121,18 +121,26 @@ async function setCachedData(storeName, cacheData) {
 }
 
 export async function getCachedNameToId(name) {
-    return getCachedData('character_names', name.toLowerCase(), result => ({
-        id: result.character_id,
-        name: result.character_name
-    }));
+    try {
+        return await getCachedData('character_names', name.toLowerCase(), result => ({
+            id: result.character_id,
+            name: result.character_name
+        }));
+    } catch (e) {
+        return null;
+    }
 }
 
 export async function getCachedAffiliation(characterId) {
-    return getCachedData('character_affiliations', characterId, result => ({
-        character_id: result.character_id,
-        corporation_id: result.corporation_id,
-        alliance_id: result.alliance_id
-    }));
+    try {
+        return await getCachedData('character_affiliations', characterId, result => ({
+            character_id: result.character_id,
+            corporation_id: result.corporation_id,
+            alliance_id: result.alliance_id
+        }));
+    } catch (e) {
+        return null;
+    }
 }
 
 export async function setCachedNameToId(name, characterData) {
@@ -152,10 +160,14 @@ export async function setCachedAffiliation(characterId, affiliationData) {
 }
 
 export async function getCachedCorporationInfo(corporationId) {
-    return getCachedData('corporations', corporationId, result => ({
-        name: result.name,
-        war_eligible: result.war_eligible
-    }));
+    try {
+        return await getCachedData('corporations', corporationId, result => ({
+            name: result.name,
+            war_eligible: result.war_eligible
+        }));
+    } catch (e) {
+        return null;
+    }
 }
 
 export async function setCachedCorporationInfo(corporationId, corporationData) {
@@ -167,9 +179,13 @@ export async function setCachedCorporationInfo(corporationId, corporationData) {
 }
 
 export async function getCachedAllianceInfo(allianceId) {
-    return getCachedData('alliances', allianceId, result => ({
-        name: result.name
-    }));
+    try {
+        return await getCachedData('alliances', allianceId, result => ({
+            name: result.name
+        }));
+    } catch (e) {
+        return null;
+    }
 }
 
 export async function setCachedAllianceInfo(allianceId, allianceData) {
@@ -180,11 +196,15 @@ export async function setCachedAllianceInfo(allianceId, allianceData) {
 }
 
 export async function getCachedEntityName(name) {
-    return getCachedData('entity_names', name.toLowerCase(), result => ({
-        id: result.entity_id,
-        name: result.entity_name,
-        type: result.entity_type
-    }));
+    try {
+        return await getCachedData('entity_names', name.toLowerCase(), result => ({
+            id: result.entity_id,
+            name: result.entity_name,
+            type: result.entity_type
+        }));
+    } catch (e) {
+        return null;
+    }
 }
 
 export async function setCachedEntityName(name, entityData) {
@@ -241,105 +261,99 @@ export async function clearExpiredCache() {
         const shortExpiryMs = CACHE_EXPIRY_HOURS * 60 * 60 * 1000;
         const longExpiryMs = LONG_CACHE_EXPIRY_HOURS * 60 * 60 * 1000;
 
-        try {
-            const affiliationTransaction = db.transaction(['character_affiliations'], 'readwrite');
-            const affiliationStore = affiliationTransaction.objectStore('character_affiliations');
-            const affiliationIndex = affiliationStore.index('timestamp');
+        const cleanupTasks = [];
 
-            const affiliationRange = IDBKeyRange.upperBound(now - shortExpiryMs);
-            const affiliationRequest = affiliationIndex.openCursor(affiliationRange);
+        cleanupTasks.push(new Promise((resolve) => {
+            try {
+                const transaction = db.transaction(['character_affiliations', 'character_names', 'alliances'], 'readwrite');
 
-            affiliationRequest.onsuccess = (event) => {
-                const cursor = event.target.result;
-                if (cursor) {
-                    cursor.delete();
-                    cursor.continue();
-                }
-            };
+                const affiliationStore = transaction.objectStore('character_affiliations');
+                const affiliationIndex = affiliationStore.index('timestamp');
+                const affiliationRange = IDBKeyRange.upperBound(now - shortExpiryMs);
+                const affiliationRequest = affiliationIndex.openCursor(affiliationRange);
 
-            affiliationRequest.onerror = () => {
-                console.warn('Error clearing expired affiliations:', affiliationRequest.error);
-            };
-        } catch (e) {
-            console.warn('Error setting up affiliation cleanup:', e);
-        }
-
-        try {
-            const nameTransaction = db.transaction(['character_names'], 'readwrite');
-            const nameStore = nameTransaction.objectStore('character_names');
-            const nameIndex = nameStore.index('timestamp');
-
-            const nameRange = IDBKeyRange.upperBound(now - longExpiryMs);
-            const nameRequest = nameIndex.openCursor(nameRange);
-
-            nameRequest.onsuccess = (event) => {
-                const cursor = event.target.result;
-                if (cursor) {
-                    cursor.delete();
-                    cursor.continue();
-                }
-            };
-
-            nameRequest.onerror = () => {
-                console.warn('Error clearing expired names:', nameRequest.error);
-            };
-        } catch (e) {
-            console.warn('Error setting up name cleanup:', e);
-        }
-
-        try {
-            const allianceTransaction = db.transaction(['alliances'], 'readwrite');
-            const allianceStore = allianceTransaction.objectStore('alliances');
-            const allianceIndex = allianceStore.index('timestamp');
-
-            const allianceRange = IDBKeyRange.upperBound(now - longExpiryMs);
-            const allianceRequest = allianceIndex.openCursor(allianceRange);
-
-            allianceRequest.onsuccess = (event) => {
-                const cursor = event.target.result;
-                if (cursor) {
-                    cursor.delete();
-                    cursor.continue();
-                }
-            };
-
-            allianceRequest.onerror = () => {
-                console.warn('Error clearing expired alliances:', allianceRequest.error);
-            };
-        } catch (e) {
-            console.warn('Error setting up alliance cleanup:', e);
-        }
-
-        try {
-            const corpTransaction = db.transaction(['corporations'], 'readwrite');
-            const corpStore = corpTransaction.objectStore('corporations');
-            const corpCursor = corpStore.openCursor();
-
-            corpCursor.onsuccess = (event) => {
-                const cursor = event.target.result;
-                if (cursor) {
-                    const record = cursor.value;
-                    const nameExpired = isExpired(record.name_timestamp || record.timestamp, true);
-                    const warExpired = isExpired(record.war_eligible_timestamp || record.timestamp, false);
-
-                    if (nameExpired) {
+                affiliationRequest.onsuccess = (event) => {
+                    const cursor = event.target.result;
+                    if (cursor) {
                         cursor.delete();
-                    } else if (warExpired && record.war_eligible_timestamp) {
-                        const updatedRecord = { ...record };
-                        delete updatedRecord.war_eligible;
-                        delete updatedRecord.war_eligible_timestamp;
-                        cursor.update(updatedRecord);
+                        cursor.continue();
                     }
-                    cursor.continue();
-                }
-            };
+                };
 
-            corpCursor.onerror = () => {
-                console.warn('Error clearing expired corporations:', corpCursor.error);
-            };
-        } catch (e) {
-            console.warn('Error setting up corporation cleanup:', e);
-        }
+                const nameStore = transaction.objectStore('character_names');
+                const nameIndex = nameStore.index('timestamp');
+                const nameRange = IDBKeyRange.upperBound(now - longExpiryMs);
+                const nameRequest = nameIndex.openCursor(nameRange);
+
+                nameRequest.onsuccess = (event) => {
+                    const cursor = event.target.result;
+                    if (cursor) {
+                        cursor.delete();
+                        cursor.continue();
+                    }
+                };
+
+                const allianceStore = transaction.objectStore('alliances');
+                const allianceIndex = allianceStore.index('timestamp');
+                const allianceRange = IDBKeyRange.upperBound(now - longExpiryMs);
+                const allianceRequest = allianceIndex.openCursor(allianceRange);
+
+                allianceRequest.onsuccess = (event) => {
+                    const cursor = event.target.result;
+                    if (cursor) {
+                        cursor.delete();
+                        cursor.continue();
+                    }
+                };
+
+                transaction.oncomplete = () => resolve();
+                transaction.onerror = () => {
+                    console.warn('Error in batch cleanup transaction:', transaction.error);
+                    resolve();
+                };
+            } catch (e) {
+                console.warn('Error setting up batch cleanup:', e);
+                resolve();
+            }
+        }));
+
+        cleanupTasks.push(new Promise((resolve) => {
+            try {
+                const corpTransaction = db.transaction(['corporations'], 'readwrite');
+                const corpStore = corpTransaction.objectStore('corporations');
+                const corpCursor = corpStore.openCursor();
+
+                corpCursor.onsuccess = (event) => {
+                    const cursor = event.target.result;
+                    if (cursor) {
+                        const record = cursor.value;
+                        const nameExpired = isExpired(record.name_timestamp || record.timestamp, true);
+                        const warExpired = isExpired(record.war_eligible_timestamp || record.timestamp, false);
+
+                        if (nameExpired) {
+                            cursor.delete();
+                        } else if (warExpired && record.war_eligible_timestamp) {
+                            const updatedRecord = { ...record };
+                            delete updatedRecord.war_eligible;
+                            delete updatedRecord.war_eligible_timestamp;
+                            cursor.update(updatedRecord);
+                        }
+                        cursor.continue();
+                    }
+                };
+
+                corpTransaction.oncomplete = () => resolve();
+                corpTransaction.onerror = () => {
+                    console.warn('Error clearing expired corporations:', corpTransaction.error);
+                    resolve();
+                };
+            } catch (e) {
+                console.warn('Error setting up corporation cleanup:', e);
+                resolve();
+            }
+        }));
+
+        await Promise.all(cleanupTasks);
 
     } catch (e) {
         console.warn('Error during cache cleanup:', e);
@@ -348,15 +362,19 @@ export async function clearExpiredCache() {
 
 export async function getCachedKills(entityType, entityId) {
     const cacheKey = `${entityType}:${entityId}`;
-    return getCachedData('zkill_kills', cacheKey, result => {
-        if (isExpired(result.timestamp, ZKILL_KILLS_CACHE_HOURS)) {
-            return null;
-        }
-        return {
-            kills: result.kills,
-            fetchedAt: result.timestamp
-        };
-    });
+    try {
+        return await getCachedData('zkill_kills', cacheKey, result => {
+            if (isExpired(result.timestamp, ZKILL_KILLS_CACHE_HOURS)) {
+                return null;
+            }
+            return {
+                kills: result.kills,
+                fetchedAt: result.timestamp
+            };
+        });
+    } catch (e) {
+        return null;
+    }
 }
 
 export async function setCachedKills(entityType, entityId, kills) {
@@ -370,18 +388,22 @@ export async function setCachedKills(entityType, entityId, kills) {
 }
 
 export async function getCachedKillmail(killmailId) {
-    return getCachedData('esi_killmails', parseInt(killmailId), result => {
-        if (isExpired(result.timestamp, ESI_KILLMAILS_CACHE_HOURS)) {
-            return null;
-        }
-        return {
-            killmailId: result.killmail_id,
-            hash: result.hash,
-            zkbData: result.zkb_data,
-            killmail: result.killmail_data,
-            fetchedAt: result.timestamp
-        };
-    });
+    try {
+        return await getCachedData('esi_killmails', parseInt(killmailId), result => {
+            if (isExpired(result.timestamp, ESI_KILLMAILS_CACHE_HOURS)) {
+                return null;
+            }
+            return {
+                killmailId: result.killmail_id,
+                hash: result.hash,
+                zkbData: result.zkb_data,
+                killmail: result.killmail_data,
+                fetchedAt: result.timestamp
+            };
+        });
+    } catch (e) {
+        return null;
+    }
 }
 
 export async function setCachedKillmail(killmailId, hash, zkbData, killmailData) {

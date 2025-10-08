@@ -170,16 +170,12 @@ function createBaseEntityCardElement() {
     return template.content.firstElementChild;
 }
 
-function resetCharacterElement(element) {
-    if (!element) return;
-
-    element.className = "result-item grid-view animate-ready";
-    element.dataset.characterId = "";
+function resetElementCore(element, placeholderSize) {
     element.style.cssText = "cursor: pointer;";
 
     const images = element.querySelectorAll('img');
     images.forEach(img => {
-        img.src = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='${IMAGE_PLACEHOLDER_SIZE_PX}' height='${IMAGE_PLACEHOLDER_SIZE_PX}'%3E%3C/svg%3E`;
+        img.src = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='${placeholderSize}' height='${placeholderSize}'%3E%3C/svg%3E`;
         img.dataset.src = "";
         img.alt = "";
     });
@@ -189,6 +185,15 @@ function resetCharacterElement(element) {
         link.href = "#";
         link.textContent = "";
     });
+}
+
+function resetCharacterElement(element) {
+    if (!element) return;
+
+    element.className = "result-item grid-view animate-ready";
+    element.dataset.characterId = "";
+
+    resetElementCore(element, IMAGE_PLACEHOLDER_SIZE_PX);
 
     const allianceItem = element.querySelector('.corp-alliance-info .org-item:last-child');
     if (allianceItem && allianceItem.querySelector('a[href*="/alliance/"]')) {
@@ -203,22 +208,14 @@ function resetEntityCardElement(element) {
     element.dataset.clickable = "";
     element.dataset.entityId = "";
     element.dataset.entityName = "";
-    element.style.cssText = "cursor: pointer;";
 
-    const logo = element.querySelector('.entity-logo');
-    if (logo) {
-        logo.src = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='${ENTITY_LOGO_SIZE_PX}' height='${ENTITY_LOGO_SIZE_PX}'%3E%3C/svg%3E`;
-        logo.dataset.src = "";
-        logo.alt = "";
-    }
+    resetElementCore(element, ENTITY_LOGO_SIZE_PX);
 
     const typeIcon = element.querySelector('.entity-type-icon');
-    const link = element.querySelector('.character-link');
     const countNumber = element.querySelector('.count-number');
     const countLabel = element.querySelector('.count-label');
 
     if (typeIcon) typeIcon.textContent = "";
-    if (link) { link.href = "#"; link.textContent = ""; }
     if (countNumber) countNumber.textContent = "";
     if (countLabel) countLabel.textContent = "";
 }
@@ -493,24 +490,6 @@ export function createEntityCard({ id, name, count, type, war_eligible, isDirect
     return item;
 }
 
-export function renderGrid(containerId, items, type = 'character') {
-    const container = document.getElementById(containerId);
-
-    if (items.length === 0) {
-        const icon = type === 'character' ? '🔍' : '📊';
-        const text = type === 'character' ? 'No results found' : `No ${type}s found`;
-        const className = type === 'character' ? 'no-results' : 'no-summary';
-        container.innerHTML = createEmptyStateHTML(icon, text, className);
-        return;
-    }
-
-    if (type === 'character') {
-        setupVirtualScrolling(containerId, items);
-    } else {
-        setupEntityScrolling(containerId, items, type);
-    }
-}
-
 export function setupEntityScrolling(containerId, items, type) {
     const container = document.getElementById(containerId);
     if (!validateScrollingPreconditions(container, items, containerId)) {
@@ -624,12 +603,7 @@ class VirtualScrollManager {
     }
 
     calculateViewConfig() {
-        const isListView = getCurrentView() === 'list';
-        const baseConfig = VIEW_DIMENSIONS[isListView ? 'list' : 'grid'];
-
-        if (isListView) {
-            return baseConfig;
-        }
+        const baseConfig = VIEW_DIMENSIONS.grid;
 
         let parentWidth = this.parentGrid.clientWidth;
         if (parentWidth === 0) {
@@ -707,8 +681,7 @@ class VirtualScrollManager {
 
     createContentContainer() {
         const content = document.createElement('div');
-        const isListView = getCurrentView() === 'list';
-        content.className = `virtual-scroll-content ${isListView ? 'list-view' : ''}`;
+        content.className = 'virtual-scroll-content';
 
         Object.assign(content.style, {
             position: 'absolute',
@@ -718,9 +691,7 @@ class VirtualScrollManager {
             display: 'grid',
             gap: VIRTUAL_SCROLL_CONFIG.GRID_GAP,
             padding: VIRTUAL_SCROLL_CONFIG.CONTENT_PADDING,
-            gridTemplateColumns: isListView
-                ? '1fr'
-                : `repeat(auto-fill, minmax(${VIRTUAL_SCROLL_CONFIG.MIN_ITEM_WIDTH}px, 1fr))`
+            gridTemplateColumns: `repeat(auto-fill, minmax(${VIRTUAL_SCROLL_CONFIG.MIN_ITEM_WIDTH}px, 1fr))`
         });
 
         return content;
@@ -888,8 +859,7 @@ class VirtualScrollManager {
     }
 
     createElement(index) {
-        const isListView = getCurrentView() === 'list';
-        const element = createCharacterItem(this.items[index], isListView ? 'list' : 'grid');
+        const element = createCharacterItem(this.items[index], 'grid');
         element.style.position = 'relative';
         element.dataset.index = index;
 
@@ -1016,9 +986,6 @@ export function getObserverManager() {
     return observerManager;
 }
 
-function getCurrentView() {
-    return window.currentView || 'grid';
-}
 export function getEntityMaps() {
     return {
         corpToCharactersMap,

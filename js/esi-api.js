@@ -46,12 +46,31 @@ export function getCounters() {
 async function processInChunks(items, processFn, delay = CHUNK_DELAY) {
     const results = [];
     const totalChunks = items.length;
+    const maxConcurrent = ESI_BATCH_MAX_CONCURRENCY;
 
-    for (let i = 0; i < items.length; i++) {
-        const item = items[i];
+    for (let i = 0; i < items.length; i += maxConcurrent) {
+        const batchEnd = Math.min(i + maxConcurrent, items.length);
+        const currentBatch = items.slice(i, batchEnd);
 
-        try {
-            const result = await processFn(item, i, totalChunks);
+        const batchPromises = currentBatch.map(async (item, batchIndex) => {
+            const chunkIndex = i + batchIndex;
+            try {
+                const result = await processFn(item, chunkIndex, totalChunks);
+                return { index: chunkIndex, result, error: null };
+            } catch (e) {
+                showWarning(`Error processing chunk ${chunkIndex + 1}/${totalChunks}: ${e.message}`);
+                console.error(`Error processing chunk ${chunkIndex + 1}/${totalChunks}:`, e);
+
+                const fallbackResult = (e.message.includes('character IDs') || e.message.includes('character names')) ? [] : null;
+                return { index: chunkIndex, result: fallbackResult, error: e };
+            }
+        });
+
+        const batchResults = await Promise.all(batchPromises);
+
+        batchResults.sort((a, b) => a.index - b.index);
+
+        for (const { result } of batchResults) {
             if (result !== null && result !== undefined) {
                 if (Array.isArray(result)) {
                     results.push(...result);
@@ -59,17 +78,9 @@ async function processInChunks(items, processFn, delay = CHUNK_DELAY) {
                     results.push(result);
                 }
             }
-        } catch (e) {
-            showWarning(`Error processing chunk ${i + 1}/${totalChunks}: ${e.message}`);
-            console.error(`Error processing chunk ${i + 1}/${totalChunks}:`, e);
-
-            if (e.message.includes('character IDs') || e.message.includes('character names')) {
-                results.push([]);
-            } else {
-                results.push(null);
-            }
         }
-        if (i + 1 < items.length && delay > 0) {
+
+        if (batchEnd < items.length && delay > 0) {
             await new Promise(resolve => setTimeout(resolve, delay));
         }
     }
@@ -145,9 +156,11 @@ export async function getEntityIds(names) {
         );
 
         results.forEach(batch => {
-            fetchedEntities.characters.push(...(batch.characters || []));
-            fetchedEntities.corporations.push(...(batch.corporations || []));
-            fetchedEntities.alliances.push(...(batch.alliances || []));
+            if (batch && typeof batch === 'object') {
+                fetchedEntities.characters.push(...(batch.characters || []));
+                fetchedEntities.corporations.push(...(batch.corporations || []));
+                fetchedEntities.alliances.push(...(batch.alliances || []));
+            }
         });
 
         await updateLoadingDetails();
