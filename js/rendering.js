@@ -37,11 +37,26 @@ class ElementPool {
     }
 
     release(element) {
-        if (this.pool.length < this.maxSize && element && element.parentNode) {
-            element.parentNode.removeChild(element);
-            this.resetFn(element);
-            this.pool.push(element);
+        // allow releasing detached elements (they may have been removed by other flows)
+        if (!element) return;
+        if (this.pool.length >= this.maxSize) return;
+
+        try {
+            if (element.parentNode) {
+                element.parentNode.removeChild(element);
+            }
+        } catch (e) {
+            // Defensive: removing might fail if element was detached concurrently
         }
+
+        try {
+            this.resetFn(element);
+        } catch (e) {
+            // If reset fails, do not push a potentially broken element into the pool
+            return;
+        }
+
+        this.pool.push(element);
     }
 }
 
@@ -742,7 +757,7 @@ class VirtualScrollManager {
     }
 
     updateVisibleItems() {
-        if (this.isUpdating || !document.contains(this.container)) return;
+        if (this.isUpdating || !this.container || !document.contains(this.container)) return;
 
         this.isUpdating = true;
 
@@ -818,6 +833,8 @@ class VirtualScrollManager {
     }
 
     renderSingleItem(index) {
+        if (!this.content || !this.container || !document.contains(this.container)) return;
+
         let element = this.renderedElements.get(index);
 
         if (!element) {
@@ -826,8 +843,17 @@ class VirtualScrollManager {
             }
 
             element = this.createElement(index);
+            if (!element) return;
+
             this.renderedElements.set(index, element);
-            this.content.appendChild(element);
+            try {
+                this.content.appendChild(element);
+            } catch (e) {
+                // If append fails because content was detached, bail out
+                this.renderedElements.delete(index);
+                return;
+            }
+
             this.observeElement(element);
         } else {
             this.showExistingElement(element);
@@ -835,6 +861,8 @@ class VirtualScrollManager {
     }
 
     cleanupOldElements() {
+        if (!this.container || !document.contains(this.container)) return;
+
         const scrollTop = this.container.scrollTop;
         const containerHeight = this.container.clientHeight;
         const currentCenterRow = Math.floor((scrollTop + containerHeight / 2) / this.dimensions.itemHeight);
@@ -848,13 +876,32 @@ class VirtualScrollManager {
             }
         }
 
-        elementsToRemove.slice(0, Math.max(CLEANUP_ELEMENT_BATCH_SIZE, elementsToRemove.length / 4)).forEach(index => {
+        // Normalize batch size to a safe integer
+        const batchSize = Math.max(1, Math.floor(Number(CLEANUP_ELEMENT_BATCH_SIZE) || 1));
+        const sliceCount = Math.min(elementsToRemove.length, Math.max(batchSize, Math.floor(elementsToRemove.length / 4)));
+
+        elementsToRemove.slice(0, sliceCount).forEach(index => {
             const element = this.renderedElements.get(index);
-            if (element) {
-                unobserveElement(element);
-                releaseElementToPool(element);
-                this.renderedElements.delete(index);
+            if (!element) return;
+
+            try {
+                if (document.contains(element)) {
+                    unobserveElement(element);
+                } else {
+                    // still attempt to release even if detached
+                    unobserveElement(element);
+                }
+            } catch (e) {
+                // defensive: observers may have been cleared elsewhere
             }
+
+            try {
+                releaseElementToPool(element);
+            } catch (e) {
+                // ignore pool release failures
+            }
+
+            this.renderedElements.delete(index);
         });
     }
 
@@ -867,19 +914,37 @@ class VirtualScrollManager {
     }
 
     observeElement(element) {
+        if (!element) return;
+
         requestAnimationFrame(() => {
-            if (document.contains(element)) {
-                const images = element.querySelectorAll('img[data-src]');
-                images.forEach(img => observerManager.observeImage(img));
+            if (!document.contains(element)) return;
+
+            const images = element.querySelectorAll('img[data-src]');
+            images.forEach(img => {
+                try {
+                    observerManager.observeImage(img);
+                } catch (e) {
+                    // ignore observer failures
+                }
+            });
+
+            try {
                 observerManager.observeAnimation(element);
+            } catch (e) {
+                // ignore animation observer failures
             }
         });
     }
 
     showExistingElement(element) {
-        element.style.display = '';
-        if (!element.parentNode) {
-            this.content.appendChild(element);
+        if (!element) return;
+        try {
+            element.style.display = '';
+            if (!element.parentNode && this.content && document.contains(this.content)) {
+                this.content.appendChild(element);
+            }
+        } catch (e) {
+            // defensive: element may be detached
         }
     }
 

@@ -54,10 +54,16 @@ export class ManagedObservers {
     scheduleImageProcessing() {
         if (this.imageProcessingTimeout) return;
 
-        this.imageProcessingTimeout = requestAnimationFrame(() => {
+        const runner = () => {
             processImageQueue();
             this.imageProcessingTimeout = null;
-        });
+        };
+
+        if (typeof requestAnimationFrame === 'function') {
+            this.imageProcessingTimeout = requestAnimationFrame(runner);
+        } else {
+            this.imageProcessingTimeout = setTimeout(runner, 16);
+        }
     }
 
     getAnimationObserver() {
@@ -95,14 +101,21 @@ export class ManagedObservers {
     scheduleBatchProcess() {
         if (this.batchTimeout) return;
 
-        this.batchTimeout = requestAnimationFrame(() => {
+        const runner = () => {
             this.processBatches();
             this.batchTimeout = null;
-        });
+        };
+
+        if (typeof requestAnimationFrame === 'function') {
+            this.batchTimeout = requestAnimationFrame(runner);
+        } else {
+            this.batchTimeout = setTimeout(runner, 16);
+        }
     }
 
     processBatches() {
-        const imageBatches = this.chunkArray(this.pendingImageObservations, PERFORMANCE_CONFIG.BATCH_SIZE);
+        const batchSize = Math.max(1, Math.floor(Number(PERFORMANCE_CONFIG.BATCH_SIZE) || 1));
+        const imageBatches = this.chunkArray(this.pendingImageObservations, batchSize);
 
         imageBatches.forEach(batch => {
             batch.forEach(img => {
@@ -117,7 +130,7 @@ export class ManagedObservers {
             });
         });
 
-        const animationBatches = this.chunkArray(this.pendingAnimationObservations, PERFORMANCE_CONFIG.BATCH_SIZE);
+    const animationBatches = this.chunkArray(this.pendingAnimationObservations, batchSize);
         animationBatches.forEach(batch => {
             batch.forEach(element => {
                 if (document.contains(element) && !this.observedAnimations.has(element)) {
@@ -137,20 +150,21 @@ export class ManagedObservers {
 
     chunkArray(array, chunkSize) {
         const chunks = [];
-        for (let i = 0; i < array.length; i += chunkSize) {
-            chunks.push(array.slice(i, i + chunkSize));
+        const size = Math.max(1, Math.floor(Number(chunkSize) || 1));
+        for (let i = 0; i < array.length; i += size) {
+            chunks.push(array.slice(i, i + size));
         }
         return chunks;
     }
 
     cleanup() {
         if (this.batchTimeout) {
-            cancelAnimationFrame(this.batchTimeout);
+            try { cancelAnimationFrame(this.batchTimeout); } catch(e) { clearTimeout(this.batchTimeout); }
             this.batchTimeout = null;
         }
 
         if (this.imageProcessingTimeout) {
-            cancelAnimationFrame(this.imageProcessingTimeout);
+            try { cancelAnimationFrame(this.imageProcessingTimeout); } catch(e) { clearTimeout(this.imageProcessingTimeout); }
             this.imageProcessingTimeout = null;
         }
 
@@ -158,14 +172,14 @@ export class ManagedObservers {
         this.pendingAnimationObservations = [];
 
         this.observedImages.forEach(img => {
-            try { this.imageObserver?.unobserve(img); } catch (e) { }
+            try { if (this.imageObserver && typeof this.imageObserver.unobserve === 'function') this.imageObserver.unobserve(img); } catch (e) { }
         });
         this.observedAnimations.forEach(element => {
-            try { this.animationObserver?.unobserve(element); } catch (e) { }
+            try { if (this.animationObserver && typeof this.animationObserver.unobserve === 'function') this.animationObserver.unobserve(element); } catch (e) { }
         });
 
-        this.imageObserver?.disconnect();
-        this.animationObserver?.disconnect();
+        try { this.imageObserver?.disconnect(); } catch (e) { }
+        try { this.animationObserver?.disconnect(); } catch (e) { }
         this.imageObserver = null;
         this.animationObserver = null;
         this.observedImages.clear();
@@ -176,17 +190,39 @@ export class ManagedObservers {
     }
 
     cleanupDeadElements() {
-        for (const img of this.observedImages) {
-            if (!document.contains(img)) {
-                this.imageObserver?.unobserve(img);
+        for (const img of Array.from(this.observedImages)) {
+            try {
+                if (!document.contains(img)) {
+                    if (this.imageObserver && typeof this.imageObserver.unobserve === 'function') {
+                        this.imageObserver.unobserve(img);
+                    }
+                    this.observedImages.delete(img);
+                }
+            } catch (e) {
                 this.observedImages.delete(img);
             }
         }
-        for (const element of this.observedAnimations) {
-            if (!document.contains(element)) {
-                this.animationObserver?.unobserve(element);
+
+        for (const element of Array.from(this.observedAnimations)) {
+            try {
+                if (!document.contains(element)) {
+                    if (this.animationObserver && typeof this.animationObserver.unobserve === 'function') {
+                        this.animationObserver.unobserve(element);
+                    }
+                    this.observedAnimations.delete(element);
+                }
+            } catch (e) {
                 this.observedAnimations.delete(element);
             }
+        }
+    }
+
+    // Lightweight GC to prune observed sets periodically
+    performPeriodicCleanup() {
+        try {
+            this.cleanupDeadElements();
+        } catch (e) {
+            // ignore
         }
     }
 }

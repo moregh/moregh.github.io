@@ -325,7 +325,6 @@ function analyzeHighValueTargets(killmails) {
             hvtCount: 0,
             hvtFrequency: 0,
             avgHVTValue: 0,
-            thresholds: {}
         };
     }
 
@@ -370,7 +369,6 @@ function analyzeHighValueTargets(killmails) {
         avgHVTValue,
         hvtToNormalRatio: Math.round(hvtToNormalRatio * 10) / 10,
         timeSpread,
-        thresholds,
         sampleSize: totalKills
     };
 }

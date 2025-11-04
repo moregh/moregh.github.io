@@ -27,8 +27,10 @@ export async function computePoW(id, difficulty = ZKILL_CONFIG.POW_DIFFICULTY) {
     const ts = Math.floor(Date.now() / 1000);
     let nonce = 0;
     const targetPrefix = '0'.repeat(difficulty / 4);
+    const maxIterations = Math.max(100000, ZKILL_CONFIG.POW_MAX_ITERATIONS || 1000000);
+    const yieldEvery = 2000; // yield to event loop periodically to avoid blocking
 
-    while (true) {
+    while (nonce < maxIterations) {
         const input = `${id}|${nonce}|${ts}`;
         const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
         const hashHex = [...new Uint8Array(buf)]
@@ -38,12 +40,16 @@ export async function computePoW(id, difficulty = ZKILL_CONFIG.POW_DIFFICULTY) {
         if (hashHex.startsWith(targetPrefix)) {
             return { nonce, ts, hash: hashHex };
         }
+
         nonce++;
 
-        if (nonce > 1000000) {
-            throw new ZKillError('Proof-of-work computation failed - too many iterations', 500);
+        // yield to the event loop every N iterations so main thread remains responsive
+        if ((nonce & (yieldEvery - 1)) === 0) {
+            await new Promise(resolve => setTimeout(resolve, 0));
         }
     }
+
+    throw new ZKillError('Proof-of-work computation failed - reached iteration limit', 500);
 }
 
 export async function executeWithRetry(requestFn, entityType, entityId, retryCount = 0, maxRetries = ZKILL_CONFIG.MAX_RETRIES) {

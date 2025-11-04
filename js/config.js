@@ -16,7 +16,7 @@ export const CHUNK_DELAY = 25;
 export const STATS_UPDATE_DELAY = 100;
 export const DB_NAME = 'EVETargetIntelDB';
 export const DB_VERSION = 3;
-export const VERSION = "0.10.6";
+export const VERSION = "0.10.7";
 
 export const PROGRESS_UPDATE_THROTTLE_MS = 50;
 export const TIMER_UPDATE_INTERVAL_MS = 100;
@@ -266,7 +266,8 @@ export const THREAT_ASSESSMENT = {
         HVT_BONUS_VERY_HIGH: 15,
         HVT_BONUS_HIGH: 12,
         HVT_BONUS_DEFAULT: 8,
-        CAPITAL_HUNTER_BONUS: 10,
+        CAPITAL_HUNTER_BONUS: 15,
+        CAPITAL_PILOT_BONUS: 10,
         AVG_VALUE_HIGH_THRESHOLD: 1000000000,
         AVG_VALUE_HIGH_BONUS: 12,
         AVG_VALUE_MEDIUM_THRESHOLD: 500000000,
@@ -382,7 +383,7 @@ export const THREAT_ASSESSMENT = {
         SOLO_HUNTER_MIN_PERCENT: 50,
         SMALL_GANG_MIN_PERCENT: 50,
         FLEET_FIGHTER_MIN_PERCENT: 60,
-        GATE_CAMPER_CONCENTRATION: 0.5,
+        GATE_CAMPER_CONCENTRATION: 0.6,
         BLOB_MIN_AVERAGE_FLEET: 30,
         BLOB_MIN_MAX_FLEET: 50,
         BLOB_MIN_RATIO: 0.5,
@@ -410,12 +411,12 @@ export const THREAT_ASSESSMENT = {
 
         FREQUENCY: {
             KILLS_5000_SCORE: 100,
-            KILLS_2000_SCORE: 95,
-            KILLS_1000_SCORE: 90,
-            KILLS_500_SCORE: 80,
-            KILLS_250_SCORE: 70,
-            KILLS_100_SCORE: 60,
-            KILLS_50_SCORE: 45,
+            KILLS_2000_SCORE: 98,
+            KILLS_1000_SCORE: 95,
+            KILLS_500_SCORE: 85,
+            KILLS_250_SCORE: 75,
+            KILLS_100_SCORE: 65,
+            KILLS_50_SCORE: 50,
             KILLS_25_SCORE: 30,
             KILLS_10_SCORE: 20,
             KILLS_5000_THRESHOLD: 5000,
@@ -481,11 +482,11 @@ export const THREAT_ASSESSMENT = {
         },
 
         THREAT_LEVELS: {
-            EXTREME_THRESHOLD: 95,
+            EXTREME_THRESHOLD: 90,
             VERY_HIGH_THRESHOLD: 85,
-            HIGH_THRESHOLD: 70,
-            ELEVATED_THRESHOLD: 55,
-            MODERATE_THRESHOLD: 40,
+            HIGH_THRESHOLD: 75,
+            ELEVATED_THRESHOLD: 65,
+            MODERATE_THRESHOLD: 50,
             LOW_THRESHOLD: 25,
         }
     }

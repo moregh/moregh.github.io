@@ -13,6 +13,7 @@ import { ZKillError, computePoW, getProxyParam, executeWithRetry } from './zkill
 class ZKillKillsClient {
     constructor() {
         this.requestCount = 0;
+        this.pendingStreamingRequests = new Map();
     }
 
     async executeRequest(entityType, entityId, page = 1) {
@@ -92,6 +93,15 @@ class ZKillKillsClient {
             return killsToReturn;
         }
 
+        const key = `${entityType}_${entityId}`;
+        // If an identical streaming request is in-flight, attach as a subscriber
+        if (this.pendingStreamingRequests.has(key)) {
+            const pending = this.pendingStreamingRequests.get(key);
+            return new Promise((resolve, reject) => {
+                pending.subscribers.push({ onPageReceived, onProgress, resolve, reject, maxKills });
+            });
+        }
+
         try {
             const paginationConfig = await getRuntimePaginationConfig();
             const allKills = [];
@@ -103,87 +113,118 @@ class ZKillKillsClient {
             const VERIFY_INTERVAL = paginationConfig.VERIFY_AFTER_PAGES || 5;
             let lastVerifiedPage = 0;
 
-            while (shouldContinue && currentPage <= paginationConfig.MAX_PAGES) {
-                const pageKills = await executeWithRetry(
-                    () => this.executeRequest(entityType, entityId, currentPage),
-                    entityType,
-                    entityId
-                );
+            // Setup pending streaming entry
+            const pending = {
+                subscribers: [],
+                promise: null
+            };
 
-                if (!pageKills || pageKills.length === 0) {
-                    break;
-                }
+            this.pendingStreamingRequests.set(key, pending);
 
-                allKills.push(...pageKills);
+            const runStreaming = async () => {
+                try {
+                    while (shouldContinue && currentPage <= paginationConfig.MAX_PAGES) {
+                        const pageKills = await executeWithRetry(
+                            () => this.executeRequest(entityType, entityId, currentPage),
+                            entityType,
+                            entityId
+                        );
 
-                if (onPageReceived) {
-                    await onPageReceived(pageKills, false);
-                }
-
-                if (maxKills && allKills.length >= maxKills) {
-                    if (onProgress) {
-                        onProgress(currentPage, allKills.length, 'N/A', 'limit reached');
-                    }
-                    shouldContinue = false;
-                    break;
-                }
-
-                const meetsMinKillmails = allKills.length >= MIN_KILLMAILS;
-
-                if (allKills.length > 0) {
-                    const newestKillmailId = allKills[0].killmail_id;
-                    const oldestKillmailId = allKills[allKills.length - 1].killmail_id;
-                    const killmailIdSpan = newestKillmailId - oldestKillmailId;
-                    const estimatedDays = killmailIdSpan / actualDailyRate;
-
-                    if (onProgress) {
-                        onProgress(currentPage, allKills.length, estimatedDays.toFixed(1), null);
-                    }
-
-                    const shouldVerify = meetsMinKillmails && estimatedDays >= TARGET_DAYS && (currentPage - lastVerifiedPage >= VERIFY_INTERVAL || estimatedDays >= TARGET_DAYS * 1.2);
-
-                    if (shouldVerify) {
-                        if (onProgress) {
-                            onProgress(currentPage, allKills.length, estimatedDays.toFixed(1), 'verifying');
+                        if (!pageKills || pageKills.length === 0) {
+                            break;
                         }
 
-                        const verified = await this.verifyTimespan(allKills, TARGET_DAYS);
-                        lastVerifiedPage = currentPage;
+                        allKills.push(...pageKills);
 
-                        if (verified.meetsRequirement) {
-                            if (onProgress) {
-                                onProgress(currentPage, allKills.length, verified.actualDays.toFixed(1), 'verified');
+                        // broadcast page to onPageReceived for original caller and subscribers
+                        const subscribers = [{ onPageReceived, onProgress, maxKills }].concat(pending.subscribers.map(s => ({ onPageReceived: s.onPageReceived, onProgress: s.onProgress, maxKills: s.maxKills })));
+                        for (const sub of subscribers) {
+                            try {
+                                if (sub.onPageReceived) await sub.onPageReceived(pageKills, false);
+                            } catch (e) {
+                                console.error('Subscriber onPageReceived failed:', e);
                             }
+                        }
+
+                        // update progress for all subscribers
+                        const newestKillmailId = allKills[0].killmail_id;
+                        const oldestKillmailId = allKills[allKills.length - 1].killmail_id;
+                        const killmailIdSpan = newestKillmailId - oldestKillmailId;
+                        const estimatedDays = killmailIdSpan / actualDailyRate;
+
+                        const subscribersProgress = [{ onProgress }].concat(pending.subscribers.map(s => ({ onProgress: s.onProgress })));
+                        for (const subp of subscribersProgress) {
+                            try {
+                                if (subp.onProgress) subp.onProgress(currentPage, allKills.length, estimatedDays.toFixed(1), null);
+                            } catch (e) {
+                                // ignore
+                            }
+                        }
+
+                        if (maxKills && allKills.length >= maxKills) {
                             shouldContinue = false;
-                        } else if (verified.actualDays > 0) {
-                            actualDailyRate = killmailIdSpan / verified.actualDays;
-                            const daysNeeded = TARGET_DAYS - verified.actualDays;
-
-                            if (onProgress) {
-                                onProgress(currentPage, allKills.length, verified.actualDays.toFixed(1), `need ${daysNeeded.toFixed(1)} more days`);
-                            }
-
-                            currentPage++;
-                            await new Promise(resolve => setTimeout(resolve, paginationConfig.PAGE_FETCH_DELAY_MS));
-                        } else {
-                            currentPage++;
-                            await new Promise(resolve => setTimeout(resolve, paginationConfig.PAGE_FETCH_DELAY_MS));
+                            break;
                         }
-                    } else if (currentPage >= paginationConfig.MAX_PAGES) {
-                        shouldContinue = false;
-                    } else {
+
+                        const meetsMinKillmails = allKills.length >= MIN_KILLMAILS;
+
+                        if (meetsMinKillmails) {
+                            const shouldVerify = estimatedDays >= TARGET_DAYS && (currentPage - lastVerifiedPage >= VERIFY_INTERVAL || estimatedDays >= TARGET_DAYS * 1.2);
+
+                            if (shouldVerify) {
+                                const verified = await this.verifyTimespan(allKills, TARGET_DAYS);
+                                lastVerifiedPage = currentPage;
+
+                                const verifiedProgress = [{ onProgress }].concat(pending.subscribers.map(s => ({ onProgress: s.onProgress })));
+                                for (const vp of verifiedProgress) {
+                                    try { if (vp.onProgress) vp.onProgress(currentPage, allKills.length, verified.actualDays.toFixed(1), 'verified'); } catch (e) { }
+                                }
+
+                                if (verified.meetsRequirement) {
+                                    shouldContinue = false;
+                                    break;
+                                } else if (verified.actualDays > 0) {
+                                    actualDailyRate = killmailIdSpan / verified.actualDays;
+                                }
+                            }
+                        }
+
                         currentPage++;
                         await new Promise(resolve => setTimeout(resolve, paginationConfig.PAGE_FETCH_DELAY_MS));
                     }
-                } else {
-                    break;
+
+                    const killsToCache = maxKills && allKills.length > maxKills ? allKills.slice(0, maxKills) : allKills;
+                    await setCachedKills(entityTypeShort, entityId, killsToCache);
+
+                    // resolve all subscribers
+                    const result = killsToCache;
+                    for (const sub of pending.subscribers) {
+                        try { sub.resolve(result); } catch (e) { }
+                    }
+
+                    this.pendingStreamingRequests.delete(key);
+                    return result;
+                } catch (error) {
+                    for (const sub of pending.subscribers) {
+                        try { sub.reject(error); } catch (e) { }
+                    }
+                    this.pendingStreamingRequests.delete(key);
+                    if (error instanceof ZKillError) {
+                        throw error;
+                    }
+                    throw new ZKillError(
+                        `Failed to fetch kills for ${entityType} ${entityId}: ${error.message}`,
+                        500,
+                        entityType,
+                        entityId
+                    );
                 }
-            }
+            };
 
-            const killsToCache = maxKills && allKills.length > maxKills ? allKills.slice(0, maxKills) : allKills;
-            await setCachedKills(entityTypeShort, entityId, killsToCache);
+            const promise = runStreaming();
+            pending.promise = promise;
 
-            return killsToCache;
+            return promise;
 
         } catch (error) {
             if (error instanceof ZKillError) {

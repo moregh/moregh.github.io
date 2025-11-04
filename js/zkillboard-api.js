@@ -151,6 +151,7 @@ class ZKillboardClient {
         this.rateLimiter = new ZKillRateLimiter();
         this.cache = new ZKillStatsCache();
         this.requestCount = 0;
+        this.pendingRequests = new Map();
     }
 
     async executeRequest(entityType, entityId) {
@@ -236,39 +237,50 @@ class ZKillboardClient {
             return cached;
         }
 
-        try {
-            const rawData = await this.rateLimiter.scheduleRequest(() =>
-                executeWithRetry(
-                    () => this.executeRequest(entityType, entityId),
+        const key = `${entityType}_${entityId}`;
+        if (this.pendingRequests.has(key)) {
+            return this.pendingRequests.get(key);
+        }
+
+        const promise = (async () => {
+            try {
+                const rawData = await this.rateLimiter.scheduleRequest(() =>
+                    executeWithRetry(
+                        () => this.executeRequest(entityType, entityId),
+                        entityType,
+                        entityId
+                    )
+                );
+
+                if (!rawData) {
+                    const emptyResult = this.createEmptyStats(entityType, entityId);
+                    this.cache.set(entityType, entityId, emptyResult);
+                    return emptyResult;
+                }
+
+                const processedData = await this.processStatsData(rawData, entityType, entityId);
+
+                this.cache.set(entityType, entityId, processedData);
+
+                return processedData;
+            } catch (error) {
+                if (error instanceof ZKillError) {
+                    throw error;
+                }
+
+                throw new ZKillError(
+                    `Failed to fetch zKillboard stats for ${entityType} ${entityId}: ${error.message}`,
+                    500,
                     entityType,
                     entityId
-                )
-            );
-
-            if (!rawData) {
-                const emptyResult = this.createEmptyStats(entityType, entityId);
-                this.cache.set(entityType, entityId, emptyResult);
-                return emptyResult;
+                );
+            } finally {
+                this.pendingRequests.delete(key);
             }
+        })();
 
-            const processedData = await this.processStatsData(rawData, entityType, entityId);
-
-            this.cache.set(entityType, entityId, processedData);
-
-            return processedData;
-
-        } catch (error) {
-            if (error instanceof ZKillError) {
-                throw error;
-            }
-
-            throw new ZKillError(
-                `Failed to fetch zKillboard stats for ${entityType} ${entityId}: ${error.message}`,
-                500,
-                entityType,
-                entityId
-            );
-        }
+        this.pendingRequests.set(key, promise);
+        return promise;
     }
 
     async getEntityStatsWithKillmails(entityType, entityId, options = {}) {

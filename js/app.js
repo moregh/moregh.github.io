@@ -191,9 +191,23 @@ export async function validateNames() {
         const treeData = buildTreeStructure(results);
         renderTree(treeData);
 
-        const zkillCard = getZkillCardInstance();
-        zkillCard.updateEntityMaps();
-        zkillCard.setCompleteResults(results);
+        try {
+            const zkillCard = getZkillCardInstance();
+            if (zkillCard) {
+                try {
+                    zkillCard.updateEntityMaps();
+                } catch (e) {
+                    console.error('zkillCard.updateEntityMaps failed:', e);
+                }
+                try {
+                    zkillCard.setCompleteResults(results);
+                } catch (e) {
+                    console.error('zkillCard.setCompleteResults failed:', e);
+                }
+            }
+        } catch (e) {
+            console.error('Failed interacting with zkillCard instance:', e);
+        }
 
         const unifiedHeader = domCache.get('unified-header');
         if (unifiedHeader) {
@@ -237,9 +251,15 @@ export async function validateNames() {
 
 function handleZkillStatsClick(element) {
     const clickableType = element.dataset.clickable;
-    const zkillCard = getZkillCardInstance();
-    zkillCard.updateEntityMaps();
-    zkillCard.setCompleteResults(completeResults);
+    try {
+        const zkillCard = getZkillCardInstance();
+        if (zkillCard) {
+            try { zkillCard.updateEntityMaps(); } catch (e) { console.error('zkillCard.updateEntityMaps failed:', e); }
+            try { zkillCard.setCompleteResults(completeResults); } catch (e) { console.error('zkillCard.setCompleteResults failed:', e); }
+        }
+    } catch (e) {
+        console.error('Failed interacting with zkillCard instance:', e);
+    }
 
     if (clickableType === 'character') {
         const characterId = element.dataset.characterId;

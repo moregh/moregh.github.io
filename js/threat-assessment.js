@@ -40,6 +40,12 @@ export class ThreatAssessment {
             totalScore = Math.max(0, totalScore - 10);
         }
 
+        // Bonus for active capital usage
+        if (analysis?.capitalAnalysis?.isCapitalPilot) {
+            const capBonus = this.config.RISK_SCORE?.CAPITAL_PILOT_BONUS || 10;
+            totalScore = totalScore + capBonus;
+        }
+
         const tags = this.generateTags(zkillStats, killmailData, rawKillmails, now);
 
         return {
