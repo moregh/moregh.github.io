@@ -8,6 +8,7 @@
 import { SHIP_TYPE_TO_GROUP } from './eve-ship-data.js';
 import { THREAT_ASSESSMENT } from './config.js';
 
+
 function distributePercentages(items, total, getCount) {
     if (total === 0) return items.map(item => ({ ...item, percentage: 0 }));
 
@@ -328,16 +329,10 @@ function analyzeHighValueTargets(killmails) {
         };
     }
 
-    const thresholds = {
-        high: THREAT_ASSESSMENT.HVT.VALUE_THRESHOLD_HIGH,
-        veryHigh: THREAT_ASSESSMENT.HVT.VALUE_THRESHOLD_VERY_HIGH,
-        extreme: THREAT_ASSESSMENT.HVT.VALUE_THRESHOLD_EXTREME
-    };
-
     const hvtKills = {
-        high: killmails.filter(km => (km.zkbData?.totalValue || 0) >= thresholds.high),
-        veryHigh: killmails.filter(km => (km.zkbData?.totalValue || 0) >= thresholds.veryHigh),
-        extreme: killmails.filter(km => (km.zkbData?.totalValue || 0) >= thresholds.extreme)
+        high: killmails.filter(km => (km.zkbData?.totalValue || 0) >= THREAT_ASSESSMENT.HVT.VALUE_THRESHOLD_HIGH),
+        veryHigh: killmails.filter(km => (km.zkbData?.totalValue || 0) >= THREAT_ASSESSMENT.HVT.VALUE_THRESHOLD_VERY_HIGH),
+        extreme: killmails.filter(km => (km.zkbData?.totalValue || 0) >= THREAT_ASSESSMENT.HVT.VALUE_THRESHOLD_EXTREME)
     };
 
     const totalKills = killmails.length;
@@ -348,7 +343,7 @@ function analyzeHighValueTargets(killmails) {
         ? hvtKills.high.reduce((sum, km) => sum + (km.zkbData?.totalValue || 0), 0) / hvtCount
         : 0;
 
-    const avgNormalValue = calculateAverageValue(killmails.filter(km => (km.zkbData?.totalValue || 0) < thresholds.high));
+    const avgNormalValue = calculateAverageValue(killmails.filter(km => (km.zkbData?.totalValue || 0) < THREAT_ASSESSMENT.HVT.VALUE_THRESHOLD_HIGH));
     const hvtToNormalRatio = avgNormalValue > 0 ? avgHVTValue / avgNormalValue : 0;
 
     const timeSpread = analyzeHVTTimeSpread(hvtKills.high);
@@ -664,9 +659,6 @@ function analyzeCynoActivity(killmails, entityType = null, entityId = null) {
         };
     }
 
-    const CYNO_SHIP_IDS = THREAT_ASSESSMENT.CYNO.SHIP_IDS;
-    const FORCE_RECON_SHIP_GROUP_ID = THREAT_ASSESSMENT.CYNO.FORCE_RECON_GROUP_ID;
-
     let cynoKillCount = 0;
     let cynoShipsUsed = new Set();
     let suspiciousCynoPatterns = 0;
@@ -690,7 +682,7 @@ function analyzeCynoActivity(killmails, entityType = null, entityId = null) {
         const playerShipId = playerAttacker.ship_type_id;
         const playerGroupId = playerAttacker.ship_group_id;
 
-        if (playerShipId && (CYNO_SHIP_IDS.includes(playerShipId) || playerGroupId === FORCE_RECON_SHIP_GROUP_ID)) {
+        if (playerShipId && (THREAT_ASSESSMENT.CYNO.SHIP_IDS.includes(playerShipId) || playerGroupId === THREAT_ASSESSMENT.CYNO.FORCE_RECON_GROUP_ID)) {
             cynoShipsUsed.add(playerShipId);
 
             const hasCapitalsOnKill = attackers.some(a => isCapitalShipType(a.ship_type_id));
@@ -745,8 +737,6 @@ function analyzeCapitalActivity(killmails, entityType = null, entityId = null) {
         };
     }
 
-    const CAPITAL_GROUP_IDS = [485, 547, 659, 30, 1538, 4594, 883];
-
     let capitalKillCount = 0;
     let capitalShipsUsed = new Set();
 
@@ -769,7 +759,7 @@ function analyzeCapitalActivity(killmails, entityType = null, entityId = null) {
         const playerShipId = playerAttacker.ship_type_id;
         const playerGroupId = SHIP_TYPE_TO_GROUP[playerShipId];
 
-        if (playerGroupId && CAPITAL_GROUP_IDS.includes(playerGroupId)) {
+        if (playerGroupId && THREAT_ASSESSMENT.CAPITAL.GROUP_IDS.includes(playerGroupId)) {
             capitalShipsUsed.add(playerShipId);
             capitalKillCount++;
         }
@@ -790,12 +780,10 @@ function analyzeCapitalActivity(killmails, entityType = null, entityId = null) {
 }
 
 function isCapitalShipType(shipTypeId) {
-    const CAPITAL_GROUP_IDS = [485, 547, 659, 30, 1538, 4594, 883];
     const groupId = SHIP_TYPE_TO_GROUP[shipTypeId];
-    return groupId && CAPITAL_GROUP_IDS.includes(groupId);
+    return groupId && THREAT_ASSESSMENT.CAPITAL.GROUP_IDS.includes(groupId);
 }
 
-function isBlackOpsShipType(shipTypeId) {
-    const BLACK_OPS_IDS = [22456, 22464, 22466, 22460, 28844];
-    return BLACK_OPS_IDS.includes(shipTypeId);
+function isBlackOpsShipType(shipTypeId) {   
+    return THREAT_ASSESSMENT.BLOPS.SHIP_IDS.includes(shipTypeId);
 }
