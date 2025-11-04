@@ -796,6 +796,6 @@ function isCapitalShipType(shipTypeId) {
 }
 
 function isBlackOpsShipType(shipTypeId) {
-    const BLACK_OPS_IDS = [22456, 22464, 22466, 22460, 28844, 42125, 42246];
+    const BLACK_OPS_IDS = [22456, 22464, 22466, 22460, 28844];
     return BLACK_OPS_IDS.includes(shipTypeId);
 }
