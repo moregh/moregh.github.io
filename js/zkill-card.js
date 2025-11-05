@@ -61,11 +61,6 @@ const SecurityClassification = {
             return { cssClass: 'sec-low', label: rounded.toFixed(1), color: '#FF851B' };
         }
         return { cssClass: 'sec-null', label: rounded.toFixed(1), color: '#FF4136' };
-        // if (rounded > -1.0) {
-        //     return { cssClass: 'sec-null', label: rounded.toFixed(1), color: '#FF4136' };
-        // }
-        // console.warn(`${systemName}: ${security} / ${rounded}`);
-        // return { cssClass: 'sec-unknown', label: 'Unknown', color: '#666' };
     }
 };
 
@@ -687,10 +682,25 @@ class ZKillStatsCard {
         </div>
     `;
 
-        const closeBtn = modal.querySelector('.zkill-close-btn');
-        closeBtn.addEventListener('click', () => this.close());
-        const backBtn = modal.querySelector('.zkill-back-btn');
-        backBtn.addEventListener('click', () => this.goBack());
+        // Cache frequently used elements on the modal to avoid repeated querySelector calls
+        const modalElements = {
+            closeBtn: modal.querySelector('.zkill-close-btn'),
+            backBtn: modal.querySelector('.zkill-back-btn'),
+            content: modal.querySelector('.zkill-card-content'),
+            progressText: modal.querySelector('.progress-text'),
+            progressBar: modal.querySelector('.progress-bar'),
+            subtitle: modal.querySelector('.loading-subtitle'),
+            timer: modal.querySelector('.timer'),
+            memberCountEl: modal.querySelector('#zkill-header-member-count'),
+            entityTypeEl: modal.querySelector('.zkill-entity-type'),
+            entityNameEl: modal.querySelector('.zkill-entity-details h2'),
+            affiliationsContainer: modal.querySelector('#zkill-affiliations')
+        };
+
+        modal._zkill = modalElements;
+
+        if (modalElements.closeBtn) modalElements.closeBtn.addEventListener('click', () => this.close());
+        if (modalElements.backBtn) modalElements.backBtn.addEventListener('click', () => this.goBack());
 
         modal.addEventListener('click', (e) => {
             if (e.target.closest('[data-action="toggle-members"]')) {
@@ -739,9 +749,9 @@ class ZKillStatsCard {
 
     addToNavigationHistory() {
         if (!this.currentModal) return;
-
-        const currentEntityType = this.currentModal.querySelector('.zkill-entity-type').dataset.entityType;
-        const currentEntityName = this.currentModal.querySelector('.zkill-entity-details h2').textContent.replace(' ⚔️', '');
+        const elems = this.currentModal?._zkill || {};
+        const currentEntityType = elems.entityTypeEl ? elems.entityTypeEl.dataset.entityType : this.currentModal.querySelector('.zkill-entity-type').dataset.entityType;
+        const currentEntityName = elems.entityNameEl ? elems.entityNameEl.textContent.replace(' ⚔️', '') : this.currentModal.querySelector('.zkill-entity-details h2').textContent.replace(' ⚔️', '');
         const currentEntityId = this.getCurrentEntityId();
 
         if (currentEntityId) {
@@ -824,22 +834,14 @@ class ZKillStatsCard {
 
     updateLoadingProgress(text, percentage, detail = '') {
         if (!this.currentModal) return;
+        const elems = this.currentModal?._zkill || {};
+        const progressText = elems.progressText || this.currentModal.querySelector('.progress-text');
+        const progressBar = elems.progressBar || this.currentModal.querySelector('.progress-bar');
+        const subtitle = elems.subtitle || this.currentModal.querySelector('.loading-subtitle');
 
-        const progressText = this.currentModal.querySelector('.progress-text');
-        const progressBar = this.currentModal.querySelector('.progress-bar');
-        const subtitle = this.currentModal.querySelector('.loading-subtitle');
-
-        if (progressText) {
-            progressText.textContent = text;
-        }
-
-        if (progressBar) {
-            progressBar.style.width = `${percentage}%`;
-        }
-
-        if (subtitle && detail) {
-            subtitle.textContent = detail;
-        }
+        if (progressText) progressText.textContent = text;
+        if (progressBar) progressBar.style.width = `${percentage}%`;
+        if (subtitle && detail) subtitle.textContent = detail;
     }
 
     formatDangerRatio(ratio) {
@@ -865,15 +867,16 @@ class ZKillStatsCard {
     async populateStatsData(stats, entityType, entityId, entityName) {
         if (!this.currentModal) return;
 
-        const content = this.currentModal.querySelector('.zkill-card-content');
+        const elems = this.currentModal?._zkill || {};
+        const content = elems.content || this.currentModal.querySelector('.zkill-card-content');
 
         if (!stats || (stats.totalKills === 0 && stats.totalLosses === 0)) {
-            content.innerHTML = this.createEmptyStateHTML(entityName);
+            if (content) content.innerHTML = this.createEmptyStateHTML(entityName);
             return;
         }
-        content.innerHTML = await this.createStatsHTML(stats, entityType, entityId);
+        if (content) content.innerHTML = await this.createStatsHTML(stats, entityType, entityId);
 
-        const memberCountEl = this.currentModal.querySelector('#zkill-header-member-count');
+        const memberCountEl = elems.memberCountEl || this.currentModal.querySelector('#zkill-header-member-count');
         if (memberCountEl && entityType !== 'character' && stats.memberCount) {
             memberCountEl.textContent = ` with ${this.formatNumber(stats.memberCount)} member${stats.memberCount !== 1 ? 's' : ''}`;
         }
@@ -944,15 +947,103 @@ class ZKillStatsCard {
     }
 
     async createRecentKillsHTML(killmailData, entityType, entityId) {
-        if (!killmailData || !killmailData.hasData || !killmailData.recentKills || killmailData.recentKills.length === 0) {
+        if (!killmailData || !killmailData.recentKills || killmailData.recentKills.length === 0) {
             return '';
         }
 
-        const killsWithNames = await Promise.all(killmailData.recentKills.slice(0, ZKILL_RECENT_KILLS_LIMIT).map(async kill => {
-            const [shipName, systemData] = await Promise.all([
-                this.getShipName(kill.victimShipTypeId),
-                this.getSystemName(kill.systemId)
-            ]);
+        // Limit kills to configured recent kills
+        const recentKills = killmailData.recentKills.slice(0, ZKILL_RECENT_KILLS_LIMIT);
+
+        // Deduplicate ship and system IDs
+        const uniqueShipIds = [...new Set(recentKills.map(k => k.victimShipTypeId).filter(Boolean))];
+        const uniqueSystemIds = [...new Set(recentKills.map(k => k.systemId).filter(Boolean))];
+
+        const shipNameMap = {};
+        const systemMap = {};
+
+        // First try to satisfy from cache
+        await Promise.all(uniqueShipIds.map(async id => {
+            try {
+                const cached = await getCachedUniverseName(id);
+                if (cached && cached.name) {
+                    shipNameMap[id] = cached.name;
+                }
+            } catch (e) {
+                // ignore cache read errors
+            }
+        }));
+
+        await Promise.all(uniqueSystemIds.map(async id => {
+            try {
+                const cached = await getCachedUniverseName(id);
+                if (cached && cached.name) {
+                    systemMap[id] = { name: cached.name, security: cached.security ?? null };
+                }
+            } catch (e) {
+                // ignore
+            }
+        }));
+
+        // Build batch requests only for IDs not found in cache
+        const shipIdsToFetch = uniqueShipIds.filter(id => !(id in shipNameMap));
+        const systemIdsToFetch = uniqueSystemIds.filter(id => !(id in systemMap));
+
+        const requests = [];
+        const idForRequestIndex = [];
+
+        for (const id of shipIdsToFetch) {
+            requests.push({ endpoint: `/universe/types/${id}/`, method: 'GET' });
+            idForRequestIndex.push({ type: 'ship', id });
+        }
+        for (const id of systemIdsToFetch) {
+            requests.push({ endpoint: `/universe/systems/${id}/`, method: 'GET' });
+            idForRequestIndex.push({ type: 'system', id });
+        }
+
+        if (requests.length > 0) {
+            try {
+                const results = await esiClient.batchRequests(requests, { maxConcurrency: 10, chunkDelay: 25 });
+                for (let i = 0; i < results.length; i++) {
+                    const res = results[i];
+                    const info = idForRequestIndex[i];
+                    if (!info) continue;
+                    if (info.type === 'ship') {
+                        const id = info.id;
+                        if (res && res.name) {
+                            shipNameMap[id] = res.name;
+                            // cache it
+                            try { await setCachedUniverseName(parseInt(id), res.name); } catch (e) {}
+                        } else {
+                            shipNameMap[id] = 'Unknown Ship';
+                        }
+                    } else if (info.type === 'system') {
+                        const id = info.id;
+                        if (res && res.name) {
+                            systemMap[id] = { name: res.name, security: res.security_status ?? null };
+                            try { await setCachedUniverseName(parseInt(id), res.name, res.security_status); } catch (e) {}
+                        } else {
+                            systemMap[id] = { name: 'Unknown System', security: null };
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn('Batch ESI lookup failed:', e);
+            }
+        }
+
+        // Fallback any missing entries by calling individual helpers (they handle errors)
+        await Promise.all(recentKills.map(async kill => {
+            if (!shipNameMap[kill.victimShipTypeId]) {
+                try { shipNameMap[kill.victimShipTypeId] = await this.getShipName(kill.victimShipTypeId); } catch (e) { shipNameMap[kill.victimShipTypeId] = 'Unknown Ship'; }
+            }
+            if (!systemMap[kill.systemId]) {
+                try { const s = await this.getSystemName(kill.systemId); systemMap[kill.systemId] = { name: s.name, security: s.security }; } catch (e) { systemMap[kill.systemId] = { name: 'Unknown System', security: null }; }
+            }
+        }));
+
+        const killsWithNames = recentKills.map(kill => {
+            const shipName = shipNameMap[kill.victimShipTypeId] || 'Unknown Ship';
+            const systemData = systemMap[kill.systemId] || { name: 'Unknown System', security: kill.systemSecurity ?? null };
 
             return {
                 ...kill,
@@ -960,7 +1051,7 @@ class ZKillStatsCard {
                 systemName: systemData.name,
                 systemSecurity: systemData.security !== undefined ? systemData.security : kill.systemSecurity
             };
-        }));
+        });
 
         const killsHTML = killsWithNames.map(kill => {
             const date = new Date(kill.time);
@@ -1547,19 +1638,26 @@ class ZKillStatsCard {
             </div>
         `;
 
+        // Cache frequently used elements on the container to avoid repeated queries
+        const containerElems = {
+            esiCallsEl: containerElement.querySelector('.zkill-esi-calls'),
+            cacheHitsEl: containerElement.querySelector('.zkill-cache-hits'),
+            timerEl: containerElement.querySelector('.timer'),
+            statusEl: containerElement.querySelector('.zkill-loading-status'),
+            killmailsEl: containerElement.querySelector('.zkill-killmails')
+        };
+        containerElement._zkill = containerElems;
+
         const updateLoadingStats = async () => {
             const { esiLookups, localLookups } = getCounters();
 
-            const esiCallsEl = containerElement.querySelector('.zkill-esi-calls');
-            const cacheHitsEl = containerElement.querySelector('.zkill-cache-hits');
-
-            if (esiCallsEl) esiCallsEl.textContent = esiLookups;
-            if (cacheHitsEl) cacheHitsEl.textContent = localLookups;
+            if (containerElems.esiCallsEl) containerElems.esiCallsEl.textContent = esiLookups;
+            if (containerElems.cacheHitsEl) containerElems.cacheHitsEl.textContent = localLookups;
         };
 
         timerInterval = setInterval(async () => {
             const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-            const timerEl = containerElement.querySelector('.timer');
+            const timerEl = containerElems.timerEl || containerElement.querySelector('.timer');
             if (timerEl) {
                 timerEl.textContent = `Elapsed: ${elapsed}s`;
             }
@@ -1570,12 +1668,10 @@ class ZKillStatsCard {
             const options = {
                 includeKillmails: true,
                 onProgress: (stage, message, processed, total) => {
-                    const statusEl = containerElement.querySelector('.zkill-loading-status');
-                    const killmailsEl = containerElement.querySelector('.zkill-killmails');
+                    const statusEl = containerElems.statusEl || containerElement.querySelector('.zkill-loading-status');
+                    const killmailsEl = containerElems.killmailsEl || containerElement.querySelector('.zkill-killmails');
 
-                    if (statusEl) {
-                        statusEl.textContent = message;
-                    }
+                    if (statusEl) statusEl.textContent = message;
 
                     if (killmailsEl && stage === 'esi') {
                         killmailsEl.textContent = `${processed} / ${total}`;
@@ -1707,11 +1803,13 @@ class ZKillStatsCard {
             });
         });
 
+        const containerElems = containerElement?._zkill || {};
+
         containerElement.addEventListener('click', (e) => {
             if (e.target.closest('[data-action="toggle-members"]')) {
                 e.preventDefault();
                 e.stopPropagation();
-                const dropdown = containerElement.querySelector('#zkill-members-dropdown');
+                const dropdown = containerElems.membersDropdown || containerElement.querySelector('#zkill-members-dropdown');
                 if (dropdown) {
                     dropdown.classList.toggle('expanded');
                 }

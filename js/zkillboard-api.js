@@ -598,38 +598,79 @@ class ZKillboardClient {
         const { getCachedUniverseName, setCachedUniverseName } = await import('./database.js');
         const { esiClient } = await import('./esi-client.js');
 
-        const locations = await Promise.all(systemList.values.map(async system => {
-            const systemId = system.solarSystemID || system.id;
-            const systemName = system.solarSystemName || system.name || 'Unknown System';
-            let securityStatus = null;
-
-            if (systemId) {
-                try {
-                    let cached = await getCachedUniverseName(systemId);
-
-                    if (cached && cached.security !== undefined && cached.security !== null) {
-                        securityStatus = cached.security;
-                    } else {
-                        const esiData = await esiClient.get(`/universe/systems/${systemId}/`);
-                        if (esiData && esiData.security_status !== undefined) {
-                            securityStatus = esiData.security_status;
-                            await setCachedUniverseName(systemId, esiData.name || systemName, esiData.security_status);
-                        }
-                    }
-                } catch (e) {
-                    console.error(`Error fetching security for system ${systemId}:`, e);
-                }
-            }
-
-            return {
-                systemId: systemId,
-                systemName: systemName,
-                kills: system.kills || 0,
-                securityStatus: securityStatus
-            };
+        // First, collect systems and check cache to avoid unnecessary requests
+        const systems = systemList.values.map(system => ({
+            systemId: system.solarSystemID || system.id,
+            systemName: system.solarSystemName || system.name || 'Unknown System',
+            kills: system.kills || 0
         }));
 
-        return locations;
+        const toFetch = [];
+        const results = new Array(systems.length).fill(null);
+
+        for (let i = 0; i < systems.length; i++) {
+            const s = systems[i];
+            if (!s.systemId) continue;
+            try {
+                const cached = await getCachedUniverseName(s.systemId);
+                if (cached && cached.security !== undefined && cached.security !== null) {
+                    results[i] = {
+                        systemId: s.systemId,
+                        systemName: s.systemName,
+                        kills: s.kills,
+                        securityStatus: cached.security
+                    };
+                    continue;
+                }
+            } catch (e) {
+                // ignore cache failures and schedule fetch
+            }
+
+            toFetch.push({ index: i, systemId: s.systemId, systemName: s.systemName, kills: s.kills });
+        }
+
+        if (toFetch.length > 0) {
+            // Build batch requests for ESI
+            const requests = toFetch.map(t => ({ endpoint: `/universe/systems/${t.systemId}/`, method: 'GET' }));
+
+            const batchResults = await esiClient.batchRequests(requests, { maxConcurrency: 6, chunkDelay: 25 });
+
+            for (let ri = 0; ri < batchResults.length; ri++) {
+                const res = batchResults[ri];
+                const t = toFetch[ri];
+                let securityStatus = null;
+                try {
+                    if (res && res.security_status !== undefined) {
+                        securityStatus = res.security_status;
+                        // cache the fetched name/security
+                        try { await setCachedUniverseName(t.systemId, res.name || t.systemName, securityStatus); } catch (e) { }
+                    }
+                } catch (e) {
+                    console.error(`Error processing ESI result for system ${t.systemId}:`, e);
+                }
+
+                results[t.index] = {
+                    systemId: t.systemId,
+                    systemName: t.systemName,
+                    kills: t.kills,
+                    securityStatus
+                };
+            }
+        }
+
+        // Fill any gaps (systems without id or failed fetchs)
+        for (let i = 0; i < systems.length; i++) {
+            if (results[i]) continue;
+            const s = systems[i];
+            results[i] = {
+                systemId: s.systemId || null,
+                systemName: s.systemName,
+                kills: s.kills,
+                securityStatus: null
+            };
+        }
+
+        return results;
     }
 
     extractTopShips(data) {
@@ -1493,37 +1534,36 @@ class ZKillboardClient {
         const now = Date.now();
         const oneDayMs = 24 * 60 * 60 * 1000;
 
-        const killsLast7d = recentKills.filter(k => {
-            const killTime = new Date(k.time).getTime();
-            return (now - killTime) < (7 * oneDayMs);
-        }).length;
-
-        const killsLast14d = recentKills.filter(k => {
-            const killTime = new Date(k.time).getTime();
-            return (now - killTime) < (14 * oneDayMs);
-        }).length;
-
-        const killsLast30d = recentKills.filter(k => {
-            const killTime = new Date(k.time).getTime();
-            return (now - killTime) < (30 * oneDayMs);
-        }).length;
-
+        // precompute timestamps once and bucket kills
+        let killsLast7d = 0;
+        let killsLast14d = 0;
+        let killsLast30d = 0;
         const killsByDay = new Map();
         const uniqueSystems = new Set();
         const fleetSizes = [];
 
-        recentKills.forEach(kill => {
-            const killTime = new Date(kill.time).getTime();
-            if ((now - killTime) < (30 * oneDayMs)) {
-                const day = new Date(kill.time).toISOString().split('T')[0];
-                if (!killsByDay.has(day)) {
-                    killsByDay.set(day, []);
-                }
-                killsByDay.get(day).push(kill);
-                if (kill.systemId) uniqueSystems.add(kill.systemId);
-                if (kill.attackers) fleetSizes.push(kill.attackers);
+        for (let i = 0; i < recentKills.length; i++) {
+            const k = recentKills[i];
+            const tStr = k.time;
+            if (!tStr) continue;
+            const killTime = Date.parse(tStr);
+            if (isNaN(killTime)) continue;
+
+            const age = now - killTime;
+            if (age < 7 * oneDayMs) killsLast7d++;
+            if (age < 14 * oneDayMs) killsLast14d++;
+            if (age < 30 * oneDayMs) killsLast30d++;
+
+            if (age < 30 * oneDayMs) {
+                // bucket by UTC date string to avoid creating many Date objects
+                const dayKey = new Date(killTime).toISOString().slice(0, 10);
+                if (!killsByDay.has(dayKey)) killsByDay.set(dayKey, []);
+                killsByDay.get(dayKey).push(k);
+
+                if (k.systemId) uniqueSystems.add(k.systemId);
+                if (k.attackers) fleetSizes.push(k.attackers);
             }
-        });
+        }
 
         const activityDays = killsByDay.size;
         const systemDiversity = uniqueSystems.size;
