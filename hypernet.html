@@ -16,6 +16,7 @@ label { display: block; margin-bottom: 5px; color: #aaa; font-size: 0.9em; }
 input, select { width: 100%; padding: 10px; border: 1px solid #0f3460; border-radius: 4px; background: #0f3460; color: #fff; font-size: 1em; }
 input:focus, select:focus { outline: none; border-color: #00d4ff; }
 .results { display: grid; grid-template-columns: repeat(8, 1fr); gap: 10px; }
+.results-small { grid-template-columns: repeat(5, 1fr); }
 .result-item { background: #0f3460; padding: 10px; border-radius: 6px; }
 .result-item label { color: #888; font-size: 0.75em; margin-bottom: 3px; }
 .result-item .value { font-size: 1em; font-weight: bold; color: #00d4ff; }
@@ -69,14 +70,14 @@ input:focus, select:focus { outline: none; border-color: #00d4ff; }
 </div>
 <div class="field">
 <label>Number of Runs</label>
-<input type="number" id="numRuns" min="1" value="4">
+<input type="number" id="numRuns" min="1" value="1">
 </div>
 </div>
 </div>
 
 <div class="section">
-<h2>Derived Values</h2>
-<div class="results">
+<h2>Per Run Analysis</h2>
+<div class="results" style="margin-bottom: 15px;">
 <div class="result-item"><label>Per Ticket Price</label><div class="value" id="perTicket">-</div></div>
 <div class="result-item"><label>HyperCores Req.</label><div class="value" id="hypercores">-</div></div>
 <div class="result-item"><label>HyperCore Cost</label><div class="value" id="hypercoreCost">-</div></div>
@@ -86,25 +87,22 @@ input:focus, select:focus { outline: none; border-color: #00d4ff; }
 <div class="result-item"><label>Net Revenue</label><div class="value" id="netRev">-</div></div>
 <div class="result-item"><label>Self Ticket Cost</label><div class="value" id="selfCost">-</div></div>
 </div>
-</div>
-
-<div class="section">
-<h2>Per Run Breakdown</h2>
 <table class="breakdown-table">
 <tr><th></th><th>Item Cost</th><th>Self Tickets</th><th>HyperCores</th><th>Total Out</th><th>Net Revenue</th><th>Item Won</th><th>Total In</th><th>Profit/Loss</th></tr>
-<tr id="loseRow"><td>If You Lose</td><td id="loseItem">-</td><td id="loseSelf">-</td><td id="loseHC">-</td><td id="loseOut">-</td><td id="loseRev">-</td><td id="loseWon">-</td><td id="loseIn">-</td><td id="loseProfit">-</td></tr>
-<tr id="winRow"><td>If You Win</td><td id="winItem">-</td><td id="winSelf">-</td><td id="winHC">-</td><td id="winOut">-</td><td id="winRev">-</td><td id="winWon">-</td><td id="winIn">-</td><td id="winProfit">-</td></tr>
-<tr id="avgRow" style="border-top: 2px solid #00d4ff;"><td>Average</td><td id="avgItem">-</td><td id="avgSelf">-</td><td id="avgHC">-</td><td id="avgOut">-</td><td id="avgRev">-</td><td id="avgWon">-</td><td id="avgIn">-</td><td id="avgProfitRow">-</td></tr>
+<tr><td>If You Lose</td><td id="loseItem">-</td><td id="loseSelf">-</td><td id="loseHC">-</td><td id="loseOut">-</td><td id="loseRev">-</td><td>-</td><td id="loseIn">-</td><td id="loseProfit">-</td></tr>
+<tr><td>If You Win</td><td id="winItem">-</td><td id="winSelf">-</td><td id="winHC">-</td><td id="winOut">-</td><td id="winRev">-</td><td id="winWon">-</td><td id="winIn">-</td><td id="winProfit">-</td></tr>
+<tr style="border-top: 2px solid #00d4ff;"><td>Average</td><td id="avgItem">-</td><td id="avgSelf">-</td><td id="avgHC">-</td><td id="avgOut">-</td><td id="avgRev">-</td><td id="avgWon">-</td><td id="avgIn">-</td><td id="avgProfitRow">-</td></tr>
 </table>
 </div>
 
 <div class="section">
 <h2>Expected Average Over Runs</h2>
-<div class="results">
+<div class="results results-small">
 <div class="result-item"><label>Expected Wins</label><div class="value" id="expectedWins">-</div></div>
 <div class="result-item"><label>Expected Losses</label><div class="value" id="expectedLosses">-</div></div>
-<div class="result-item"><label>Avg Profit/Run</label><div class="value" id="avgProfit">-</div></div>
-<div class="result-item"><label>Total Expected</label><div class="value" id="totalProfit">-</div></div>
+<div class="result-item"><label>Total Investment</label><div class="value" id="totalInvest">-</div></div>
+<div class="result-item"><label>Total Expected Profit</label><div class="value" id="totalProfit">-</div></div>
+<div class="result-item"><label>ROI %</label><div class="value" id="roi">-</div></div>
 </div>
 </div>
 
@@ -167,7 +165,6 @@ function calc() {
   document.getElementById('loseHC').textContent = isk(hypercoreCost);
   document.getElementById('loseOut').textContent = isk(loseOut);
   document.getElementById('loseRev').textContent = isk(netRev);
-  document.getElementById('loseWon').textContent = '-';
   document.getElementById('loseIn').textContent = isk(loseIn);
   const lpEl = document.getElementById('loseProfit');
   lpEl.textContent = isk(loseProfit);
@@ -188,6 +185,8 @@ function calc() {
   const expectedLosses = numRuns * (1 - winChance);
   const avgProfitVal = (winProfit * winChance) + (loseProfit * (1 - winChance));
   const totalProfitVal = avgProfitVal * numRuns;
+  const totalInvest = baseOut * numRuns;
+  const roiVal = totalInvest > 0 ? (totalProfitVal / totalInvest) * 100 : 0;
   const avgWonVal = itemPrice * winChance;
   const avgInVal = netRev + avgWonVal;
 
@@ -204,12 +203,13 @@ function calc() {
 
   document.getElementById('expectedWins').textContent = expectedWins.toFixed(2);
   document.getElementById('expectedLosses').textContent = expectedLosses.toFixed(2);
-  const apEl = document.getElementById('avgProfit');
-  apEl.textContent = isk(avgProfitVal);
-  apEl.className = 'value ' + (avgProfitVal >= 0 ? 'profit' : 'loss');
+  document.getElementById('totalInvest').textContent = isk(totalInvest);
   const tpEl = document.getElementById('totalProfit');
   tpEl.textContent = isk(totalProfitVal);
   tpEl.className = 'value ' + (totalProfitVal >= 0 ? 'profit' : 'loss');
+  const roiEl = document.getElementById('roi');
+  roiEl.textContent = roiVal.toFixed(2) + '%';
+  roiEl.className = 'value ' + (roiVal >= 0 ? 'profit' : 'loss');
 }
 
 document.querySelectorAll('input, select').forEach(el => el.addEventListener('input', calc));
