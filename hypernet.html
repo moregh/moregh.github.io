@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EVE HyperNet Profit Calculator</title>
+<style>
+* { box-sizing: border-box; }
+body { font-family: system-ui, sans-serif; background: #1a1a2e; color: #eee; padding: 20px; max-width: 1200px; margin: 0 auto; }
+h1 { color: #00d4ff; text-align: center; }
+.section { background: #16213e; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+.section h2 { margin-top: 0; color: #00d4ff; font-size: 1.1em; border-bottom: 1px solid #0f3460; padding-bottom: 10px; }
+.row { display: flex; gap: 15px; margin-bottom: 15px; flex-wrap: wrap; }
+.field { flex: 1; min-width: 150px; }
+label { display: block; margin-bottom: 5px; color: #aaa; font-size: 0.9em; }
+input, select { width: 100%; padding: 10px; border: 1px solid #0f3460; border-radius: 4px; background: #0f3460; color: #fff; font-size: 1em; }
+input:focus, select:focus { outline: none; border-color: #00d4ff; }
+.results { display: grid; grid-template-columns: repeat(8, 1fr); gap: 10px; }
+.result-item { background: #0f3460; padding: 10px; border-radius: 6px; }
+.result-item label { color: #888; font-size: 0.75em; margin-bottom: 3px; }
+.result-item .value { font-size: 1em; font-weight: bold; color: #00d4ff; }
+.breakdown-table { width: 100%; border-collapse: collapse; }
+.breakdown-table th, .breakdown-table td { padding: 12px; text-align: right; border-bottom: 1px solid #0f3460; }
+.breakdown-table th:first-child, .breakdown-table td:first-child { text-align: left; }
+.breakdown-table th { color: #888; font-weight: normal; font-size: 0.9em; }
+.breakdown-table td { color: #00d4ff; font-weight: bold; }
+.profit { color: #00ff88 !important; }
+.loss { color: #ff4466 !important; }
+.error { color: #ff4466; font-size: 0.85em; margin-top: 5px; }
+</style>
+</head>
+<body>
+<h1>EVE HyperNet Profit Calculator</h1>
+
+<div class="section">
+<h2>Input Parameters</h2>
+<div class="row">
+<div class="field">
+<label>Item Name</label>
+<input type="text" id="itemName" placeholder="e.g. PLEX">
+</div>
+<div class="field">
+<label>Item Price (ISK)</label>
+<input type="number" id="itemPrice" min="0" value="1000000000">
+</div>
+<div class="field">
+<label>Total Sell Value (ISK)</label>
+<input type="number" id="sellValue" min="0" value="1100000000">
+</div>
+<div class="field">
+<label>HyperCore Price (ISK)</label>
+<input type="number" id="hypercorePrice" min="0" value="100000">
+</div>
+</div>
+<div class="row">
+<div class="field">
+<label>Number of Tickets</label>
+<select id="numTickets">
+<option value="8">8</option>
+<option value="16">16</option>
+<option value="48" selected>48</option>
+<option value="512">512</option>
+</select>
+</div>
+<div class="field">
+<label>Self Purchased Tickets</label>
+<input type="number" id="selfTickets" min="0" value="0">
+<div class="error" id="ticketError"></div>
+</div>
+<div class="field">
+<label>Number of Runs</label>
+<input type="number" id="numRuns" min="1" value="100">
+</div>
+</div>
+</div>
+
+<div class="section">
+<h2>Derived Values</h2>
+<div class="results">
+<div class="result-item"><label>Per Ticket Price</label><div class="value" id="perTicket">-</div></div>
+<div class="result-item"><label>HyperCores Req.</label><div class="value" id="hypercores">-</div></div>
+<div class="result-item"><label>HyperCore Cost</label><div class="value" id="hypercoreCost">-</div></div>
+<div class="result-item"><label>Win Chance</label><div class="value" id="winChance">-</div></div>
+<div class="result-item"><label>Gross Revenue</label><div class="value" id="grossRev">-</div></div>
+<div class="result-item"><label>Tax (5%)</label><div class="value" id="taxAmt">-</div></div>
+<div class="result-item"><label>Net Revenue</label><div class="value" id="netRev">-</div></div>
+<div class="result-item"><label>Self Ticket Cost</label><div class="value" id="selfCost">-</div></div>
+</div>
+</div>
+
+<div class="section">
+<h2>Per Run Breakdown</h2>
+<table class="breakdown-table">
+<tr><th></th><th>Item Cost</th><th>Self Tickets</th><th>HyperCores</th><th>Total Out</th><th>Net Revenue</th><th>Item Won</th><th>Total In</th><th>Profit/Loss</th></tr>
+<tr id="loseRow"><td>If You Lose</td><td id="loseItem">-</td><td id="loseSelf">-</td><td id="loseHC">-</td><td id="loseOut">-</td><td id="loseRev">-</td><td id="loseWon">-</td><td id="loseIn">-</td><td id="loseProfit">-</td></tr>
+<tr id="winRow"><td>If You Win</td><td id="winItem">-</td><td id="winSelf">-</td><td id="winHC">-</td><td id="winOut">-</td><td id="winRev">-</td><td id="winWon">-</td><td id="winIn">-</td><td id="winProfit">-</td></tr>
+<tr id="avgRow" style="border-top: 2px solid #00d4ff;"><td>Average</td><td id="avgItem">-</td><td id="avgSelf">-</td><td id="avgHC">-</td><td id="avgOut">-</td><td id="avgRev">-</td><td id="avgWon">-</td><td id="avgIn">-</td><td id="avgProfitRow">-</td></tr>
+</table>
+</div>
+
+<div class="section">
+<h2>Expected Average Over Runs</h2>
+<div class="results">
+<div class="result-item"><label>Expected Wins</label><div class="value" id="expectedWins">-</div></div>
+<div class="result-item"><label>Expected Losses</label><div class="value" id="expectedLosses">-</div></div>
+<div class="result-item"><label>Avg Profit/Run</label><div class="value" id="avgProfit">-</div></div>
+<div class="result-item"><label>Total Expected</label><div class="value" id="totalProfit">-</div></div>
+</div>
+</div>
+
+<script>
+function isk(n) {
+  const abs = Math.abs(n);
+  const sign = n < 0 ? '-' : '';
+  if (abs >= 1e9) return sign + (abs / 1e9).toFixed(2) + 'B';
+  if (abs >= 1e6) return sign + (abs / 1e6).toFixed(2) + 'M';
+  if (abs >= 1e3) return sign + (abs / 1e3).toFixed(2) + 'K';
+  return sign + abs.toFixed(2);
+}
+const RATIO = 9.71691e-08;
+
+function calc() {
+  const itemPrice = parseFloat(document.getElementById('itemPrice').value) || 0;
+  const numTickets = parseInt(document.getElementById('numTickets').value);
+  const selfTickets = parseInt(document.getElementById('selfTickets').value) || 0;
+  const sellValue = parseFloat(document.getElementById('sellValue').value) || 0;
+  const hypercorePrice = parseFloat(document.getElementById('hypercorePrice').value) || 0;
+  const numRuns = parseInt(document.getElementById('numRuns').value) || 1;
+  
+  const errEl = document.getElementById('ticketError');
+  if (selfTickets > numTickets) {
+    errEl.textContent = 'Cannot exceed total tickets';
+    return;
+  }
+  errEl.textContent = '';
+
+  const perTicket = sellValue / numTickets;
+  const hypercores = Math.max(1, Math.floor(sellValue * RATIO));
+  const hypercoreCost = hypercores * hypercorePrice;
+  const winChance = selfTickets / numTickets;
+  const grossRev = numTickets * perTicket;
+  const taxAmt = grossRev * 0.05;
+  const netRev = grossRev * 0.95;
+  const selfCost = selfTickets * perTicket;
+
+  document.getElementById('perTicket').textContent = isk(perTicket);
+  document.getElementById('hypercores').textContent = hypercores;
+  document.getElementById('hypercoreCost').textContent = isk(hypercoreCost);
+  document.getElementById('winChance').textContent = (winChance * 100).toFixed(2) + '%';
+  document.getElementById('grossRev').textContent = isk(grossRev);
+  document.getElementById('taxAmt').textContent = isk(taxAmt);
+  document.getElementById('netRev').textContent = isk(netRev);
+  document.getElementById('selfCost').textContent = isk(selfCost);
+
+  const baseOut = itemPrice + selfCost + hypercoreCost;
+
+  const loseOut = baseOut;
+  const loseIn = netRev;
+  const loseProfit = loseIn - loseOut;
+
+  const winOut = baseOut;
+  const winIn = netRev + itemPrice;
+  const winProfit = winIn - winOut;
+
+  document.getElementById('loseItem').textContent = isk(itemPrice);
+  document.getElementById('loseSelf').textContent = isk(selfCost);
+  document.getElementById('loseHC').textContent = isk(hypercoreCost);
+  document.getElementById('loseOut').textContent = isk(loseOut);
+  document.getElementById('loseRev').textContent = isk(netRev);
+  document.getElementById('loseWon').textContent = '-';
+  document.getElementById('loseIn').textContent = isk(loseIn);
+  const lpEl = document.getElementById('loseProfit');
+  lpEl.textContent = isk(loseProfit);
+  lpEl.className = loseProfit >= 0 ? 'profit' : 'loss';
+
+  document.getElementById('winItem').textContent = isk(itemPrice);
+  document.getElementById('winSelf').textContent = isk(selfCost);
+  document.getElementById('winHC').textContent = isk(hypercoreCost);
+  document.getElementById('winOut').textContent = isk(winOut);
+  document.getElementById('winRev').textContent = isk(netRev);
+  document.getElementById('winWon').textContent = isk(itemPrice);
+  document.getElementById('winIn').textContent = isk(winIn);
+  const wpEl = document.getElementById('winProfit');
+  wpEl.textContent = isk(winProfit);
+  wpEl.className = winProfit >= 0 ? 'profit' : 'loss';
+
+  const expectedWins = numRuns * winChance;
+  const expectedLosses = numRuns * (1 - winChance);
+  const avgProfitVal = (winProfit * winChance) + (loseProfit * (1 - winChance));
+  const totalProfitVal = avgProfitVal * numRuns;
+  const avgWonVal = itemPrice * winChance;
+  const avgInVal = netRev + avgWonVal;
+
+  document.getElementById('avgItem').textContent = isk(itemPrice);
+  document.getElementById('avgSelf').textContent = isk(selfCost);
+  document.getElementById('avgHC').textContent = isk(hypercoreCost);
+  document.getElementById('avgOut').textContent = isk(baseOut);
+  document.getElementById('avgRev').textContent = isk(netRev);
+  document.getElementById('avgWon').textContent = isk(avgWonVal);
+  document.getElementById('avgIn').textContent = isk(avgInVal);
+  const aprEl = document.getElementById('avgProfitRow');
+  aprEl.textContent = isk(avgProfitVal);
+  aprEl.className = avgProfitVal >= 0 ? 'profit' : 'loss';
+
+  document.getElementById('expectedWins').textContent = expectedWins.toFixed(2);
+  document.getElementById('expectedLosses').textContent = expectedLosses.toFixed(2);
+  const apEl = document.getElementById('avgProfit');
+  apEl.textContent = isk(avgProfitVal);
+  apEl.className = 'value ' + (avgProfitVal >= 0 ? 'profit' : 'loss');
+  const tpEl = document.getElementById('totalProfit');
+  tpEl.textContent = isk(totalProfitVal);
+  tpEl.className = 'value ' + (totalProfitVal >= 0 ? 'profit' : 'loss');
+}
+
+document.querySelectorAll('input, select').forEach(el => el.addEventListener('input', calc));
+calc();
+</script>
+</body>
+</html>
