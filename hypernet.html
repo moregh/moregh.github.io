@@ -9,7 +9,7 @@
 body { font-family: system-ui, sans-serif; background: #1a1a2e; color: #eee; padding: 20px; max-width: 1200px; margin: 0 auto; }
 h1 { color: #00d4ff; text-align: center; }
 .section { background: #16213e; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
-.section h2 { margin-top: 0; color: #00d4ff; font-size: 1.1em; border-bottom: 1px solid #0f3460; padding-bottom: 10px; }
+.section h2 { margin-top: 0; color: #00d4ff; font-size: 1em; border-bottom: 1px solid #0f3460; padding-bottom: 8px; }
 .row { display: flex; gap: 15px; margin-bottom: 15px; flex-wrap: wrap; }
 .field { flex: 1; min-width: 150px; position: relative; }
 label { display: block; margin-bottom: 5px; color: #aaa; font-size: 0.9em; }
@@ -40,6 +40,14 @@ input:focus, select:focus { outline: none; border-color: #00d4ff; }
 .profit { color: #00ff88 !important; }
 .loss { color: #ff4466 !important; }
 .error { color: #ff4466; font-size: 0.85em; margin-top: 5px; }
+.share-container { margin-top: 20px; padding-top: 20px; border-top: 1px solid #0f3460; }
+.share-btn { background: #00d4ff; color: #1a1a2e; border: none; padding: 12px 24px; border-radius: 6px; font-size: 1em; font-weight: bold; cursor: pointer; transition: all 0.2s; }
+.share-btn:hover { background: #00b8e6; transform: translateY(-1px); }
+.share-btn:active { transform: translateY(0); }
+.share-url-container { margin-top: 15px; display: none; }
+.share-url { width: 100%; padding: 10px; background: #0f3460; border: 1px solid #00d4ff; border-radius: 4px; color: #00d4ff; font-family: monospace; font-size: 0.9em; }
+.copy-btn { margin-top: 10px; background: #0f3460; color: #00d4ff; border: 1px solid #00d4ff; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-size: 0.9em; }
+.copy-btn:hover { background: #00d4ff; color: #0f3460; }
 </style>
 </head>
 <body>
@@ -139,6 +147,17 @@ The ratio is calculated as: R = 10T ÷ HyperCores
 </div>
 </div>
 
+<div class="share-container">
+<center>
+<button class="share-btn" onclick="generateShareLink()">Generate Shareable Link</button>
+<div class="share-url-container" id="shareUrlContainer">
+<input type="text" class="share-url" id="shareUrl" readonly>
+<button class="copy-btn" onclick="copyShareLink()">Copy to Clipboard</button>
+<div class="success" id="copySuccess" style="display: none; margin-top: 8px;">Link copied to clipboard!</div>
+</div>
+</center>
+</div>
+
 <script>
 let currentItemId = null;
 
@@ -149,6 +168,77 @@ function isk(n) {
   if (abs >= 1e6) return sign + (abs / 1e6).toFixed(2) + 'M';
   if (abs >= 1e3) return sign + (abs / 1e3).toFixed(2) + 'K';
   return sign + abs.toFixed(2);
+}
+
+function encodeConfig() {
+  const config = {
+    in: document.getElementById('itemName').value,
+    ip: parseFloat(document.getElementById('itemPrice').value) || 0,
+    sv: parseFloat(document.getElementById('sellValue').value) || 0,
+    hp: parseFloat(document.getElementById('hypercorePrice').value) || 0,
+    hc: parseFloat(document.getElementById('hypercoresAt10T').value) || 1000000,
+    nt: parseInt(document.getElementById('numTickets').value),
+    st: parseInt(document.getElementById('selfTickets').value) || 0,
+    nr: parseInt(document.getElementById('numRuns').value) || 1
+  };
+  return btoa(JSON.stringify(config));
+}
+
+function decodeConfig(encoded) {
+  try {
+    const decoded = atob(encoded);
+    return JSON.parse(decoded);
+  } catch (e) {
+    console.error('Failed to decode config:', e);
+    return null;
+  }
+}
+
+function loadConfigFromHash() {
+  const hash = window.location.hash.substring(1);
+  if (!hash) return;
+  
+  const config = decodeConfig(hash);
+  if (!config) return;
+  
+  document.getElementById('itemName').value = config.in || '';
+  document.getElementById('itemPrice').value = config.ip || 0;
+  document.getElementById('sellValue').value = config.sv || 0;
+  document.getElementById('hypercorePrice').value = config.hp || 0;
+  document.getElementById('hypercoresAt10T').value = config.hc || 1000000;
+  document.getElementById('numTickets').value = config.nt || 48;
+  document.getElementById('selfTickets').value = config.st || 0;
+  document.getElementById('numRuns').value = config.nr || 1;
+  
+  calc();
+  
+  const success = document.getElementById('itemSuccess');
+  success.textContent = 'Configuration loaded from shared link!';
+  success.style.display = 'block';
+  setTimeout(() => { success.style.display = 'none'; }, 3000);
+}
+
+function generateShareLink() {
+  const encoded = encodeConfig();
+  const url = window.location.href.split('#')[0] + '#' + encoded;
+  
+  document.getElementById('shareUrl').value = url;
+  document.getElementById('shareUrlContainer').style.display = 'block';
+}
+
+function copyShareLink() {
+  const urlInput = document.getElementById('shareUrl');
+  urlInput.select();
+  urlInput.setSelectionRange(0, 99999);
+  
+  navigator.clipboard.writeText(urlInput.value).then(() => {
+    const success = document.getElementById('copySuccess');
+    success.style.display = 'block';
+    setTimeout(() => { success.style.display = 'none'; }, 2000);
+  }).catch(err => {
+    console.error('Failed to copy:', err);
+    alert('Failed to copy to clipboard. Please copy manually.');
+  });
 }
 
 async function searchItem(itemName) {
@@ -352,6 +442,11 @@ function calc() {
 }
 
 document.querySelectorAll('input:not(#itemName), select').forEach(el => el.addEventListener('input', calc));
+
+window.addEventListener('DOMContentLoaded', () => {
+  loadConfigFromHash();
+});
+
 calc();
 </script>
 </body>
