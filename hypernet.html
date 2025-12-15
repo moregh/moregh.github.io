@@ -14,7 +14,7 @@ h1 { color: #00d4ff; text-align: center; }
 .field { flex: 1; min-width: 150px; position: relative; }
 label { display: block; margin-bottom: 5px; color: #aaa; font-size: 0.9em; }
 .label-with-tooltip { display: flex; align-items: center; gap: 5px; }
-.tooltip-icon { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; background: #0f3460; color: #00d4ff; font-size: 0.75em; cursor: help; border: 1px solid #00d4ff; }
+.tooltip-icon { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; background: #0f3460; color: #00d4ff; font-size: 0.75em; cursor: help; border: 0.8px solid #00d4ff; }
 .tooltip-icon:hover { background: #00d4ff; color: #0f3460; }
 .tooltip { position: absolute; bottom: 100%; left: 0; right: 0; background: #0f3460; border: 1px solid #00d4ff; border-radius: 4px; padding: 12px; margin-bottom: 8px; font-size: 0.85em; line-height: 1.4; z-index: 1000; display: none; box-shadow: 0 4px 12px rgba(0, 212, 255, 0.3); }
 .tooltip::after { content: ''; position: absolute; top: 100%; left: 20px; border: 6px solid transparent; border-top-color: #00d4ff; }
@@ -89,6 +89,7 @@ input:focus, select:focus { outline: none; border-color: #00d4ff; }
 <li>Note the total number of HyperCores required</li>
 <li>Enter that number here</li>
 </ol>
+The ratio is calculated as: R = 10T ÷ HyperCores
 </div>
 <input type="number" id="hypercoresAt10T" min="1" value="1000000">
 </div>
@@ -195,102 +196,6 @@ async function decodeState(str) {
   return decoder.decode(decompressed);
 }
 
-async function encodeConfig() {
-  // Defaults
-  const defaults = {
-    itemName: '',
-    itemPrice: 1000000000,
-    sellValue: 1100000000,
-    hypercorePrice: 380000,
-    hypercoresAt10T: 1000000,
-    numTickets: 48,
-    selfTickets: 0,
-    numRuns: 1
-  };
-  
-  const values = [
-    document.getElementById('itemName').value,
-    parseFloat(document.getElementById('itemPrice').value) || 0,
-    parseFloat(document.getElementById('sellValue').value) || 0,
-    parseFloat(document.getElementById('hypercorePrice').value) || 0,
-    parseFloat(document.getElementById('hypercoresAt10T').value) || 1000000,
-    parseInt(document.getElementById('numTickets').value),
-    parseInt(document.getElementById('selfTickets').value) || 0,
-    parseInt(document.getElementById('numRuns').value) || 1
-  ];
-  
-  const keys = ['itemName', 'itemPrice', 'sellValue', 'hypercorePrice', 'hypercoresAt10T', 'numTickets', 'selfTickets', 'numRuns'];
-  
-  // Order: itemName|itemPrice|sellValue|hypercorePrice|hypercoresAt10T|numTickets|selfTickets|numRuns
-  // Use base36 for numbers, empty string for defaults
-  const parts = [];
-  
-  for (let i = 0; i < values.length; i++) {
-    const val = values[i];
-    const key = keys[i];
-    const def = defaults[key];
-    
-    if (i === 0) {
-      // itemName - always include even if empty
-      parts.push(val);
-    } else if (val === def) {
-      // Skip default values
-      parts.push('');
-    } else {
-      // Convert numbers to base36
-      parts.push(val.toString(36));
-    }
-  }
-  
-  return await encodeState(parts.join('|'));
-}
-
-async function decodeConfig(encoded) {
-  try {
-    const str = await decodeState(encoded);
-    const parts = str.split('|');
-    
-    // Defaults
-    const defaults = [
-      '', // itemName
-      1000000000, // itemPrice
-      1100000000, // sellValue
-      380000, // hypercorePrice
-      1000000, // hypercoresAt10T
-      48, // numTickets
-      0, // selfTickets
-      1 // numRuns
-    ];
-    
-    // Parse values, using defaults for empty strings
-    const values = parts.map((part, i) => {
-      if (i === 0) {
-        // itemName is always a string
-        return part || '';
-      } else if (part === '') {
-        // Use default
-        return defaults[i];
-      } else {
-        // Parse base36 number
-        return parseInt(part, 36);
-      }
-    });
-    
-    return {
-      in: values[0] || '',
-      ip: values[1] || 0,
-      sv: values[2] || 0,
-      hp: values[3] || 0,
-      hc: values[4] || 1000000,
-      nt: values[5] || 48,
-      st: values[6] || 0,
-      nr: values[7] || 1
-    };
-  } catch (e) {
-    console.error('Failed to decode config:', e);
-    return null;
-  }
-}
 
 async function loadConfigFromHash() {
   const hash = window.location.hash.substring(1);
@@ -538,6 +443,127 @@ function calc() {
   const roiEl = document.getElementById('roi');
   roiEl.textContent = roiVal.toFixed(2) + '%';
   roiEl.className = 'value ' + (roiVal >= 0 ? 'profit' : 'loss');
+}
+
+function b62(n) {
+  const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+  if (n === 0) return '0';
+  let result = '';
+  while (n > 0) {
+    result = chars[n % 62] + result;
+    n = Math.floor(n / 62);
+  }
+  return result;
+}
+
+function unb62(s) {
+  const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+  let result = 0;
+  for (let i = 0; i < s.length; i++) {
+    result = result * 62 + chars.indexOf(s[i]);
+  }
+  return result;
+}
+
+function strToB62(str) {
+  if (!str) return '';
+  const bytes = new TextEncoder().encode(str);
+  let result = '';
+  for (let i = 0; i < bytes.length; i += 3) {
+    const chunk = bytes.slice(i, i + 3);
+    let num = 0;
+    for (let j = 0; j < chunk.length; j++) {
+      num = num * 256 + chunk[j];
+    }
+    result += b62(num);
+    if (i + 3 < bytes.length) result += '.';
+  }
+  return result;
+}
+
+function b62ToStr(encoded) {
+  if (!encoded) return '';
+  const chunks = encoded.split('.');
+  const bytes = [];
+  for (const chunk of chunks) {
+    let num = unb62(chunk);
+    const chunkBytes = [];
+    while (num > 0) {
+      chunkBytes.unshift(num % 256);
+      num = Math.floor(num / 256);
+    }
+    bytes.push(...chunkBytes);
+  }
+  return new TextDecoder().decode(new Uint8Array(bytes));
+}
+
+async function encodeConfig() {
+  const d = {
+    itemName: '',
+    itemPrice: 1000000000,
+    sellValue: 1100000000,
+    hypercorePrice: 380000,
+    hypercoresAt10T: 1000000,
+    numTickets: 48,
+    selfTickets: 0,
+    numRuns: 1
+  };
+  
+  const v = [
+    document.getElementById('itemName').value,
+    parseFloat(document.getElementById('itemPrice').value) || 0,
+    parseFloat(document.getElementById('sellValue').value) || 0,
+    parseFloat(document.getElementById('hypercorePrice').value) || 0,
+    parseFloat(document.getElementById('hypercoresAt10T').value) || 1000000,
+    parseInt(document.getElementById('numTickets').value),
+    parseInt(document.getElementById('selfTickets').value) || 0,
+    parseInt(document.getElementById('numRuns').value) || 1
+  ];
+  
+  const k = ['itemName', 'itemPrice', 'sellValue', 'hypercorePrice', 'hypercoresAt10T', 'numTickets', 'selfTickets', 'numRuns'];
+  const p = [];
+  
+  for (let i = 0; i < v.length; i++) {
+    if (i === 0) {
+      if (v[i]) p.push('0:' + strToB62(v[i]));
+    } else if (v[i] !== d[k[i]]) {
+      p.push(i + ':' + b62(v[i]));
+    }
+  }
+  
+  return p.join('~');
+}
+
+async function decodeConfig(encoded) {
+  try {
+    const d = ['', 1000000000, 1100000000, 380000, 1000000, 48, 0, 1];
+    const v = [...d];
+    const parts = encoded.split('~');
+    
+    for (const p of parts) {
+      const [idx, val] = p.split(':');
+      const i = parseInt(idx);
+      if (i === 0) {
+        v[0] = b62ToStr(val);
+      } else {
+        v[i] = unb62(val);
+      }
+    }
+    
+    return {
+      in: v[0] || '',
+      ip: v[1] || 0,
+      sv: v[2] || 0,
+      hp: v[3] || 0,
+      hc: v[4] || 1000000,
+      nt: v[5] || 48,
+      st: v[6] || 0,
+      nr: v[7] || 1
+    };
+  } catch (e) {
+    console.error('Failed to decode config:', e);
+    return null;
+  }
 }
 
 document.querySelectorAll('input:not(#itemName), select').forEach(el => el.addEventListener('input', calc));
