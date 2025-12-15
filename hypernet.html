@@ -11,10 +11,22 @@ h1 { color: #00d4ff; text-align: center; }
 .section { background: #16213e; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
 .section h2 { margin-top: 0; color: #00d4ff; font-size: 1.1em; border-bottom: 1px solid #0f3460; padding-bottom: 10px; }
 .row { display: flex; gap: 15px; margin-bottom: 15px; flex-wrap: wrap; }
-.field { flex: 1; min-width: 150px; }
+.field { flex: 1; min-width: 150px; position: relative; }
 label { display: block; margin-bottom: 5px; color: #aaa; font-size: 0.9em; }
+.label-with-tooltip { display: flex; align-items: center; gap: 5px; }
+.tooltip-icon { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; background: #0f3460; color: #00d4ff; font-size: 0.75em; cursor: help; border: 1px solid #00d4ff; }
+.tooltip-icon:hover { background: #00d4ff; color: #0f3460; }
+.tooltip { position: absolute; bottom: 100%; left: 0; right: 0; background: #0f3460; border: 1px solid #00d4ff; border-radius: 4px; padding: 12px; margin-bottom: 8px; font-size: 0.85em; line-height: 1.4; z-index: 1000; display: none; box-shadow: 0 4px 12px rgba(0, 212, 255, 0.3); }
+.tooltip::after { content: ''; position: absolute; top: 100%; left: 20px; border: 6px solid transparent; border-top-color: #00d4ff; }
+.field:hover .tooltip { display: block; }
+.tooltip ol { margin: 8px 0; padding-left: 20px; }
+.tooltip li { margin: 4px 0; }
+.tooltip code { background: #1a1a2e; padding: 2px 6px; border-radius: 3px; color: #00ff88; }
 input, select { width: 100%; padding: 10px; border: 1px solid #0f3460; border-radius: 4px; background: #0f3460; color: #fff; font-size: 1em; }
 input:focus, select:focus { outline: none; border-color: #00d4ff; }
+.loading { color: #00d4ff; font-size: 0.85em; margin-top: 5px; }
+.success { color: #00ff88; font-size: 0.85em; margin-top: 5px; }
+.hint { color: #888; font-size: 0.85em; margin-top: 5px; font-style: italic; }
 .results { display: grid; grid-template-columns: repeat(8, 1fr); gap: 10px; }
 .results-small { grid-template-columns: repeat(5, 1fr); }
 .result-item { background: #0f3460; padding: 10px; border-radius: 6px; }
@@ -38,7 +50,11 @@ input:focus, select:focus { outline: none; border-color: #00d4ff; }
 <div class="row">
 <div class="field">
 <label>Item Name</label>
-<input type="text" id="itemName" placeholder="e.g. PLEX">
+<input type="text" id="itemName" placeholder="e.g. PLEX (press Enter to search)">
+<div class="hint" id="itemHint">Press Enter to lookup item price</div>
+<div class="loading" id="itemLoading" style="display: none;">Searching...</div>
+<div class="success" id="itemSuccess" style="display: none;"></div>
+<div class="error" id="itemError"></div>
 </div>
 <div class="field">
 <label>Item Price (ISK)</label>
@@ -50,10 +66,27 @@ input:focus, select:focus { outline: none; border-color: #00d4ff; }
 </div>
 <div class="field">
 <label>HyperCore Price (ISK)</label>
-<input type="number" id="hypercorePrice" min="0" value="100000">
+<input type="number" id="hypercorePrice" min="0" value="380000">
 </div>
 </div>
 <div class="row">
+<div class="field">
+<div class="label-with-tooltip">
+<label>HyperCores @ 10T</label>
+<span class="tooltip-icon">?</span>
+</div>
+<div class="tooltip">
+<strong>How to get this value:</strong>
+<ol>
+<li>In game, create a new HyperNet listing for any item</li>
+<li>Set the value to maximum: <code>10,000,000,000,000</code> (10 trillion ISK)</li>
+<li>Note the total number of HyperCores required</li>
+<li>Enter that number here to calculate the ratio</li>
+</ol>
+The ratio is calculated as: R = 10T ÷ HyperCores
+</div>
+<input type="number" id="hypercoresAt10T" min="1" value="1000000">
+</div>
 <div class="field">
 <label>Number of Tickets</label>
 <select id="numTickets">
@@ -107,6 +140,8 @@ input:focus, select:focus { outline: none; border-color: #00d4ff; }
 </div>
 
 <script>
+let currentItemId = null;
+
 function isk(n) {
   const abs = Math.abs(n);
   const sign = n < 0 ? '-' : '';
@@ -115,7 +150,108 @@ function isk(n) {
   if (abs >= 1e3) return sign + (abs / 1e3).toFixed(2) + 'K';
   return sign + abs.toFixed(2);
 }
-const RATIO = 1.012248e-07;
+
+async function searchItem(itemName) {
+  if (!itemName || itemName.trim().length === 0) {
+    return null;
+  }
+  
+  try {
+    const response = await fetch('https://esi.evetech.net/latest/universe/ids/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify([itemName.trim()])
+    });
+    
+    if (!response.ok) return null;
+    
+    const data = await response.json();
+    
+    if (data.inventory_types && data.inventory_types.length === 1) {
+      return data.inventory_types[0];
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Search error:', error);
+    return null;
+  }
+}
+
+async function getMarketPrice(typeId) {
+  try {
+    const response = await fetch('https://esi.evetech.net/latest/markets/prices/');
+    if (!response.ok) return null;
+    
+    const prices = await response.json();
+    const itemPrice = prices.find(p => p.type_id === typeId);
+    
+    if (itemPrice && itemPrice.average_price) {
+      return itemPrice.average_price;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Price lookup error:', error);
+    return null;
+  }
+}
+
+async function lookupItem() {
+  const itemNameInput = document.getElementById('itemName');
+  const itemPriceInput = document.getElementById('itemPrice');
+  const loading = document.getElementById('itemLoading');
+  const success = document.getElementById('itemSuccess');
+  const error = document.getElementById('itemError');
+  const hint = document.getElementById('itemHint');
+  
+  const itemName = itemNameInput.value.trim();
+  
+  if (!itemName) {
+    error.textContent = 'Please enter an item name';
+    return;
+  }
+  
+  hint.style.display = 'none';
+  loading.style.display = 'block';
+  success.style.display = 'none';
+  error.textContent = '';
+  
+  const item = await searchItem(itemName);
+  
+  if (!item) {
+    loading.style.display = 'none';
+    error.textContent = 'Item not found. Please check the exact item name.';
+    hint.style.display = 'block';
+    return;
+  }
+  
+  currentItemId = item.id;
+  
+  const price = await getMarketPrice(item.id);
+  loading.style.display = 'none';
+  
+  if (price) {
+    itemPriceInput.value = Math.round(price);
+    success.textContent = `Loaded market price for "${item.name}": ${isk(price)} ISK`;
+    success.style.display = 'block';
+    setTimeout(() => { 
+      success.style.display = 'none'; 
+      hint.style.display = 'block';
+    }, 5000);
+    calc();
+  } else {
+    error.textContent = `Found "${item.name}" but no market price available`;
+    hint.style.display = 'block';
+  }
+}
+
+document.getElementById('itemName').addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    lookupItem();
+  }
+});
 
 function calc() {
   const itemPrice = parseFloat(document.getElementById('itemPrice').value) || 0;
@@ -124,6 +260,7 @@ function calc() {
   const sellValue = parseFloat(document.getElementById('sellValue').value) || 0;
   const hypercorePrice = parseFloat(document.getElementById('hypercorePrice').value) || 0;
   const numRuns = parseInt(document.getElementById('numRuns').value) || 1;
+  const hypercoresAt10T = parseFloat(document.getElementById('hypercoresAt10T').value) || 1000000;
   
   const errEl = document.getElementById('ticketError');
   if (selfTickets > numTickets) {
@@ -132,8 +269,10 @@ function calc() {
   }
   errEl.textContent = '';
 
+  const ratio = 10000000000000 / hypercoresAt10T;
+
   const perTicket = sellValue / numTickets;
-  const hypercores = Math.max(1, Math.floor(sellValue * RATIO));
+  const hypercores = Math.max(1, Math.floor(sellValue / ratio));
   const hypercoreCost = hypercores * hypercorePrice;
   const winChance = selfTickets / numTickets;
   const grossRev = numTickets * perTicket;
@@ -212,7 +351,7 @@ function calc() {
   roiEl.className = 'value ' + (roiVal >= 0 ? 'profit' : 'loss');
 }
 
-document.querySelectorAll('input, select').forEach(el => el.addEventListener('input', calc));
+document.querySelectorAll('input:not(#itemName), select').forEach(el => el.addEventListener('input', calc));
 calc();
 </script>
 </body>
