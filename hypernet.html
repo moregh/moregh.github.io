@@ -7,18 +7,12 @@
 <style>
 * { box-sizing: border-box; }
 body { font-family: system-ui, sans-serif; background: #1a1a2e; color: #eee; padding: 15px; max-width: 1200px; margin: 0 auto; }
-h1 { color: #00d4ff; text-align: center; }
+h1 { color: #00d4ff; text-align: center; margin: 0; }
+h1 a { color: inherit; text-decoration: none; }
 .section { background: #16213e; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
 .section h2 { margin-top: 0; color: #00d4ff; font-size: 1.1em; border-bottom: 1px solid #0f3460; padding-bottom: 10px; }
 .row { display: flex; gap: 15px; margin-bottom: 15px; flex-wrap: wrap; }
 .field { flex: 1; min-width: 150px; position: relative; }
-a h1,
-a h1:visited,
-a h1:hover,
-a h1:active {
-  color: #00d4ff;
-  text-decoration-color: #00d4ff;
-}
 label { display: block; margin-bottom: 5px; color: #aaa; font-size: 0.9em; }
 .label-with-tooltip { display: flex; align-items: center; gap: 5px; }
 .tooltip-icon { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; background: #0f3460; color: #00d4ff; font-size: 0.75em; cursor: help; border: 0.8px solid #00d4ff; }
@@ -35,7 +29,7 @@ input:focus, select:focus { outline: none; border-color: #00d4ff; }
 .success { color: #00ff88; font-size: 0.85em; margin-top: 5px; }
 .hint { color: #888; font-size: 0.85em; margin-top: 5px; font-style: italic; }
 .results { display: grid; grid-template-columns: repeat(8, 1fr); gap: 10px; }
-.results-small { grid-template-columns: repeat(5, 1fr); }
+.results-runs { grid-template-columns: repeat(6, 1fr); }
 .result-item { background: #0f3460; padding: 8px; border-radius: 6px; }
 .result-item label { color: #888; font-size: 0.75em; margin-bottom: 3px; }
 .result-item .value { font-size: 1em; font-weight: bold; color: #00d4ff; }
@@ -47,8 +41,7 @@ input:focus, select:focus { outline: none; border-color: #00d4ff; }
 .profit { color: #00ff88 !important; }
 .loss { color: #ff4466 !important; }
 .error { color: #ff4466; font-size: 0.85em; margin-top: 5px; }
-.share-container { text-align: center; }
-.share-btn { background: #00d4ff; color: #1a1a2e; border: none; padding: 12px 24px; border-radius: 6px; font-size: 1em; font-weight: bold; cursor: pointer; transition: all 0.2s; display: inline-block; }
+.share-btn { background: #00d4ff; color: #1a1a2e; border: none; padding: 12px 24px; border-radius: 6px; font-size: 1em; font-weight: bold; cursor: pointer; transition: all 0.2s; }
 .share-btn:hover { background: #00b8e6; transform: translateY(-1px); }
 .share-btn:active { transform: translateY(0); }
 .share-result { margin-top: 15px; display: none; }
@@ -57,9 +50,8 @@ input:focus, select:focus { outline: none; border-color: #00d4ff; }
 </style>
 </head>
 <body>
-<a href="">
-<h1>EVE HyperNet Profit Calculator</h1>
-</a>
+<h1><a href="">EVE HyperNet Profit Calculator</a></h1>
+
 <div class="section">
 <div class="row">
 <div class="field">
@@ -103,9 +95,9 @@ input:focus, select:focus { outline: none; border-color: #00d4ff; }
 <div class="field">
 <label>Number of Tickets</label>
 <select id="numTickets">
-<option value="8" selected>8</option>
+<option value="8">8</option>
 <option value="16">16</option>
-<option value="48">48</option>
+<option value="48" selected>48</option>
 <option value="512">512</option>
 </select>
 </div>
@@ -124,14 +116,14 @@ input:focus, select:focus { outline: none; border-color: #00d4ff; }
 <div class="section">
 <h2>Per Run Analysis</h2>
 <div class="results" style="margin-bottom: 15px;">
-<div class="result-item"><label>Per Ticket Price</label><div class="value" id="perTicket">-</div></div>
-<div class="result-item"><label>HyperCores Req.</label><div class="value" id="hypercores">-</div></div>
-<div class="result-item"><label>HyperCore Cost</label><div class="value" id="hypercoreCost">-</div></div>
+<div class="result-item"><label>Per Ticket</label><div class="value" id="perTicket">-</div></div>
+<div class="result-item"><label>HyperCores</label><div class="value" id="hypercores">-</div></div>
+<div class="result-item"><label>Cores Cost</label><div class="value" id="hypercoreCost">-</div></div>
 <div class="result-item"><label>Win Chance</label><div class="value" id="winChance">-</div></div>
-<div class="result-item"><label>Gross Revenue</label><div class="value" id="grossRev">-</div></div>
+<div class="result-item"><label>Gross</label><div class="value" id="grossRev">-</div></div>
 <div class="result-item"><label>Tax (5%)</label><div class="value" id="taxAmt">-</div></div>
-<div class="result-item"><label>Net Revenue</label><div class="value" id="netRev">-</div></div>
-<div class="result-item"><label>Self Ticket Cost</label><div class="value" id="selfCost">-</div></div>
+<div class="result-item"><label>Net</label><div class="value" id="netRev">-</div></div>
+<div class="result-item"><label>Self Tickets</label><div class="value" id="selfCost">-</div></div>
 </div>
 <table class="breakdown-table">
 <tr><th></th><th>Item Cost</th><th>Self Tickets</th><th>HyperCores</th><th>Total Out</th><th>Net Revenue</th><th>Item Won</th><th>Total In</th><th>Profit/Loss</th></tr>
@@ -143,12 +135,13 @@ input:focus, select:focus { outline: none; border-color: #00d4ff; }
 
 <div class="section">
 <h2>Expected Average Over Runs</h2>
-<div class="results results-small">
+<div class="results results-runs">
 <div class="result-item"><label>Expected Wins</label><div class="value" id="expectedWins">-</div></div>
 <div class="result-item"><label>Expected Losses</label><div class="value" id="expectedLosses">-</div></div>
 <div class="result-item"><label>Total Investment</label><div class="value" id="totalInvest">-</div></div>
 <div class="result-item"><label>Total Expected Profit</label><div class="value" id="totalProfit">-</div></div>
 <div class="result-item"><label>ROI %</label><div class="value" id="roi">-</div></div>
+<div class="result-item"><label>No Win Likelihood</label><div class="value" id="riskLoss">-</div></div>
 </div>
 </div>
 
@@ -163,8 +156,6 @@ input:focus, select:focus { outline: none; border-color: #00d4ff; }
 </center>
 
 <script>
-let currentItemId = null;
-
 function isk(n) {
   const abs = Math.abs(n);
   const sign = n < 0 ? '-' : '';
@@ -173,36 +164,6 @@ function isk(n) {
   if (abs >= 1e3) return sign + (abs / 1e3).toFixed(2) + 'K';
   return sign + abs.toFixed(2);
 }
-
-async function encodeState(str) {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(str);
-  const cs = new CompressionStream("gzip");
-  const writer = cs.writable.getWriter();
-  writer.write(data);
-  writer.close();
-  const compressed = await new Response(cs.readable).arrayBuffer();
-  return btoa(
-    String.fromCharCode(...new Uint8Array(compressed))
-  )
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
-}
-
-async function decodeState(str) {
-  str = str.replace(/-/g, "+").replace(/_/g, "/");
-  while (str.length % 4) str += "=";
-  const binary = Uint8Array.from(atob(str), c => c.charCodeAt(0));
-  const ds = new DecompressionStream("gzip");
-  const writer = ds.writable.getWriter();
-  writer.write(binary);
-  writer.close();
-  const decompressed = await new Response(ds.readable).arrayBuffer();
-  const decoder = new TextDecoder();
-  return decoder.decode(decompressed);
-}
-
 
 async function loadConfigFromHash() {
   const hash = window.location.hash.substring(1);
@@ -238,7 +199,6 @@ async function generateShareLink() {
   
   document.getElementById('shareResult').style.display = 'block';
   
-  // Automatically copy to clipboard
   navigator.clipboard.writeText(url).then(() => {
     const success = document.getElementById('copySuccess');
     success.style.display = 'block';
@@ -248,14 +208,8 @@ async function generateShareLink() {
   });
 }
 
-function copyShareLink() {
-  // Function no longer needed but kept for compatibility
-}
-
 async function searchItem(itemName) {
-  if (!itemName || itemName.trim().length === 0) {
-    return null;
-  }
+  if (!itemName || itemName.trim().length === 0) return null;
   
   try {
     const response = await fetch('https://esi.evetech.net/latest/universe/ids/', {
@@ -265,14 +219,8 @@ async function searchItem(itemName) {
     });
     
     if (!response.ok) return null;
-    
     const data = await response.json();
-    
-    if (data.inventory_types && data.inventory_types.length === 1) {
-      return data.inventory_types[0];
-    }
-    
-    return null;
+    return data.inventory_types?.[0] || null;
   } catch (error) {
     console.error('Search error:', error);
     return null;
@@ -286,12 +234,7 @@ async function getMarketPrice(typeId) {
     
     const prices = await response.json();
     const itemPrice = prices.find(p => p.type_id === typeId);
-    
-    if (itemPrice && itemPrice.average_price) {
-      return itemPrice.average_price;
-    }
-    
-    return null;
+    return itemPrice?.average_price || null;
   } catch (error) {
     console.error('Price lookup error:', error);
     return null;
@@ -326,8 +269,6 @@ async function lookupItem() {
     hint.style.display = 'block';
     return;
   }
-  
-  currentItemId = item.id;
   
   const price = await getMarketPrice(item.id);
   loading.style.display = 'none';
@@ -371,7 +312,6 @@ function calc() {
   errEl.textContent = '';
 
   const ratio = 10000000000000 / hypercoresAt10T;
-
   const perTicket = sellValue / numTickets;
   const hypercores = Math.max(1, Math.floor(sellValue / ratio));
   const hypercoreCost = hypercores * hypercorePrice;
@@ -391,11 +331,9 @@ function calc() {
   document.getElementById('selfCost').textContent = isk(selfCost);
 
   const baseOut = itemPrice + selfCost + hypercoreCost;
-
   const loseOut = baseOut;
   const loseIn = netRev;
   const loseProfit = loseIn - loseOut;
-
   const winOut = baseOut;
   const winIn = netRev + itemPrice;
   const winProfit = winIn - winOut;
@@ -429,6 +367,10 @@ function calc() {
   const roiVal = totalInvest > 0 ? (totalProfitVal / totalInvest) * 100 : 0;
   const avgWonVal = itemPrice * winChance;
   const avgInVal = netRev + avgWonVal;
+  
+  // Calculate risk of total loss (losing all runs)
+  const loseChance = 1 - winChance;
+  const riskTotalLoss = Math.pow(loseChance, numRuns) * 100;
 
   document.getElementById('avgItem').textContent = isk(itemPrice);
   document.getElementById('avgSelf').textContent = isk(selfCost);
@@ -450,6 +392,9 @@ function calc() {
   const roiEl = document.getElementById('roi');
   roiEl.textContent = roiVal.toFixed(2) + '%';
   roiEl.className = 'value ' + (roiVal >= 0 ? 'profit' : 'loss');
+  const riskEl = document.getElementById('riskLoss');
+  riskEl.textContent = riskTotalLoss.toFixed(2) + '%';
+  riskEl.className = 'value ' + (riskTotalLoss > 50 ? 'loss' : riskTotalLoss > 25 ? 'value' : 'profit');
 }
 
 function b62(n) {
@@ -505,17 +450,7 @@ function b62ToStr(encoded) {
 }
 
 async function encodeConfig() {
-  const d = {
-    itemName: '',
-    itemPrice: 1000000000,
-    sellValue: 1100000000,
-    hypercorePrice: 380000,
-    hypercoresAt10T: 1000000,
-    numTickets: 48,
-    selfTickets: 0,
-    numRuns: 1
-  };
-  
+  const d = ['', 1000000000, 1100000000, 380000, 1000000, 48, 0, 1];
   const v = [
     document.getElementById('itemName').value,
     parseFloat(document.getElementById('itemPrice').value) || 0,
@@ -527,17 +462,14 @@ async function encodeConfig() {
     parseInt(document.getElementById('numRuns').value) || 1
   ];
   
-  const k = ['itemName', 'itemPrice', 'sellValue', 'hypercorePrice', 'hypercoresAt10T', 'numTickets', 'selfTickets', 'numRuns'];
   const p = [];
-  
   for (let i = 0; i < v.length; i++) {
     if (i === 0) {
       if (v[i]) p.push('0:' + strToB62(v[i]));
-    } else if (v[i] !== d[k[i]]) {
+    } else if (v[i] !== d[i]) {
       p.push(i + ':' + b62(v[i]));
     }
   }
-  
   return p.join('~');
 }
 
@@ -574,11 +506,7 @@ async function decodeConfig(encoded) {
 }
 
 document.querySelectorAll('input:not(#itemName), select').forEach(el => el.addEventListener('input', calc));
-
-window.addEventListener('DOMContentLoaded', () => {
-  loadConfigFromHash();
-});
-
+window.addEventListener('DOMContentLoaded', loadConfigFromHash);
 calc();
 </script>
 </body>
