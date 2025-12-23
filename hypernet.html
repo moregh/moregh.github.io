@@ -122,7 +122,7 @@ input:focus, select:focus { outline: none; border-color: #00d4ff; }
 </div>
 </div>
 <div class="rebate-info" id="rebateInfo" style="display: none;">
-Rebate active: If you win, you'll pay out <span id="rebateAmount">-</span> ISK to <span id="rebateCount">-</span> other ticket holders.
+Total payout is <span id="rebateAmount">-</span> ISK to <span id="rebateCount">-</span> other players (<span id="rebateAverage">-</span> each).
 </div>
 </div>
 
@@ -358,6 +358,7 @@ function calc() {
     rebateInfo.style.display = 'block';
     document.getElementById('rebateAmount').textContent = isk(totalRebatePaid);
     document.getElementById('rebateCount').textContent = rebateTickets;
+    document.getElementById('rebateAverage').textContent = isk(rebatePerTicket);
   } else {
     rebateInfo.style.display = 'none';
   }
