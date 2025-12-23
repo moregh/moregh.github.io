@@ -17,8 +17,8 @@ label { display: block; margin-bottom: 5px; color: #aaa; font-size: 0.9em; }
 .label-with-tooltip { display: flex; align-items: center; gap: 5px; }
 .tooltip-icon { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; background: #0f3460; color: #00d4ff; font-size: 0.75em; cursor: help; border: 0.8px solid #00d4ff; }
 .tooltip-icon:hover { background: #00d4ff; color: #0f3460; }
-.tooltip { position: absolute; bottom: 100%; left: 0; right: 0; background: #0f3460; border: 1px solid #00d4ff; border-radius: 4px; padding: 12px; margin-bottom: 8px; font-size: 0.85em; line-height: 1.4; z-index: 1000; display: none; box-shadow: 0 4px 12px rgba(0, 212, 255, 0.3); }
-.tooltip::after { content: ''; position: absolute; top: 100%; left: 20px; border: 6px solid transparent; border-top-color: #00d4ff; }
+.tooltip { position: absolute; top: 100%; left: 0; right: 0; background: #0f3460; border: 1px solid #00d4ff; border-radius: 4px; padding: 12px; margin-top: 8px; font-size: 0.85em; line-height: 1.4; z-index: 1000; display: none; box-shadow: 0 4px 12px rgba(0, 212, 255, 0.3); }
+.tooltip::after { content: ''; position: absolute; bottom: 100%; left: 20px; border: 6px solid transparent; border-bottom-color: #00d4ff; }
 .field:hover .tooltip { display: block; }
 .tooltip ol { margin: 8px 0; padding-left: 20px; }
 .tooltip li { margin: 4px 0; }
@@ -47,6 +47,7 @@ input:focus, select:focus { outline: none; border-color: #00d4ff; }
 .share-result { margin-top: 15px; display: none; }
 .share-link { color: #00d4ff; text-decoration: none; font-size: 0.9em; word-break: break-all; padding: 8px; background: #0f3460; border-radius: 4px; display: inline-block; max-width: 100%; border: 1px solid #00d4ff; }
 .share-link:hover { background: #1a1a2e; text-decoration: underline; }
+.rebate-info { background: #0f3460; padding: 10px; border-radius: 6px; margin-top: 10px; font-size: 0.9em; color: #00ff88; border-left: 3px solid #00ff88; }
 </style>
 </head>
 <body>
@@ -74,8 +75,6 @@ input:focus, select:focus { outline: none; border-color: #00d4ff; }
 <label>HyperCore Price (ISK)</label>
 <input type="number" id="hypercorePrice" min="0" value="380000">
 </div>
-</div>
-<div class="row">
 <div class="field">
 <div class="label-with-tooltip">
 <label>HyperCores @ 10T</label>
@@ -92,12 +91,14 @@ input:focus, select:focus { outline: none; border-color: #00d4ff; }
 </div>
 <input type="number" id="hypercoresAt10T" min="1" value="1000000">
 </div>
+</div>
+<div class="row">
 <div class="field">
 <label>Number of Tickets</label>
 <select id="numTickets">
-<option value="8">8</option>
+<option value="8" selected>8</option>
 <option value="16">16</option>
-<option value="48" selected>48</option>
+<option value="48">48</option>
 <option value="512">512</option>
 </select>
 </div>
@@ -110,8 +111,22 @@ input:focus, select:focus { outline: none; border-color: #00d4ff; }
 <label>Number of Runs</label>
 <input type="number" id="numRuns" min="1" value="1">
 </div>
+<div class="field">
+<label>Rebate % (If You Win)</label>
+<input type="number" id="rebatePercent" min="0" max="100" value="0">
+</div>
+<div class="field">
+<label>Rebated Tickets</label>
+<input type="number" id="rebateTickets" min="0" value="0">
+<div class="error" id="rebateError"></div>
 </div>
 </div>
+<div class="rebate-info" id="rebateInfo" style="display: none;">
+Rebate active: If you win, you'll pay out <span id="rebateAmount">-</span> ISK to <span id="rebateCount">-</span> other ticket holders.
+</div>
+</div>
+
+
 
 <div class="section">
 <h2>Per Run Analysis</h2>
@@ -126,10 +141,10 @@ input:focus, select:focus { outline: none; border-color: #00d4ff; }
 <div class="result-item"><label>Self Tickets</label><div class="value" id="selfCost">-</div></div>
 </div>
 <table class="breakdown-table">
-<tr><th></th><th>Item Cost</th><th>Self Tickets</th><th>HyperCores</th><th>Total Out</th><th>Net Revenue</th><th>Item Won</th><th>Total In</th><th>Profit/Loss</th></tr>
-<tr><td>If You Lose</td><td id="loseItem">-</td><td id="loseSelf">-</td><td id="loseHC">-</td><td id="loseOut">-</td><td id="loseRev">-</td><td>-</td><td id="loseIn">-</td><td id="loseProfit">-</td></tr>
-<tr><td>If You Win</td><td id="winItem">-</td><td id="winSelf">-</td><td id="winHC">-</td><td id="winOut">-</td><td id="winRev">-</td><td id="winWon">-</td><td id="winIn">-</td><td id="winProfit">-</td></tr>
-<tr style="border-top: 2px solid #00d4ff;"><td>Average</td><td id="avgItem">-</td><td id="avgSelf">-</td><td id="avgHC">-</td><td id="avgOut">-</td><td id="avgRev">-</td><td id="avgWon">-</td><td id="avgIn">-</td><td id="avgProfitRow">-</td></tr>
+<tr><th></th><th>Item Cost</th><th>Self Tickets</th><th>HyperCores</th><th>Rebate Paid</th><th>Total Out</th><th>Net Revenue</th><th>Item Won</th><th>Total In</th><th>Profit/Loss</th></tr>
+<tr><td>If You Lose</td><td id="loseItem">-</td><td id="loseSelf">-</td><td id="loseHC">-</td><td>-</td><td id="loseOut">-</td><td id="loseRev">-</td><td>-</td><td id="loseIn">-</td><td id="loseProfit">-</td></tr>
+<tr><td>If You Win</td><td id="winItem">-</td><td id="winSelf">-</td><td id="winHC">-</td><td id="winRebate">-</td><td id="winOut">-</td><td id="winRev">-</td><td id="winWon">-</td><td id="winIn">-</td><td id="winProfit">-</td></tr>
+<tr style="border-top: 2px solid #00d4ff;"><td>Average</td><td id="avgItem">-</td><td id="avgSelf">-</td><td id="avgHC">-</td><td id="avgRebate">-</td><td id="avgOut">-</td><td id="avgRev">-</td><td id="avgWon">-</td><td id="avgIn">-</td><td id="avgProfitRow">-</td></tr>
 </table>
 </div>
 
@@ -177,9 +192,11 @@ async function loadConfigFromHash() {
   document.getElementById('sellValue').value = config.sv || 0;
   document.getElementById('hypercorePrice').value = config.hp || 0;
   document.getElementById('hypercoresAt10T').value = config.hc || 1000000;
-  document.getElementById('numTickets').value = config.nt || 48;
+  document.getElementById('numTickets').value = config.nt || 8;
   document.getElementById('selfTickets').value = config.st || 0;
   document.getElementById('numRuns').value = config.nr || 1;
+  document.getElementById('rebatePercent').value = config.rp || 0;
+  document.getElementById('rebateTickets').value = config.rt || 0;
   
   calc();
   
@@ -303,6 +320,8 @@ function calc() {
   const hypercorePrice = parseFloat(document.getElementById('hypercorePrice').value) || 0;
   const numRuns = parseInt(document.getElementById('numRuns').value) || 1;
   const hypercoresAt10T = parseFloat(document.getElementById('hypercoresAt10T').value) || 1000000;
+  const rebatePercent = parseFloat(document.getElementById('rebatePercent').value) || 0;
+  const rebateTickets = parseInt(document.getElementById('rebateTickets').value) || 0;
   
   const errEl = document.getElementById('ticketError');
   if (selfTickets > numTickets) {
@@ -310,6 +329,14 @@ function calc() {
     return;
   }
   errEl.textContent = '';
+
+  const rebateErrEl = document.getElementById('rebateError');
+  const maxRebateTickets = numTickets - selfTickets;
+  if (rebateTickets > maxRebateTickets) {
+    rebateErrEl.textContent = `Max ${maxRebateTickets} (excludes self tickets)`;
+    return;
+  }
+  rebateErrEl.textContent = '';
 
   const ratio = 10000000000000 / hypercoresAt10T;
   const perTicket = sellValue / numTickets;
@@ -321,6 +348,20 @@ function calc() {
   const netRev = grossRev * 0.95;
   const selfCost = selfTickets * perTicket;
 
+  // Calculate rebate amounts (only for other people's tickets, not self)
+  const rebatePerTicket = perTicket * (rebatePercent / 100);
+  const totalRebatePaid = rebateTickets * rebatePerTicket;
+
+  // Show rebate info
+  const rebateInfo = document.getElementById('rebateInfo');
+  if (rebatePercent > 0 && rebateTickets > 0) {
+    rebateInfo.style.display = 'block';
+    document.getElementById('rebateAmount').textContent = isk(totalRebatePaid);
+    document.getElementById('rebateCount').textContent = rebateTickets;
+  } else {
+    rebateInfo.style.display = 'none';
+  }
+
   document.getElementById('perTicket').textContent = isk(perTicket);
   document.getElementById('hypercores').textContent = hypercores;
   document.getElementById('hypercoreCost').textContent = isk(hypercoreCost);
@@ -330,11 +371,14 @@ function calc() {
   document.getElementById('netRev').textContent = isk(netRev);
   document.getElementById('selfCost').textContent = isk(selfCost);
 
+  // If you lose - no rebate paid
   const baseOut = itemPrice + selfCost + hypercoreCost;
   const loseOut = baseOut;
   const loseIn = netRev;
   const loseProfit = loseIn - loseOut;
-  const winOut = baseOut;
+
+  // If you win - rebate is paid
+  const winOut = baseOut + totalRebatePaid;
   const winIn = netRev + itemPrice;
   const winProfit = winIn - winOut;
 
@@ -351,6 +395,7 @@ function calc() {
   document.getElementById('winItem').textContent = isk(itemPrice);
   document.getElementById('winSelf').textContent = isk(selfCost);
   document.getElementById('winHC').textContent = isk(hypercoreCost);
+  document.getElementById('winRebate').textContent = isk(totalRebatePaid);
   document.getElementById('winOut').textContent = isk(winOut);
   document.getElementById('winRev').textContent = isk(netRev);
   document.getElementById('winWon').textContent = isk(itemPrice);
@@ -361,9 +406,11 @@ function calc() {
 
   const expectedWins = numRuns * winChance;
   const expectedLosses = numRuns * (1 - winChance);
+  const avgRebatePaid = totalRebatePaid * winChance;
   const avgProfitVal = (winProfit * winChance) + (loseProfit * (1 - winChance));
   const totalProfitVal = avgProfitVal * numRuns;
-  const totalInvest = baseOut * numRuns;
+  const avgOutVal = baseOut + avgRebatePaid;
+  const totalInvest = avgOutVal * numRuns;
   const roiVal = totalInvest > 0 ? (totalProfitVal / totalInvest) * 100 : 0;
   const avgWonVal = itemPrice * winChance;
   const avgInVal = netRev + avgWonVal;
@@ -375,7 +422,8 @@ function calc() {
   document.getElementById('avgItem').textContent = isk(itemPrice);
   document.getElementById('avgSelf').textContent = isk(selfCost);
   document.getElementById('avgHC').textContent = isk(hypercoreCost);
-  document.getElementById('avgOut').textContent = isk(baseOut);
+  document.getElementById('avgRebate').textContent = isk(avgRebatePaid);
+  document.getElementById('avgOut').textContent = isk(avgOutVal);
   document.getElementById('avgRev').textContent = isk(netRev);
   document.getElementById('avgWon').textContent = isk(avgWonVal);
   document.getElementById('avgIn').textContent = isk(avgInVal);
@@ -450,7 +498,7 @@ function b62ToStr(encoded) {
 }
 
 async function encodeConfig() {
-  const d = ['', 1000000000, 1100000000, 380000, 1000000, 48, 0, 1];
+  const d = ['', 1000000000, 1100000000, 380000, 1000000, 8, 0, 1, 0, 0];
   const v = [
     document.getElementById('itemName').value,
     parseFloat(document.getElementById('itemPrice').value) || 0,
@@ -459,7 +507,9 @@ async function encodeConfig() {
     parseFloat(document.getElementById('hypercoresAt10T').value) || 1000000,
     parseInt(document.getElementById('numTickets').value),
     parseInt(document.getElementById('selfTickets').value) || 0,
-    parseInt(document.getElementById('numRuns').value) || 1
+    parseInt(document.getElementById('numRuns').value) || 1,
+    parseFloat(document.getElementById('rebatePercent').value) || 0,
+    parseInt(document.getElementById('rebateTickets').value) || 0
   ];
   
   const p = [];
@@ -475,7 +525,7 @@ async function encodeConfig() {
 
 async function decodeConfig(encoded) {
   try {
-    const d = ['', 1000000000, 1100000000, 380000, 1000000, 48, 0, 1];
+    const d = ['', 1000000000, 1100000000, 380000, 1000000, 8, 0, 1, 0, 0];
     const v = [...d];
     const parts = encoded.split('~');
     
@@ -495,9 +545,11 @@ async function decodeConfig(encoded) {
       sv: v[2] || 0,
       hp: v[3] || 0,
       hc: v[4] || 1000000,
-      nt: v[5] || 48,
+      nt: v[5] || 8,
       st: v[6] || 0,
-      nr: v[7] || 1
+      nr: v[7] || 1,
+      rp: v[8] || 0,
+      rt: v[9] || 0
     };
   } catch (e) {
     console.error('Failed to decode config:', e);
