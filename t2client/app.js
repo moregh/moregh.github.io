@@ -148,6 +148,16 @@ function compactPercent(value) {
   return `${compact(value, 1)}%`;
 }
 
+function ratioPercent(numerator, denominator) {
+  if (!denominator) return "-";
+  return `${Math.round((numerator / denominator) * 100)}%`;
+}
+
+function compactPair(pair) {
+  if (!Array.isArray(pair) || pair.length < 2) return "-";
+  return `${compact(pair[0])}/${compact(pair[1])}`;
+}
+
 function fullValue(field, value) {
   if (value === null || value === undefined || Number.isNaN(value)) return "-";
   if (["profitPerM3", "profit", "profitToBuy", "buildCost", "sellPrice", "buyPrice"].includes(field)) {
@@ -222,18 +232,29 @@ function setSummaryMessage(message) {
 }
 
 function cacheSummaryCards() {
-  if (!cacheStatusData) return [["Hubs", "Preparing"], ["Refresh", "-"]];
+  if (!cacheStatusData) {
+    return [["Hubs", "Preparing"], ["Orders", "-"], ["History", "-"], ["Refresh", "-"], ["API Cache", "-"]];
+  }
+  if (Array.isArray(cacheStatusData.w)) {
+    const [running, completed, total] = cacheStatusData.w;
+    const [apiHits = 0, apiMisses = 0] = cacheStatusData.a || [];
+    const apiTotal = apiHits + apiMisses;
+    return [
+      ["Hubs", compactPair(cacheStatusData.h)],
+      ["Orders", compactPair(cacheStatusData.o)],
+      ["History", compactPair(cacheStatusData.m)],
+      ["Refresh", running ? ratioPercent(completed, total) : "Idle"],
+      ["API Cache", ratioPercent(apiHits, apiTotal)],
+    ];
+  }
   const hubCount = cacheStatusData.hubs?.length || 0;
   const availableHubs = cacheStatusData.hubs?.filter((hub) => (
     hub.availableOrders > 0 && hub.availableHistory > 0
   )).length || 0;
-  if (!cacheStatusData.running) {
-    return [["Hubs", `${availableHubs}/${hubCount}`], ["Refresh", "Idle"]];
-  }
   const percentDone = cacheStatusData.total
-    ? Math.round((cacheStatusData.completed / cacheStatusData.total) * 100)
-    : 100;
-  return [["Hubs", `${availableHubs}/${hubCount}`], ["Refresh", `${percentDone}%`]];
+    ? `${Math.round((cacheStatusData.completed / cacheStatusData.total) * 100)}%`
+    : "Idle";
+  return [["Hubs", `${availableHubs}/${hubCount}`], ["Refresh", cacheStatusData.running ? percentDone : "Idle"]];
 }
 
 function selectedKinds() {
