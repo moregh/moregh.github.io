@@ -316,6 +316,19 @@ function buildSettingsKey() {
   ].join("|");
 }
 
+function rigLabel(rig, context) {
+  if (rig.id === "none") return `No ${context} rig`;
+  if (rig.id === "t1") return `Tech I ${context} rig`;
+  if (rig.id === "t2") return `Tech II ${context} rig`;
+  return `${rig.name} (${context})`;
+}
+
+function rigOptions(context) {
+  return staticData.rigProfiles.map((rig) => (
+    `<option value="${rig.id}">${rigLabel(rig, context)}</option>`
+  )).join("");
+}
+
 function inflateItem(row) {
   if (!Array.isArray(row)) return row;
   return Object.fromEntries(itemFields.map((field, index) => [field, row[index]]));
@@ -734,11 +747,8 @@ async function loadStaticData() {
     )).join("");
   }
   if (staticData.rigProfiles) {
-    const rigOptions = staticData.rigProfiles.map((rig) => (
-      `<option value="${rig.id}">${rig.name}</option>`
-    )).join("");
-    productRig.innerHTML = rigOptions;
-    componentRig.innerHTML = rigOptions;
+    productRig.innerHTML = rigOptions("final item");
+    componentRig.innerHTML = rigOptions("input build");
   }
   if (staticData.decryptors) {
     decryptor.innerHTML = staticData.decryptors.map((item) => (

@@ -23,7 +23,7 @@
         </label>
 
         <label class="hub-filter">
-          Source hub
+          Materials hub
           <select id="sourceHub">
             <option value="jita" selected>Jita 4-4</option>
             <option value="amarr">Amarr</option>
@@ -33,7 +33,7 @@
         </label>
 
         <label class="hub-filter">
-          Sell hub
+          Sales hub
           <select id="sellHub">
             <option value="jita" selected>Jita 4-4</option>
             <option value="amarr">Amarr</option>
@@ -50,7 +50,7 @@
             <datalist id="solarSystems"></datalist>
           </label>
           <label>
-            Structure
+            Build structure
             <select id="structureType">
               <option value="raitaru">Raitaru</option>
               <option value="azbel">Azbel</option>
@@ -65,23 +65,23 @@
             </select>
           </label>
           <label>
-            T2 rig
+            Final item rig
             <select id="productRig">
-              <option value="none" selected>No rig</option>
-              <option value="t1">T1 rig</option>
-              <option value="t2">T2 rig</option>
+              <option value="none" selected>No final item rig</option>
+              <option value="t1">Tech I final item rig</option>
+              <option value="t2">Tech II final item rig</option>
             </select>
           </label>
           <label>
-            Component rig
+            Input build rig
             <select id="componentRig">
-              <option value="none" selected>No rig</option>
-              <option value="t1">T1 rig</option>
-              <option value="t2">T2 rig</option>
+              <option value="none" selected>No input build rig</option>
+              <option value="t1">Tech I input build rig</option>
+              <option value="t2">Tech II input build rig</option>
             </select>
           </label>
           <label>
-            Decryptor
+            Invention decryptor
             <select id="decryptor">
               <option value="none" selected>No decryptor</option>
             </select>
@@ -95,27 +95,27 @@
             <input id="maxProfit" type="number" step="100000" placeholder="Max">
           </fieldset>
           <fieldset class="range-pair">
-            <legend>ISK/m3</legend>
+            <legend>Profit/m3</legend>
             <input id="minProfitM3" type="number" step="1000" placeholder="Min">
             <input id="maxProfitM3" type="number" step="1000" placeholder="Max">
           </fieldset>
           <fieldset class="range-pair">
-            <legend>Daily</legend>
+            <legend>Daily volume</legend>
             <input id="minDailyVolume" type="number" min="0" step="1" placeholder="Min">
             <input id="maxDailyVolume" type="number" min="0" step="1" placeholder="Max">
           </fieldset>
           <fieldset class="range-pair">
-            <legend>Orders</legend>
+            <legend>Sell orders</legend>
             <input id="minOrders" type="number" min="0" step="1" placeholder="Min">
             <input id="maxOrders" type="number" min="0" step="1" placeholder="Max">
           </fieldset>
           <fieldset class="range-pair">
-            <legend>Cost</legend>
+            <legend>Build cost</legend>
             <input id="minCost" type="number" min="0" step="1000000" placeholder="Min">
             <input id="maxCost" type="number" min="0" step="1000000" placeholder="Max">
           </fieldset>
           <fieldset class="range-pair">
-            <legend>m3</legend>
+            <legend>Packaged m3</legend>
             <input id="minM3" type="number" min="0" step="1" placeholder="Min">
             <input id="maxM3" type="number" min="0" step="1" placeholder="Max">
           </fieldset>
@@ -158,16 +158,16 @@
               <th><button class="sort" data-sort="kind">Type</button></th>
               <th><button class="sort" data-sort="profitPerM3">ISK/m3</button></th>
               <th><button class="sort" data-sort="profit">Profit</button></th>
-              <th><button class="sort" data-sort="margin">%</button></th>
-              <th><button class="sort" data-sort="profitToBuy">Buy P</button></th>
-              <th><button class="sort" data-sort="buildCost">Cost</button></th>
-              <th><button class="sort" data-sort="sellPrice">Sell</button></th>
-              <th><button class="sort" data-sort="buyPrice">Buy</button></th>
+              <th><button class="sort" data-sort="margin">Sell %</button></th>
+              <th><button class="sort" data-sort="profitToBuy">Buy profit</button></th>
+              <th><button class="sort" data-sort="buildCost">Build cost</button></th>
+              <th><button class="sort" data-sort="sellPrice">Sell price</button></th>
+              <th><button class="sort" data-sort="buyPrice">Buy order</button></th>
               <th><button class="sort" data-sort="buyMargin">Buy %</button></th>
-              <th><button class="sort" data-sort="dailyVolume">Daily</button></th>
-              <th><button class="sort" data-sort="sellOrders">Orders</button></th>
-              <th><button class="sort" data-sort="sellVolume">Listed</button></th>
-              <th><button class="sort" data-sort="volume">m3</button></th>
+              <th><button class="sort" data-sort="dailyVolume">Daily sold</button></th>
+              <th><button class="sort" data-sort="sellOrders">Sell orders</button></th>
+              <th><button class="sort" data-sort="sellVolume">Listed qty</button></th>
+              <th><button class="sort" data-sort="volume">Packaged m3</button></th>
             </tr>
           </thead>
           <tbody id="rows">
