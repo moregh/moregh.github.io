@@ -318,8 +318,8 @@ function buildSettingsKey() {
 
 function rigLabel(rig, context) {
   if (rig.id === "none") return `No ${context} rig`;
-  if (rig.id === "t1") return `Tech I ${context} rig`;
-  if (rig.id === "t2") return `Tech II ${context} rig`;
+  if (rig.id === "t1") return `T1 ${context} rig`;
+  if (rig.id === "t2") return `T2 ${context} rig`;
   return `${rig.name} (${context})`;
 }
 
@@ -747,8 +747,8 @@ async function loadStaticData() {
     )).join("");
   }
   if (staticData.rigProfiles) {
-    productRig.innerHTML = rigOptions("final item");
-    componentRig.innerHTML = rigOptions("input build");
+    productRig.innerHTML = rigOptions("product");
+    componentRig.innerHTML = rigOptions("components");
   }
   if (staticData.decryptors) {
     decryptor.innerHTML = staticData.decryptors.map((item) => (
