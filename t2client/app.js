@@ -620,7 +620,7 @@ async function fetchItems(typeIds, signal) {
   return apiFetch("/api/items", {
     method: "POST",
     signal,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "text/plain;charset=UTF-8" },
     body: JSON.stringify({
       s: sourceHub.value,
       b: sellHub.value,
