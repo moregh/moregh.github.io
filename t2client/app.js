@@ -56,8 +56,6 @@ const CLIENT_RETRY_MS = 5 * 60 * 1000;
 const NEGATIVE_CACHE_MS = CLIENT_RETRY_MS;
 const API_BASES = [
   "https://api.styrofoamxylophone.com",
-  "http://localhost:8000",
-  "http://127.0.0.1:8000",
 ];
 let activeApiBase = null;
 const iskFormatter = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
