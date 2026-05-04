@@ -41,6 +41,7 @@ let staticTypes = new Map();
 let staticSystems = new Map();
 let sortState = { key: "profitPerM3", direction: "desc" };
 let cachePoll = null;
+let itemPoll = null;
 let refreshTimer = null;
 let expiryTimer = null;
 let refreshSeq = 0;
@@ -51,8 +52,11 @@ let cacheStatusData = null;
 const itemCache = new Map();
 const ITEM_CACHE_SCHEMA = "cost-model-v3";
 const AUTO_REFRESH_MIN_DELAY_MS = 5_000;
+const AUTO_POLL_INTERVAL_MS = 15_000;
+const AUTO_REFRESH_BATCH_SIZE = 150;
 const AUTO_REFRESH_WINDOW_MS = 0;
 const CLIENT_RETRY_MS = 5 * 60 * 1000;
+const CLIENT_RECHECK_JITTER_MS = 2 * 60 * 1000;
 const NEGATIVE_CACHE_MS = CLIENT_RETRY_MS;
 const API_BASES = [
   "https://api.styrofoamxylophone.com",
@@ -419,10 +423,19 @@ function cachedEntry(typeId) {
   return itemCache.get(itemCacheKey(typeId)) || null;
 }
 
+function stableJitterMs(typeId, windowMs = CLIENT_RECHECK_JITTER_MS) {
+  const value = Number(typeId) || 0;
+  return Math.abs((value * 1103515245 + 12345) % windowMs);
+}
+
+function entryRefreshAt(entry) {
+  return Date.parse(entry?.refreshAfter || entry?.validUntil);
+}
+
 function cacheEntryNeedsRefresh(typeId, refreshWindowMs = 0) {
   const entry = itemCache.get(itemCacheKey(typeId));
-  const expiresAt = Date.parse(entry?.validUntil);
-  return !entry || !Number.isFinite(expiresAt) || Date.now() >= expiresAt - refreshWindowMs;
+  const refreshAt = entryRefreshAt(entry);
+  return !entry || !Number.isFinite(refreshAt) || Date.now() >= refreshAt - refreshWindowMs;
 }
 
 function usableValidUntil(validUntil, fallbackMs = CLIENT_RETRY_MS) {
@@ -433,6 +446,12 @@ function usableValidUntil(validUntil, fallbackMs = CLIENT_RETRY_MS) {
 
 function negativeValidUntil() {
   return new Date(Date.now() + NEGATIVE_CACHE_MS).toISOString();
+}
+
+function refreshAfterFor(typeId, validUntil) {
+  const parsed = Date.parse(validUntil);
+  const base = Number.isFinite(parsed) ? Math.max(parsed, Date.now() + AUTO_REFRESH_MIN_DELAY_MS) : Date.now() + CLIENT_RETRY_MS;
+  return new Date(base + stableJitterMs(typeId)).toISOString();
 }
 
 function comparableValue(value) {
@@ -583,8 +602,7 @@ function renderRows(items) {
 function scheduleNextExpiryRefresh(typeIds) {
   window.clearTimeout(expiryTimer);
   const expiries = typeIds
-    .map((typeId) => itemCache.get(itemCacheKey(typeId))?.validUntil)
-    .map((validUntil) => Date.parse(validUntil))
+    .map((typeId) => entryRefreshAt(itemCache.get(itemCacheKey(typeId))))
     .filter((time) => Number.isFinite(time));
   if (!expiries.length) return;
   const nextExpiry = Math.min(...expiries);
@@ -738,9 +756,12 @@ async function loadStaticData() {
 }
 
 async function refreshAnalysis(options = {}) {
+  if (options.automatic && activeRequest) return;
   const seq = ++refreshSeq;
-  if (activeRequest) activeRequest.abort();
-  activeRequest = null;
+  if (!options.automatic && activeRequest) {
+    activeRequest.abort();
+    activeRequest = null;
+  }
   if (!options.automatic) setSummaryMessage("Checking local cache");
   if (!currentData) rows.innerHTML = `<tr><td colspan="14" class="empty">Loading market analysis.</td></tr>`;
   if (!options.automatic) details.textContent = "";
@@ -764,7 +785,14 @@ async function refreshAnalysis(options = {}) {
       return;
     }
     const refreshWindowMs = options.automatic ? AUTO_REFRESH_WINDOW_MS : 0;
-    const missingTypeIds = typeIds.filter((typeId) => cacheEntryNeedsRefresh(typeId, refreshWindowMs));
+    const dueTypeIds = typeIds
+      .filter((typeId) => cacheEntryNeedsRefresh(typeId, refreshWindowMs))
+      .sort((left, right) => {
+        const leftAt = entryRefreshAt(itemCache.get(itemCacheKey(left))) || 0;
+        const rightAt = entryRefreshAt(itemCache.get(itemCacheKey(right))) || 0;
+        return leftAt - rightAt;
+      });
+    const missingTypeIds = options.automatic ? dueTypeIds.slice(0, AUTO_REFRESH_BATCH_SIZE) : dueTypeIds;
     if (missingTypeIds.length) {
       if (!options.automatic && missingTypeIds.length < typeIds.length) {
         queueRender(dataFromCachedItems(typeIds, {
@@ -772,6 +800,10 @@ async function refreshAnalysis(options = {}) {
         }));
       }
       if (!options.automatic) setSummaryMessage(`Refreshing ${isk(missingTypeIds.length)} stale or missing prices`);
+      if (activeRequest) {
+        if (options.automatic) return;
+        activeRequest.abort();
+      }
       const controller = new AbortController();
       activeRequest = controller;
       const response = await fetchItems(missingTypeIds, controller.signal);
@@ -785,14 +817,21 @@ async function refreshAnalysis(options = {}) {
         returned.add(item.typeId);
         const previous = itemCache.get(itemCacheKey(item.typeId))?.item;
         const decorated = decorateUpdatedItem(previous, item);
+        const validUntil = usableValidUntil(item.validUntil || data.validUntil);
         itemCache.set(itemCacheKey(item.typeId), {
           item: decorated,
-          validUntil: usableValidUntil(item.validUntil || data.validUntil),
+          validUntil,
+          refreshAfter: refreshAfterFor(item.typeId, validUntil),
         });
       }
       for (const typeId of data.unpricedTypeIds || missingTypeIds) {
         if (!returned.has(typeId)) {
-          itemCache.set(itemCacheKey(typeId), { item: null, validUntil: negativeValidUntil() });
+          const validUntil = negativeValidUntil();
+          itemCache.set(itemCacheKey(typeId), {
+            item: null,
+            validUntil,
+            refreshAfter: refreshAfterFor(typeId, validUntil),
+          });
         }
       }
       queueRender(dataFromCachedItems(typeIds, { automatic: options.automatic }));
@@ -882,6 +921,7 @@ async function refreshCacheStatus() {
 
 refreshCacheStatus();
 cachePoll = window.setInterval(refreshCacheStatus, 10000);
+itemPoll = window.setInterval(() => scheduleRefresh(0, { automatic: true }), AUTO_POLL_INTERVAL_MS);
 loadStaticData().then(() => scheduleRefresh(0)).catch((error) => {
   setSummaryMessage(error.message);
 });
