@@ -51,8 +51,9 @@ let cacheStatusData = null;
 const itemCache = new Map();
 const ITEM_CACHE_SCHEMA = "cost-model-v3";
 const AUTO_REFRESH_MIN_DELAY_MS = 5_000;
-const AUTO_REFRESH_WINDOW_MS = 5_000;
-const NEGATIVE_CACHE_MS = 5_000;
+const AUTO_REFRESH_WINDOW_MS = 0;
+const CLIENT_RETRY_MS = 5 * 60 * 1000;
+const NEGATIVE_CACHE_MS = CLIENT_RETRY_MS;
 const API_BASES = [
   "https://api.styrofoamxylophone.com",
   "http://localhost:8000",
@@ -426,7 +427,7 @@ function cacheEntryNeedsRefresh(typeId, refreshWindowMs = 0) {
   return !entry || !Number.isFinite(expiresAt) || Date.now() >= expiresAt - refreshWindowMs;
 }
 
-function usableValidUntil(validUntil, fallbackMs = 30_000) {
+function usableValidUntil(validUntil, fallbackMs = CLIENT_RETRY_MS) {
   const parsed = Date.parse(validUntil);
   if (Number.isFinite(parsed) && parsed > Date.now()) return validUntil;
   return new Date(Date.now() + fallbackMs).toISOString();
@@ -615,6 +616,24 @@ function dataFromCachedItems(typeIds, extra = {}) {
   };
 }
 
+async function fetchItems(typeIds, signal) {
+  return apiFetch("/api/items", {
+    method: "POST",
+    signal,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      s: sourceHub.value,
+      b: sellHub.value,
+      g: buildSystemId.value || "30000142",
+      st: structureType.value,
+      pr: productRig.value,
+      cr: componentRig.value,
+      d: decryptor.value,
+      y: typeIds,
+    }),
+  });
+}
+
 function updateSortHeaders() {
   for (const button of sortButtons) {
     const active = button.dataset.sort === sortState.key;
@@ -755,19 +774,9 @@ async function refreshAnalysis(options = {}) {
         }));
       }
       if (!options.automatic) setSummaryMessage(`Refreshing ${isk(missingTypeIds.length)} stale or missing prices`);
-      const query = new URLSearchParams({
-        sourceHub: sourceHub.value,
-        sellHub: sellHub.value,
-        buildSystemId: buildSystemId.value || "30000142",
-        structureType: structureType.value,
-        productRig: productRig.value,
-        componentRig: componentRig.value,
-        decryptor: decryptor.value,
-        typeIds: missingTypeIds.join(","),
-      });
       const controller = new AbortController();
       activeRequest = controller;
-      const response = await apiFetch(`/api/items?${query.toString()}`, { signal: controller.signal });
+      const response = await fetchItems(missingTypeIds, controller.signal);
       if (activeRequest === controller) activeRequest = null;
       const rawData = await response.json();
       if (!response.ok || rawData.error) throw new Error(rawData.error || "Request failed");
