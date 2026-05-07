@@ -198,8 +198,10 @@ select {
   background: var(--panel);
 }
 
+/* CHANGE: removed `display: inline` — these are flex children and the browser
+   already treats them as block-level within the flex context.  The explicit
+   `display: inline` was a no-op and potentially confusing. */
 .summary-label {
-  display: inline;
   flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
@@ -213,7 +215,6 @@ select {
 }
 
 .summary-value {
-  display: inline;
   flex: 0 0 auto;
   max-width: 70%;
   overflow: hidden;
