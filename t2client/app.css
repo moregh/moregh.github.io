@@ -124,7 +124,14 @@ fieldset {
 
 .industry-filters {
   display: grid;
-  grid-template-columns: minmax(150px, 1.4fr) minmax(110px, 1fr) minmax(110px, 1fr) minmax(120px, 1fr) minmax(150px, 1.2fr);
+  grid-template-columns:
+    minmax(150px, 1.4fr)
+    minmax(110px, 1fr)
+    minmax(110px, 1fr)
+    minmax(120px, 1fr)
+    minmax(150px, 1.2fr)
+    minmax(96px, 0.8fr)
+    minmax(96px, 0.8fr);
   gap: 8px;
   align-items: end;
 }
@@ -254,9 +261,12 @@ table {
 }
 
 .col-profit-m3,
-.col-profit,
+.col-profit {
+  width: 98px;
+}
+
 .col-buy-profit {
-  width: 116px;
+  width: 106px;
 }
 
 .col-margin,
@@ -288,6 +298,13 @@ td {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+thead tr:not(.column-groups) th:nth-child(3),
+thead tr:not(.column-groups) th:nth-child(4),
+tbody td:nth-child(3),
+tbody td:nth-child(4) {
+  padding-left: 4px;
 }
 
 th {
@@ -466,13 +483,13 @@ tbody tr:hover {
 
 .metric-cell {
   position: relative;
-  padding-right: 20px;
+  padding-right: 17px;
 }
 
 .metric-cell::after {
   content: "";
   position: absolute;
-  right: 7px;
+  right: 5px;
   top: 50%;
   transform: translateY(-50%);
 }

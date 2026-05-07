@@ -10,6 +10,7 @@ const fields = [
   "minOrders", "maxOrders",
   "minCost", "maxCost",
   "minM3", "maxM3",
+  "salesTaxRate", "brokerFeeRate",
 ];
 
 const kindFilters = {
@@ -45,6 +46,8 @@ const itemFields = [
 ];
 
 const ITEM_CACHE_SCHEMA        = "cost-model-v3";
+const DEFAULT_SALES_TAX_RATE   = 7.5;
+const DEFAULT_BROKER_FEE_RATE  = 3.0;
 const AUTO_REFRESH_MIN_DELAY_MS = 5_000;
 const AUTO_POLL_INTERVAL_MS    = 15_000;
 const AUTO_REFRESH_BATCH_SIZE  = 150;
@@ -67,6 +70,8 @@ const structureType = document.querySelector("#structureType");
 const productRig   = document.querySelector("#productRig");
 const componentRig = document.querySelector("#componentRig");
 const decryptor    = document.querySelector("#decryptor");
+const salesTaxRate = document.querySelector("#salesTaxRate");
+const brokerFeeRate = document.querySelector("#brokerFeeRate");
 const rows         = document.querySelector("#rows");
 const status       = document.querySelector("#status");
 const details      = document.querySelector("#details");
@@ -93,7 +98,7 @@ let lastRenderSignature  = "";
 let cacheStatusData      = null;
 let activeApiBase        = null;
 
-const itemCache = new Map();   // cacheKey → { item, validUntil, refreshAfter }
+const itemCache = new Map();   // cacheKey → { baseItem, item, ratesKey, validUntil, refreshAfter }
 
 // ---------------------------------------------------------------------------
 // Formatters
@@ -366,6 +371,24 @@ function numericInput(id) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function clampedPercentInput(id, fallback) {
+  const parsed = numericInput(id);
+  if (parsed === null) return fallback;
+  return Math.max(0, parsed);
+}
+
+function feeRates() {
+  return {
+    salesTaxPercent: clampedPercentInput("salesTaxRate", DEFAULT_SALES_TAX_RATE),
+    brokerFeePercent: clampedPercentInput("brokerFeeRate", DEFAULT_BROKER_FEE_RATE),
+  };
+}
+
+function feeRatesKey() {
+  const { salesTaxPercent, brokerFeePercent } = feeRates();
+  return `${salesTaxPercent.toFixed(4)}|${brokerFeePercent.toFixed(4)}`;
+}
+
 function selectedKinds() {
   return new Set(
     typeFilters
@@ -554,6 +577,54 @@ function normalizeApiData(data) {
   };
 }
 
+function adjustedItem(baseItem) {
+  if (!baseItem) return null;
+  const meta = metaFor(baseItem);
+  const { salesTaxPercent, brokerFeePercent } = feeRates();
+  const salesTaxRate = salesTaxPercent / 100;
+  const brokerFeeRate = brokerFeePercent / 100;
+  const buildCost = baseItem.buildCost;
+  const sellPrice = baseItem.sellPrice;
+  const buyPrice = baseItem.buyPrice;
+
+  const profit = sellPrice === null || buildCost === null
+    ? null
+    : (sellPrice * (1 - salesTaxRate - brokerFeeRate)) - buildCost;
+  const profitToBuy = buyPrice === null || buildCost === null
+    ? null
+    : (buyPrice * (1 - salesTaxRate)) - buildCost;
+  const margin = profit === null || !buildCost
+    ? null
+    : (profit / buildCost) * 100;
+  const buyMargin = profitToBuy === null || !buildCost
+    ? null
+    : (profitToBuy / buildCost) * 100;
+  const profitPerM3 = profit === null || !meta.volume
+    ? null
+    : profit / meta.volume;
+
+  return {
+    ...baseItem,
+    profit,
+    profitToBuy,
+    margin,
+    buyMargin,
+    profitPerM3,
+  };
+}
+
+function cachedAdjustedItem(typeId) {
+  const key = itemCacheKey(typeId);
+  const entry = itemCache.get(key);
+  if (!entry) return null;
+  if (!entry.baseItem) return entry.item || null;
+  const currentRatesKey = feeRatesKey();
+  if (entry.item && entry.ratesKey === currentRatesKey) return entry.item;
+  const recalculated = clearChangeMarkers(adjustedItem(entry.baseItem));
+  itemCache.set(key, { ...entry, item: recalculated, ratesKey: currentRatesKey });
+  return recalculated;
+}
+
 // CHANGE: extracted a reusable empty-row helper used in three places.
 function emptyRow(message) {
   return `<tr><td colspan="14" class="empty">${message}</td></tr>`;
@@ -573,11 +644,11 @@ function staticScopedTypeIds() {
 function dataFromCachedItems(typeIds, extra = {}) {
   const items = [];
   for (const typeId of typeIds) {
-    const entry = cachedEntry(typeId);
-    if (entry?.item) items.push(entry.item);
+    const item = cachedAdjustedItem(typeId);
+    if (item) items.push(item);
   }
   return {
-    generatedAt:  new Date().toISOString(),
+    generatedAt:  extra.generatedAt || new Date().toISOString(),
     sourceMarket: sourceHub.selectedOptions[0]?.textContent || sourceHub.value,
     sellMarket:   sellHub.selectedOptions[0]?.textContent   || sellHub.value,
     sourceHub:    sourceHub.value,
@@ -809,6 +880,15 @@ function queueRender(data) {
   renderTimer = window.requestAnimationFrame(() => render(data));
 }
 
+function rerenderFromCache() {
+  const typeIds = currentData?.scopedTypeIds || staticScopedTypeIds();
+  queueRender(dataFromCachedItems(typeIds, {
+    automatic: true,
+    generatedAt: currentData?.generatedAt,
+    notes: currentData?.notes || [],
+  }));
+}
+
 // ---------------------------------------------------------------------------
 // Static data loading
 // ---------------------------------------------------------------------------
@@ -965,11 +1045,14 @@ async function refreshAnalysis(options = {}) {
       const returned = new Set();
       for (const item of data.items) {
         returned.add(item.typeId);
-        const previous   = itemCache.get(itemCacheKey(item.typeId))?.item;
-        const decorated  = decorateUpdatedItem(previous, item);
+        const cacheKey    = itemCacheKey(item.typeId);
+        const previous    = cachedAdjustedItem(item.typeId);
+        const decorated   = decorateUpdatedItem(previous, adjustedItem(item));
         const validUntil = usableValidUntil(item.validUntil || data.validUntil);
-        itemCache.set(itemCacheKey(item.typeId), {
+        itemCache.set(cacheKey, {
+          baseItem:     item,
           item:         decorated,
+          ratesKey:     feeRatesKey(),
           validUntil,
           refreshAfter: refreshAfterFor(item.typeId, validUntil),
         });
@@ -1042,10 +1125,12 @@ rows.addEventListener("click", (event) => {
   const item = rows._visibleItems?.[Number(row.dataset.index)];
   if (!item) return;
   const meta = metaFor(item);
+  const { salesTaxPercent, brokerFeePercent } = feeRates();
   details.innerHTML = `
     <strong>${meta.name}</strong>
     costs ${isk(item.manufacturingCost)} ISK/unit to build plus ${isk(item.inventionCost)} ISK/unit expected invention cost.
     Sell margin ${percent(item.margin)}; buy-order return on build cost ${percent(item.buyMargin)}.
+    Applied sales tax ${percent(salesTaxPercent)}; applied sell-order broker fee ${percent(brokerFeePercent)}. Buy-order profit excludes broker fees.
     Haul volume ${decimal(meta.volume, 2)} m3; assembled volume ${decimal(meta.assembledVolume, 2)} m3.
     Invention chance ${decimal(item.inventionProbability * 100, 1)}% via ${meta.inventionBlueprint}, invented runs ${item.inventionRuns}, invented ME ${decimal(item.inventedMaterialEfficiency, 1)}%, TE ${decimal(item.inventedTimeEfficiency, 1)}%, manufacturing output ${item.manufacturingQuantity}.
     Included job fees: manufacturing ${isk(item.manufacturingJobCost)} ISK/unit, invention ${isk(item.inventionJobCost)} ISK/unit.
@@ -1078,12 +1163,19 @@ for (const id of fields) {
     // Search uses a debounce delay to avoid firing on every keystroke;
     // range inputs re-filter immediately since they're numeric.
     if (id === "search") scheduleRefresh();
+    else if (id === "salesTaxRate" || id === "brokerFeeRate") {
+      if (currentData) rerenderFromCache();
+    }
     else if (currentData) queueRender(currentData);
   });
   field.addEventListener("keydown", (event) => {
     if (event.key !== "Enter") return;
     event.preventDefault();
     if (id === "search") scheduleRefresh(0);
+    else if (id === "salesTaxRate" || id === "brokerFeeRate") {
+      if (currentData) rerenderFromCache();
+      else scheduleRefresh(0);
+    }
     else if (currentData) queueRender(currentData);
     else scheduleRefresh(0);
   });

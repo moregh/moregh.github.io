@@ -65,6 +65,14 @@
             Invention decryptor
             <select id="decryptor"></select>
           </label>
+          <label>
+            Sales tax %
+            <input id="salesTaxRate" type="number" min="0" step="0.01" value="7.5">
+          </label>
+          <label>
+            Broker fee %
+            <input id="brokerFeeRate" type="number" min="0" step="0.01" value="3">
+          </label>
         </div>
 
         <div class="range-filters">
@@ -94,7 +102,7 @@
             <input id="maxCost" type="number" min="0" step="1000000" placeholder="Max">
           </fieldset>
           <fieldset class="range-pair">
-            <legend>Packaged m3</legend>
+            <legend>m3</legend>
             <input id="minM3" type="number" min="0" step="1" placeholder="Min">
             <input id="maxM3" type="number" min="0" step="1" placeholder="Max">
           </fieldset>
@@ -146,7 +154,7 @@
               <th><button class="sort" data-sort="dailyVolume">Daily sold</button></th>
               <th><button class="sort" data-sort="sellOrders">Sell orders</button></th>
               <th><button class="sort" data-sort="sellVolume">Listed qty</button></th>
-              <th><button class="sort" data-sort="volume">Packaged m3</button></th>
+              <th><button class="sort" data-sort="volume">m3</button></th>
             </tr>
           </thead>
           <tbody id="rows">
