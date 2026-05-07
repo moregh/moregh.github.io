@@ -28,6 +28,14 @@ input:focus, select:focus { outline: none; border-color: #00d4ff; }
 .loading { color: #00d4ff; font-size: 0.85em; margin-top: 5px; }
 .success { color: #00ff88; font-size: 0.85em; margin-top: 5px; }
 .hint { color: #888; font-size: 0.85em; margin-top: 5px; font-style: italic; }
+.tooltip .user-provided-help { display: none; }
+.field.user-provided .tooltip .estimate-help { display: none; }
+.field.user-provided .tooltip .user-provided-help { display: block; }
+.segmented { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 6px; padding: 3px; background: #0f3460; border-radius: 4px; }
+.segmented label { margin: 0; }
+.segmented input { position: absolute; opacity: 0; pointer-events: none; }
+.segmented span { display: block; padding: 6px 8px; border-radius: 3px; color: #aaa; text-align: center; font-size: 0.85em; cursor: pointer; }
+.segmented input:checked + span { background: #00d4ff; color: #1a1a2e; font-weight: bold; }
 .results { display: grid; grid-template-columns: repeat(8, 1fr); gap: 10px; }
 .results-runs { grid-template-columns: repeat(6, 1fr); }
 .result-item { background: #0f3460; padding: 8px; border-radius: 6px; }
@@ -58,7 +66,7 @@ input:focus, select:focus { outline: none; border-color: #00d4ff; }
 <div class="field">
 <label>Item Name</label>
 <input type="text" id="itemName" placeholder="e.g. PLEX (press Enter to search)">
-<div class="hint" id="itemHint">Press Enter to lookup item price</div>
+<div class="hint" id="itemHint">Press Enter to lookup Jita 4-4 selected order price</div>
 <div class="loading" id="itemLoading" style="display: none;">Searching...</div>
 <div class="success" id="itemSuccess" style="display: none;"></div>
 <div class="error" id="itemError"></div>
@@ -66,6 +74,10 @@ input:focus, select:focus { outline: none; border-color: #00d4ff; }
 <div class="field">
 <label>Item Price (ISK)</label>
 <input type="number" id="itemPrice" min="0" value="1000000000">
+<div class="segmented" aria-label="Item price source">
+<label><input type="radio" name="itemOrderType" value="buy"><span>Buy</span></label>
+<label><input type="radio" name="itemOrderType" value="sell" checked><span>Sell</span></label>
+</div>
 </div>
 <div class="field">
 <label>Total Sell Value (ISK)</label>
@@ -74,14 +86,33 @@ input:focus, select:focus { outline: none; border-color: #00d4ff; }
 <div class="field">
 <label>HyperCore Price (ISK)</label>
 <input type="number" id="hypercorePrice" min="0" value="380000">
+<div class="loading" id="hypercoreLoading" style="display: none;">Loading Jita 4-4 price...</div>
+<div class="success" id="hypercoreSuccess" style="display: none;"></div>
+<div class="error" id="hypercoreError"></div>
 </div>
-<div class="field">
+<div class="field" id="hypercoreRatioField">
 <div class="label-with-tooltip">
-<label>HyperCores @ 10T</label>
+<label id="hypercoreRatioLabel">Estimated HyperCores @ 10T</label>
 <span class="tooltip-icon">?</span>
 </div>
 <div class="tooltip">
-<strong>How to get this value:</strong>
+<div class="estimate-help">
+<strong>This is an estimate.</strong>
+The calculator estimates this from ESI's PLEX average price using <code>10T / (2 * PLEX average)</code>.
+<br><br>
+<strong>How to get the exact value:</strong>
+<ol>
+<li>In game, create a new HyperNet listing for any item</li>
+<li>Set the value to maximum: <code>10,000,000,000,000</code> (10 trillion ISK)</li>
+<li>Note the total number of HyperCores required</li>
+<li>Enter that number here to override the estimate</li>
+</ol>
+</div>
+<div class="user-provided-help">
+<strong>User-provided value.</strong>
+This value overrides the PLEX-based estimate.
+<br><br>
+<strong>How to update the exact value:</strong>
 <ol>
 <li>In game, create a new HyperNet listing for any item</li>
 <li>Set the value to maximum: <code>10,000,000,000,000</code> (10 trillion ISK)</li>
@@ -89,7 +120,11 @@ input:focus, select:focus { outline: none; border-color: #00d4ff; }
 <li>Enter that number here</li>
 </ol>
 </div>
+</div>
 <input type="number" id="hypercoresAt10T" min="1" value="1000000">
+<div class="loading" id="hypercoreEstimateLoading" style="display: none;">Estimating from PLEX average...</div>
+<div class="success" id="hypercoreEstimateSuccess" style="display: none;"></div>
+<div class="error" id="hypercoreEstimateError"></div>
 </div>
 </div>
 <div class="row">
@@ -180,15 +215,25 @@ function isk(n) {
   return sign + abs.toFixed(2);
 }
 
+function setHypercoreRatioMode(mode) {
+  const isUserProvided = mode === 'user-provided';
+  document.getElementById('hypercoreRatioLabel').textContent = isUserProvided
+    ? 'User-provided HyperCores @ 10T'
+    : 'Estimated HyperCores @ 10T';
+  document.getElementById('hypercoreRatioField').classList.toggle('user-provided', isUserProvided);
+}
+
 async function loadConfigFromHash() {
   const hash = window.location.hash.substring(1);
-  if (!hash) return;
+  if (!hash) return { loaded: false, hasHypercoreRatio: false };
   
   const config = await decodeConfig(hash);
-  if (!config) return;
+  if (!config) return { loaded: false, hasHypercoreRatio: false };
+  const hasHypercoreRatio = hash.split('~').some(part => part.startsWith('4:'));
   
   document.getElementById('itemName').value = config.in || '';
   document.getElementById('itemPrice').value = config.ip || 0;
+  document.querySelector(`input[name="itemOrderType"][value="${config.ot || 'sell'}"]`).checked = true;
   document.getElementById('sellValue').value = config.sv || 0;
   document.getElementById('hypercorePrice').value = config.hp || 0;
   document.getElementById('hypercoresAt10T').value = config.hc || 1000000;
@@ -204,6 +249,8 @@ async function loadConfigFromHash() {
   success.textContent = 'Configuration loaded from shared link!';
   success.style.display = 'block';
   setTimeout(() => { success.style.display = 'none'; }, 3000);
+  setHypercoreRatioMode(hasHypercoreRatio ? 'user-provided' : 'estimated');
+  return { loaded: true, hasHypercoreRatio };
 }
 
 async function generateShareLink() {
@@ -244,23 +291,123 @@ async function searchItem(itemName) {
   }
 }
 
-async function getMarketPrice(typeId) {
+const THE_FORGE_REGION_ID = 10000002;
+const JITA_4_4_STATION_ID = 60003760;
+const HYPERCORE_TYPE_NAME = 'HyperCore';
+const PLEX_TYPE_ID = 44992;
+const HYPERNET_MAX_VALUE = 10000000000000;
+
+async function getJitaOrderPrice(typeId, orderType = 'sell') {
   try {
-    const response = await fetch('https://esi.evetech.net/latest/markets/prices/');
+    const firstUrl = `https://esi.evetech.net/latest/markets/${THE_FORGE_REGION_ID}/orders/?datasource=tranquility&order_type=${orderType}&type_id=${typeId}`;
+    const response = await fetch(firstUrl);
     if (!response.ok) return null;
-    
-    const prices = await response.json();
-    const itemPrice = prices.find(p => p.type_id === typeId);
-    return itemPrice?.average_price || null;
+
+    const pageCount = parseInt(response.headers.get('X-Pages') || '1', 10);
+    const pages = [await response.json()];
+
+    for (let page = 2; page <= pageCount; page++) {
+      const pageResponse = await fetch(`${firstUrl}&page=${page}`);
+      if (pageResponse.ok) pages.push(await pageResponse.json());
+    }
+
+    const jitaOrders = pages
+      .flat()
+      .filter(order => order.location_id === JITA_4_4_STATION_ID);
+
+    if (jitaOrders.length === 0) return null;
+    const prices = jitaOrders.map(order => order.price);
+    return orderType === 'buy' ? Math.max(...prices) : Math.min(...prices);
   } catch (error) {
     console.error('Price lookup error:', error);
     return null;
   }
 }
 
+async function getLowestJitaSellPrice(typeId) {
+  return getJitaOrderPrice(typeId, 'sell');
+}
+
+async function getEsiAveragePrice(typeId) {
+  try {
+    const response = await fetch('https://esi.evetech.net/latest/markets/prices/?datasource=tranquility');
+    if (!response.ok) return null;
+
+    const prices = await response.json();
+    const itemPrice = prices.find(price => price.type_id === typeId);
+    return itemPrice?.average_price || null;
+  } catch (error) {
+    console.error('Average price lookup error:', error);
+    return null;
+  }
+}
+
+async function estimateHypercoresAt10T() {
+  const hypercoresAt10TInput = document.getElementById('hypercoresAt10T');
+  const loading = document.getElementById('hypercoreEstimateLoading');
+  const success = document.getElementById('hypercoreEstimateSuccess');
+  const error = document.getElementById('hypercoreEstimateError');
+
+  loading.style.display = 'block';
+  success.style.display = 'none';
+  error.textContent = '';
+
+  const plexAveragePrice = await getEsiAveragePrice(PLEX_TYPE_ID);
+  loading.style.display = 'none';
+
+  if (plexAveragePrice) {
+    const estimatedHypercores = Math.round(HYPERNET_MAX_VALUE / (2 * plexAveragePrice));
+    hypercoresAt10TInput.value = estimatedHypercores;
+    setHypercoreRatioMode('estimated');
+    success.textContent = `Estimated from ESI PLEX average (${isk(plexAveragePrice)} ISK): ${estimatedHypercores.toLocaleString()} HyperCores`;
+    success.style.display = 'block';
+    setTimeout(() => { success.style.display = 'none'; }, 5000);
+    calc();
+  } else {
+    error.textContent = 'Could not estimate HyperCores from ESI PLEX average. Enter the exact in-game value manually.';
+  }
+}
+
+function markHypercoreRatioUserProvided() {
+  setHypercoreRatioMode('user-provided');
+}
+
+async function lookupHypercorePrice() {
+  const hypercorePriceInput = document.getElementById('hypercorePrice');
+  const loading = document.getElementById('hypercoreLoading');
+  const success = document.getElementById('hypercoreSuccess');
+  const error = document.getElementById('hypercoreError');
+
+  loading.style.display = 'block';
+  success.style.display = 'none';
+  error.textContent = '';
+
+  const hypercore = await searchItem(HYPERCORE_TYPE_NAME);
+  if (!hypercore) {
+    loading.style.display = 'none';
+    error.textContent = 'Could not find HyperCore item type';
+    return;
+  }
+
+  const price = await getLowestJitaSellPrice(hypercore.id);
+  loading.style.display = 'none';
+
+  if (price) {
+    hypercorePriceInput.value = Math.round(price);
+    success.textContent = `Loaded Jita 4-4 lowest sell for HyperCore: ${isk(price)} ISK`;
+    success.style.display = 'block';
+    setTimeout(() => { success.style.display = 'none'; }, 5000);
+    calc();
+  } else {
+    error.textContent = 'No HyperCore sell orders found in Jita 4-4';
+  }
+}
+
 async function lookupItem() {
   const itemNameInput = document.getElementById('itemName');
   const itemPriceInput = document.getElementById('itemPrice');
+  const orderType = document.querySelector('input[name="itemOrderType"]:checked').value;
+  const orderDescription = orderType === 'buy' ? 'highest buy' : 'lowest sell';
   const loading = document.getElementById('itemLoading');
   const success = document.getElementById('itemSuccess');
   const error = document.getElementById('itemError');
@@ -287,12 +434,12 @@ async function lookupItem() {
     return;
   }
   
-  const price = await getMarketPrice(item.id);
+  const price = await getJitaOrderPrice(item.id, orderType);
   loading.style.display = 'none';
   
   if (price) {
     itemPriceInput.value = Math.round(price);
-    success.textContent = `Loaded market price for "${item.name}": ${isk(price)} ISK`;
+    success.textContent = `Loaded Jita 4-4 ${orderDescription} for "${item.name}": ${isk(price)} ISK`;
     success.style.display = 'block';
     setTimeout(() => { 
       success.style.display = 'none'; 
@@ -300,7 +447,7 @@ async function lookupItem() {
     }, 5000);
     calc();
   } else {
-    error.textContent = `Found "${item.name}" but no market price available`;
+    error.textContent = `Found "${item.name}" but no ${orderType} orders found in Jita 4-4`;
     hint.style.display = 'block';
   }
 }
@@ -499,7 +646,7 @@ function b62ToStr(encoded) {
 }
 
 async function encodeConfig() {
-  const d = ['', 1000000000, 1100000000, 380000, 1000000, 8, 0, 1, 0, 0];
+  const d = ['', 1000000000, 1100000000, 380000, 1000000, 8, 0, 1, 0, 0, 'sell'];
   const v = [
     document.getElementById('itemName').value,
     parseFloat(document.getElementById('itemPrice').value) || 0,
@@ -510,13 +657,16 @@ async function encodeConfig() {
     parseInt(document.getElementById('selfTickets').value) || 0,
     parseInt(document.getElementById('numRuns').value) || 1,
     parseFloat(document.getElementById('rebatePercent').value) || 0,
-    parseInt(document.getElementById('rebateTickets').value) || 0
+    parseInt(document.getElementById('rebateTickets').value) || 0,
+    document.querySelector('input[name="itemOrderType"]:checked').value
   ];
   
   const p = [];
   for (let i = 0; i < v.length; i++) {
     if (i === 0) {
       if (v[i]) p.push('0:' + strToB62(v[i]));
+    } else if (i === 10) {
+      if (v[i] !== d[i]) p.push(i + ':' + strToB62(v[i]));
     } else if (v[i] !== d[i]) {
       p.push(i + ':' + b62(v[i]));
     }
@@ -526,7 +676,7 @@ async function encodeConfig() {
 
 async function decodeConfig(encoded) {
   try {
-    const d = ['', 1000000000, 1100000000, 380000, 1000000, 8, 0, 1, 0, 0];
+    const d = ['', 1000000000, 1100000000, 380000, 1000000, 8, 0, 1, 0, 0, 'sell'];
     const v = [...d];
     const parts = encoded.split('~');
     
@@ -535,6 +685,8 @@ async function decodeConfig(encoded) {
       const i = parseInt(idx);
       if (i === 0) {
         v[0] = b62ToStr(val);
+      } else if (i === 10) {
+        v[10] = b62ToStr(val);
       } else {
         v[i] = unb62(val);
       }
@@ -550,7 +702,8 @@ async function decodeConfig(encoded) {
       st: v[6] || 0,
       nr: v[7] || 1,
       rp: v[8] || 0,
-      rt: v[9] || 0
+      rt: v[9] || 0,
+      ot: v[10] === 'buy' ? 'buy' : 'sell'
     };
   } catch (e) {
     console.error('Failed to decode config:', e);
@@ -558,8 +711,15 @@ async function decodeConfig(encoded) {
   }
 }
 
+async function initialize() {
+  const configLoad = await loadConfigFromHash();
+  if (!configLoad.hasHypercoreRatio) await estimateHypercoresAt10T();
+  await lookupHypercorePrice();
+}
+
 document.querySelectorAll('input:not(#itemName), select').forEach(el => el.addEventListener('input', calc));
-window.addEventListener('DOMContentLoaded', loadConfigFromHash);
+document.getElementById('hypercoresAt10T').addEventListener('input', markHypercoreRatioUserProvided);
+window.addEventListener('DOMContentLoaded', initialize);
 calc();
 </script>
 </body>
