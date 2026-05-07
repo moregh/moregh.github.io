@@ -25,6 +25,11 @@ label { display: block; margin-bottom: 5px; color: #aaa; font-size: 0.9em; }
 .tooltip code { background: #1a1a2e; padding: 2px 6px; border-radius: 3px; color: #00ff88; }
 input, select { width: 100%; padding: 8px; border: 1px solid #0f3460; border-radius: 4px; background: #0f3460; color: #fff; font-size: 1em; }
 input:focus, select:focus { outline: none; border-color: #00d4ff; }
+.field-item-name { flex: 1 1 160px; }
+.field-price { flex: 0.5 1 90px; min-width: 90px; }
+.hint-row { display: flex; align-items: center; gap: 6px; margin-top: 5px; min-height: 20px; }
+.hint-row .hint { margin: 0; }
+.hint-row .item-type-icon { width: 20px; height: 20px; border-radius: 3px; object-fit: cover; display: none; flex-shrink: 0; }
 .loading { color: #00d4ff; font-size: 0.85em; margin-top: 5px; }
 .success { color: #00ff88; font-size: 0.85em; margin-top: 5px; }
 .hint { color: #888; font-size: 0.85em; margin-top: 5px; font-style: italic; }
@@ -56,158 +61,189 @@ input:focus, select:focus { outline: none; border-color: #00d4ff; }
 .share-link { color: #00d4ff; text-decoration: none; font-size: 0.9em; word-break: break-all; padding: 8px; background: #0f3460; border-radius: 4px; display: inline-block; max-width: 100%; border: 1px solid #00d4ff; }
 .share-link:hover { background: #1a1a2e; text-decoration: underline; }
 .rebate-info { background: #0f3460; padding: 10px; border-radius: 6px; margin-top: 10px; font-size: 0.9em; color: #00ff88; border-left: 3px solid #00ff88; }
+.share-center { text-align: center; }
+footer { margin-top: 30px; padding: 15px; border-top: 1px solid #0f3460; text-align: center; font-size: 0.75em; color: #555; line-height: 1.6; }
+footer a { color: #888; text-decoration: none; }
+footer a:hover { color: #00d4ff; }
 </style>
 </head>
 <body>
 <h1><a href="">EVE HyperNet Profit Calculator</a></h1>
 
 <div class="section">
-<div class="row">
-<div class="field">
-<label>Item Name</label>
-<input type="text" id="itemName" placeholder="e.g. PLEX (press Enter to search)">
-<div class="hint" id="itemHint">Press Enter to lookup Jita 4-4 selected order price</div>
-<div class="loading" id="itemLoading" style="display: none;">Searching...</div>
-<div class="success" id="itemSuccess" style="display: none;"></div>
-<div class="error" id="itemError"></div>
-</div>
-<div class="field">
-<label>Item Price (ISK)</label>
-<input type="number" id="itemPrice" min="0" value="1000000000">
-<div class="segmented" aria-label="Item price source">
-<label><input type="radio" name="itemOrderType" value="buy"><span>Buy</span></label>
-<label><input type="radio" name="itemOrderType" value="sell" checked><span>Sell</span></label>
-</div>
-</div>
-<div class="field">
-<label>Total Sell Value (ISK)</label>
-<input type="number" id="sellValue" min="0" value="1100000000">
-</div>
-<div class="field">
-<label>HyperCore Price (ISK)</label>
-<input type="number" id="hypercorePrice" min="0" value="380000">
-<div class="loading" id="hypercoreLoading" style="display: none;">Loading Jita 4-4 price...</div>
-<div class="success" id="hypercoreSuccess" style="display: none;"></div>
-<div class="error" id="hypercoreError"></div>
-</div>
-<div class="field" id="hypercoreRatioField">
-<div class="label-with-tooltip">
-<label id="hypercoreRatioLabel">Estimated HyperCores @ 10T</label>
-<span class="tooltip-icon">?</span>
-</div>
-<div class="tooltip">
-<div class="estimate-help">
-<strong>This is an estimate.</strong>
-The calculator estimates this from ESI's PLEX average price using <code>10T / (2 * PLEX average)</code>.
-<br><br>
-<strong>How to get the exact value:</strong>
-<ol>
-<li>In game, create a new HyperNet listing for any item</li>
-<li>Set the value to maximum: <code>10,000,000,000,000</code> (10 trillion ISK)</li>
-<li>Note the total number of HyperCores required</li>
-<li>Enter that number here to override the estimate</li>
-</ol>
-</div>
-<div class="user-provided-help">
-<strong>User-provided value.</strong>
-This value overrides the PLEX-based estimate.
-<br><br>
-<strong>How to update the exact value:</strong>
-<ol>
-<li>In game, create a new HyperNet listing for any item</li>
-<li>Set the value to maximum: <code>10,000,000,000,000</code> (10 trillion ISK)</li>
-<li>Note the total number of HyperCores required</li>
-<li>Enter that number here</li>
-</ol>
-</div>
-</div>
-<input type="number" id="hypercoresAt10T" min="1" value="1000000">
-<div class="loading" id="hypercoreEstimateLoading" style="display: none;">Estimating from PLEX average...</div>
-<div class="success" id="hypercoreEstimateSuccess" style="display: none;"></div>
-<div class="error" id="hypercoreEstimateError"></div>
-</div>
-</div>
-<div class="row">
-<div class="field">
-<label>Number of Tickets</label>
-<select id="numTickets">
-<option value="8" selected>8</option>
-<option value="16">16</option>
-<option value="48">48</option>
-<option value="512">512</option>
-</select>
-</div>
-<div class="field">
-<label>Self Purchased Tickets</label>
-<input type="number" id="selfTickets" min="0" value="0">
-<div class="error" id="ticketError"></div>
-</div>
-<div class="field">
-<label>Number of Runs</label>
-<input type="number" id="numRuns" min="1" value="1">
-</div>
-<div class="field">
-<label>Rebate % (If You Win)</label>
-<input type="number" id="rebatePercent" min="0" max="100" value="0">
-</div>
-<div class="field">
-<label>Rebated Tickets</label>
-<input type="number" id="rebateTickets" min="0" value="0">
-<div class="error" id="rebateError"></div>
-</div>
-</div>
-<div class="rebate-info" id="rebateInfo" style="display: none;">
-Total payout is <span id="rebateAmount">-</span> ISK to <span id="rebateCount">-</span> other players (<span id="rebateAverage">-</span> each).
-</div>
-</div>
-
-
-
-<div class="section">
-<h2>Per Run Analysis</h2>
-<div class="results" style="margin-bottom: 15px;">
-<div class="result-item"><label>Per Ticket</label><div class="value" id="perTicket">-</div></div>
-<div class="result-item"><label>HyperCores</label><div class="value" id="hypercores">-</div></div>
-<div class="result-item"><label>Cores Cost</label><div class="value" id="hypercoreCost">-</div></div>
-<div class="result-item"><label>Win Chance</label><div class="value" id="winChance">-</div></div>
-<div class="result-item"><label>Gross</label><div class="value" id="grossRev">-</div></div>
-<div class="result-item"><label>Tax (5%)</label><div class="value" id="taxAmt">-</div></div>
-<div class="result-item"><label>Net</label><div class="value" id="netRev">-</div></div>
-<div class="result-item"><label>Self Tickets</label><div class="value" id="selfCost">-</div></div>
-</div>
-<table class="breakdown-table">
-<tr><th></th><th>Item Cost</th><th>Self Tickets</th><th>HyperCores</th><th>Rebate Paid</th><th>Total Out</th><th>Net Revenue</th><th>Item Won</th><th>Total In</th><th>Profit/Loss</th></tr>
-<tr><td>If You Lose</td><td id="loseItem">-</td><td id="loseSelf">-</td><td id="loseHC">-</td><td>-</td><td id="loseOut">-</td><td id="loseRev">-</td><td>-</td><td id="loseIn">-</td><td id="loseProfit">-</td></tr>
-<tr><td>If You Win</td><td id="winItem">-</td><td id="winSelf">-</td><td id="winHC">-</td><td id="winRebate">-</td><td id="winOut">-</td><td id="winRev">-</td><td id="winWon">-</td><td id="winIn">-</td><td id="winProfit">-</td></tr>
-<tr style="border-top: 2px solid #00d4ff;"><td>Average</td><td id="avgItem">-</td><td id="avgSelf">-</td><td id="avgHC">-</td><td id="avgRebate">-</td><td id="avgOut">-</td><td id="avgRev">-</td><td id="avgWon">-</td><td id="avgIn">-</td><td id="avgProfitRow">-</td></tr>
-</table>
+  <div class="row">
+    <div class="field field-item-name">
+      <label>Item Name</label>
+      <input type="text" id="itemName" placeholder="e.g. PLEX (press Enter to search)">
+      <div class="hint-row">
+        <img id="itemTypeIcon" class="item-type-icon" alt="">
+        <span class="hint" id="itemHint">Press Enter to lookup Jita 4-4 selected order price</span>
+      </div>
+      <div class="loading" id="itemLoading" style="display: none;">Searching...</div>
+      <div class="success" id="itemSuccess" style="display: none;"></div>
+      <div class="error" id="itemError"></div>
+    </div>
+    <div class="field field-price">
+      <label>Item Price (ISK)</label>
+      <input type="number" id="itemPrice" min="0" value="1000000000">
+      <div class="segmented" aria-label="Item price source">
+        <label><input type="radio" name="itemOrderType" value="buy"><span>Buy</span></label>
+        <label><input type="radio" name="itemOrderType" value="sell" checked><span>Sell</span></label>
+      </div>
+    </div>
+    <div class="field field-price">
+      <label>Total Sell Value (ISK)</label>
+      <input type="number" id="sellValue" min="0" value="1100000000">
+    </div>
+    <div class="field">
+      <label>HyperCore Price (ISK)</label>
+      <input type="number" id="hypercorePrice" min="0" value="380000">
+      <div class="loading" id="hypercoreLoading" style="display: none;">Loading Jita 4-4 price...</div>
+      <div class="success" id="hypercoreSuccess" style="display: none;"></div>
+      <div class="error" id="hypercoreError"></div>
+    </div>
+    <div class="field" id="hypercoreRatioField">
+      <div class="label-with-tooltip">
+        <label id="hypercoreRatioLabel">Estimated HyperCores</label>
+        <span class="tooltip-icon">?</span>
+      </div>
+      <div class="tooltip">
+        <div class="estimate-help">
+          <strong>This is an estimate.</strong>
+          The calculator estimates this from ESI's PLEX average price using <code>10T / (2 * PLEX average)</code>.
+          <br><br>
+          <strong>How to get the exact value:</strong>
+          <ol>
+            <li>In game, create a new HyperNet listing for any item</li>
+            <li>Set the value to maximum: <code>10,000,000,000,000</code> (10 trillion ISK)</li>
+            <li>Note the total number of HyperCores required</li>
+            <li>Enter that number here to override the estimate</li>
+          </ol>
+        </div>
+        <div class="user-provided-help">
+          <strong>User-provided value.</strong>
+          This value overrides the PLEX-based estimate.
+          <br><br>
+          <strong>How to update the exact value:</strong>
+          <ol>
+            <li>In game, create a new HyperNet listing for any item</li>
+            <li>Set the value to maximum: <code>10,000,000,000,000</code> (10 trillion ISK)</li>
+            <li>Note the total number of HyperCores required</li>
+            <li>Enter that number here</li>
+          </ol>
+        </div>
+      </div>
+      <input type="number" id="hypercoresAt10T" min="1" value="1000000">
+      <div class="loading" id="hypercoreEstimateLoading" style="display: none;">Estimating from PLEX average...</div>
+      <div class="success" id="hypercoreEstimateSuccess" style="display: none;"></div>
+      <div class="error" id="hypercoreEstimateError"></div>
+    </div>
+  </div>
+  <div class="row">
+    <div class="field">
+      <label>Number of Tickets</label>
+      <select id="numTickets">
+        <option value="8" selected>8</option>
+        <option value="16">16</option>
+        <option value="48">48</option>
+        <option value="512">512</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Self Purchased Tickets</label>
+      <input type="number" id="selfTickets" min="0" value="0">
+      <div class="error" id="ticketError"></div>
+    </div>
+    <div class="field">
+      <label>Number of Runs</label>
+      <input type="number" id="numRuns" min="1" value="1">
+    </div>
+    <div class="field">
+      <label>Rebate % (If You Win)</label>
+      <input type="number" id="rebatePercent" min="0" max="100" value="0">
+    </div>
+    <div class="field">
+      <label>Rebated Tickets</label>
+      <input type="number" id="rebateTickets" min="0" value="0">
+      <div class="error" id="rebateError"></div>
+    </div>
+  </div>
+  <div class="rebate-info" id="rebateInfo" style="display: none;">
+    Total payout is <span id="rebateAmount">-</span> ISK to <span id="rebateCount">-</span> other players (<span id="rebateAverage">-</span> each).
+  </div>
 </div>
 
 <div class="section">
-<h2>Expected Average Over Runs</h2>
-<div class="results results-runs">
-<div class="result-item"><label>Expected Wins</label><div class="value" id="expectedWins">-</div></div>
-<div class="result-item"><label>Expected Losses</label><div class="value" id="expectedLosses">-</div></div>
-<div class="result-item"><label>Total Investment</label><div class="value" id="totalInvest">-</div></div>
-<div class="result-item"><label>Total Expected Profit</label><div class="value" id="totalProfit">-</div></div>
-<div class="result-item"><label>ROI %</label><div class="value" id="roi">-</div></div>
-<div class="result-item"><label>No Win Likelihood</label><div class="value" id="riskLoss">-</div></div>
-</div>
+  <h2>Per Run Analysis</h2>
+  <div class="results" style="margin-bottom: 15px;">
+    <div class="result-item"><label>Per Ticket</label><div class="value" id="perTicket">-</div></div>
+    <div class="result-item"><label>HyperCores</label><div class="value" id="hypercores">-</div></div>
+    <div class="result-item"><label>Cores Cost</label><div class="value" id="hypercoreCost">-</div></div>
+    <div class="result-item"><label>Win Chance</label><div class="value" id="winChance">-</div></div>
+    <div class="result-item"><label>Gross</label><div class="value" id="grossRev">-</div></div>
+    <div class="result-item"><label>Tax (5%)</label><div class="value" id="taxAmt">-</div></div>
+    <div class="result-item"><label>Net</label><div class="value" id="netRev">-</div></div>
+    <div class="result-item"><label>Self Tickets</label><div class="value" id="selfCost">-</div></div>
+  </div>
+  <table class="breakdown-table">
+    <tr><th></th><th>Item Cost</th><th>Self Tickets</th><th>HyperCores</th><th>Rebate Paid</th><th>Total Out</th><th>Net Revenue</th><th>Item Won</th><th>Total In</th><th>Profit/Loss</th></tr>
+    <tr><td>If You Lose</td><td id="loseItem">-</td><td id="loseSelf">-</td><td id="loseHC">-</td><td>-</td><td id="loseOut">-</td><td id="loseRev">-</td><td>-</td><td id="loseIn">-</td><td id="loseProfit">-</td></tr>
+    <tr><td>If You Win</td><td id="winItem">-</td><td id="winSelf">-</td><td id="winHC">-</td><td id="winRebate">-</td><td id="winOut">-</td><td id="winRev">-</td><td id="winWon">-</td><td id="winIn">-</td><td id="winProfit">-</td></tr>
+    <tr style="border-top: 2px solid #00d4ff;"><td>Average</td><td id="avgItem">-</td><td id="avgSelf">-</td><td id="avgHC">-</td><td id="avgRebate">-</td><td id="avgOut">-</td><td id="avgRev">-</td><td id="avgWon">-</td><td id="avgIn">-</td><td id="avgProfitRow">-</td></tr>
+  </table>
 </div>
 
-<center>
-<div class="share-container">
-<button class="share-btn" onclick="generateShareLink()">Generate & Copy Shareable Link</button>
-<div class="share-result" id="shareResult">
-<a href="#" class="share-link" id="shareLink" target="_blank"></a>
-<div class="success" id="copySuccess" style="margin-top: 10px;">Link copied to clipboard!</div>
+<div class="section">
+  <h2>Expected Average Over Runs</h2>
+  <div class="results results-runs">
+    <div class="result-item"><label>Expected Wins</label><div class="value" id="expectedWins">-</div></div>
+    <div class="result-item"><label>Expected Losses</label><div class="value" id="expectedLosses">-</div></div>
+    <div class="result-item"><label>Total Investment</label><div class="value" id="totalInvest">-</div></div>
+    <div class="result-item"><label>Total Expected Profit</label><div class="value" id="totalProfit">-</div></div>
+    <div class="result-item"><label>ROI %</label><div class="value" id="roi">-</div></div>
+    <div class="result-item"><label>No Win Likelihood</label><div class="value" id="riskLoss">-</div></div>
+  </div>
 </div>
+
+<div class="share-center">
+  <div class="share-container">
+    <button class="share-btn" onclick="generateShareLink()">Generate &amp; Copy Shareable Link</button>
+    <div class="share-result" id="shareResult">
+      <a href="#" class="share-link" id="shareLink" target="_blank"></a>
+      <div class="success" id="copySuccess" style="margin-top: 10px;">Link copied to clipboard!</div>
+    </div>
+  </div>
 </div>
-</center>
+
+<footer>
+  <p>
+    EVE Online, HyperNet Relay, HyperCore, PLEX, and all associated item names, icons, and imagery are
+    property of <a href="https://www.ccpgames.com/" target="_blank" rel="noopener">CCP Games</a>.
+    Item icons are sourced from the
+    <a href="https://developers.eveonline.com/" target="_blank" rel="noopener">EVE Online ESI &amp; image server</a>
+    and remain the intellectual property of CCP hf.
+    This tool is an unofficial fan resource and is not affiliated with or endorsed by CCP Games.
+  </p>
+</footer>
 
 <script>
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+const THE_FORGE_REGION_ID  = 10000002;
+const JITA_4_4_STATION_ID  = 60003760;
+const HYPERCORE_TYPE_NAME  = 'HyperCore';
+const PLEX_TYPE_ID         = 44992;
+const HYPERNET_MAX_VALUE   = 10_000_000_000_000;
+
+// Cache the full market-prices list so we only fetch it once per session.
+let _marketPricesCache = null;
+
+// ---------------------------------------------------------------------------
+// Formatting helpers
+// ---------------------------------------------------------------------------
 function isk(n) {
-  const abs = Math.abs(n);
+  const abs  = Math.abs(n);
   const sign = n < 0 ? '-' : '';
   if (abs >= 1e9) return sign + (abs / 1e9).toFixed(2) + 'B';
   if (abs >= 1e6) return sign + (abs / 1e6).toFixed(2) + 'M';
@@ -215,73 +251,148 @@ function isk(n) {
   return sign + abs.toFixed(2);
 }
 
-function setHypercoreRatioMode(mode) {
-  const isUserProvided = mode === 'user-provided';
-  document.getElementById('hypercoreRatioLabel').textContent = isUserProvided
-    ? 'User-provided HyperCores @ 10T'
-    : 'Estimated HyperCores @ 10T';
-  document.getElementById('hypercoreRatioField').classList.toggle('user-provided', isUserProvided);
+// ---------------------------------------------------------------------------
+// Base-62 encode / decode  (integers)
+// ---------------------------------------------------------------------------
+const B62_CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+
+function b62(n) {
+  if (n === 0) return '0';
+  let result = '';
+  while (n > 0) {
+    result = B62_CHARS[n % 62] + result;
+    n = Math.floor(n / 62);
+  }
+  return result;
 }
 
-async function loadConfigFromHash() {
-  const hash = window.location.hash.substring(1);
-  if (!hash) return { loaded: false, hasHypercoreRatio: false };
-  
-  const config = await decodeConfig(hash);
-  if (!config) return { loaded: false, hasHypercoreRatio: false };
-  const hasHypercoreRatio = hash.split('~').some(part => part.startsWith('4:'));
-  
-  document.getElementById('itemName').value = config.in || '';
-  document.getElementById('itemPrice').value = config.ip || 0;
-  document.querySelector(`input[name="itemOrderType"][value="${config.ot || 'sell'}"]`).checked = true;
-  document.getElementById('sellValue').value = config.sv || 0;
-  document.getElementById('hypercorePrice').value = config.hp || 0;
-  document.getElementById('hypercoresAt10T').value = config.hc || 1000000;
-  document.getElementById('numTickets').value = config.nt || 8;
-  document.getElementById('selfTickets').value = config.st || 0;
-  document.getElementById('numRuns').value = config.nr || 1;
-  document.getElementById('rebatePercent').value = config.rp || 0;
-  document.getElementById('rebateTickets').value = config.rt || 0;
-  
-  calc();
-  
-  const success = document.getElementById('itemSuccess');
-  success.textContent = 'Configuration loaded from shared link!';
-  success.style.display = 'block';
-  setTimeout(() => { success.style.display = 'none'; }, 3000);
-  setHypercoreRatioMode(hasHypercoreRatio ? 'user-provided' : 'estimated');
-  return { loaded: true, hasHypercoreRatio };
+function unb62(s) {
+  let result = 0;
+  for (let i = 0; i < s.length; i++) {
+    result = result * 62 + B62_CHARS.indexOf(s[i]);
+  }
+  return result;
 }
 
-async function generateShareLink() {
-  const encoded = await encodeConfig();
-  const url = window.location.href.split('#')[0] + '#' + encoded;
-  
-  const shareLink = document.getElementById('shareLink');
-  shareLink.href = url;
-  shareLink.textContent = url;
-  
-  document.getElementById('shareResult').style.display = 'block';
-  
-  navigator.clipboard.writeText(url).then(() => {
-    const success = document.getElementById('copySuccess');
-    success.style.display = 'block';
-    setTimeout(() => { success.style.display = 'none'; }, 2000);
-  }).catch(err => {
-    console.error('Failed to copy:', err);
-  });
+// ---------------------------------------------------------------------------
+// Base-62 encode / decode  (strings)
+//
+// Bug fix: the original decoder used `while (num > 0)` which silently dropped
+// leading zero bytes.  We now track how many bytes each chunk should produce
+// (1 byte for chunks 0..255, 2 for 256..65535, 3 for anything larger) so
+// that zero bytes inside multi-byte chunks are preserved correctly.
+// ---------------------------------------------------------------------------
+function strToB62(str) {
+  if (!str) return '';
+  const bytes  = new TextEncoder().encode(str);
+  const parts  = [];
+  for (let i = 0; i < bytes.length; i += 3) {
+    const chunk = bytes.slice(i, i + 3);
+    let num = 0;
+    for (let j = 0; j < chunk.length; j++) num = num * 256 + chunk[j];
+    // Store chunk length as a prefix digit (1-3) so the decoder knows how
+    // many bytes to reconstruct even when leading bytes are zero.
+    parts.push(chunk.length + b62(num));
+  }
+  return parts.join('.');
 }
 
+function b62ToStr(encoded) {
+  if (!encoded) return '';
+  const bytes = [];
+  for (const part of encoded.split('.')) {
+    // First character is the byte-length of this chunk (stored as '1','2','3').
+    const len = parseInt(part[0], 10);
+    let num   = unb62(part.slice(1));
+    const chunkBytes = [];
+    for (let j = 0; j < len; j++) {
+      chunkBytes.unshift(num & 0xff);
+      num >>= 8;
+    }
+    bytes.push(...chunkBytes);
+  }
+  return new TextDecoder().decode(new Uint8Array(bytes));
+}
+
+// ---------------------------------------------------------------------------
+// Share-link encode / decode
+// ---------------------------------------------------------------------------
+// Defaults match the form's initial values.
+const CONFIG_DEFAULTS = ['', 1000000000, 1100000000, 380000, 1000000, 8, 0, 1, 0, 0, 'sell'];
+
+function encodeConfig() {
+  const v = [
+    document.getElementById('itemName').value,
+    parseFloat(document.getElementById('itemPrice').value)      || 0,
+    parseFloat(document.getElementById('sellValue').value)      || 0,
+    parseFloat(document.getElementById('hypercorePrice').value) || 0,
+    parseFloat(document.getElementById('hypercoresAt10T').value)|| 1000000,
+    parseInt(document.getElementById('numTickets').value),
+    parseInt(document.getElementById('selfTickets').value)      || 0,
+    parseInt(document.getElementById('numRuns').value)          || 1,
+    parseFloat(document.getElementById('rebatePercent').value)  || 0,
+    parseInt(document.getElementById('rebateTickets').value)    || 0,
+    document.querySelector('input[name="itemOrderType"]:checked').value
+  ];
+
+  const p = [];
+  for (let i = 0; i < v.length; i++) {
+    if (v[i] === CONFIG_DEFAULTS[i]) continue;
+    // Indices 0 (item name) and 10 (order type) are strings.
+    if (i === 0 || i === 10) {
+      p.push(i + ':' + strToB62(v[i]));
+    } else {
+      p.push(i + ':' + b62(v[i]));
+    }
+  }
+  return p.join('~');
+}
+
+function decodeConfig(encoded) {
+  try {
+    const v     = [...CONFIG_DEFAULTS];
+    const parts = encoded.split('~');
+    for (const part of parts) {
+      const colon = part.indexOf(':');
+      if (colon === -1) continue;
+      const i   = parseInt(part.slice(0, colon), 10);
+      const val = part.slice(colon + 1);
+      if (i === 0 || i === 10) {
+        v[i] = b62ToStr(val);
+      } else {
+        v[i] = unb62(val);
+      }
+    }
+    return {
+      in: v[0]  || '',
+      ip: v[1]  || 0,
+      sv: v[2]  || 0,
+      hp: v[3]  || 0,
+      hc: v[4]  || 1000000,
+      nt: v[5]  || 8,
+      st: v[6]  || 0,
+      nr: v[7]  || 1,
+      rp: v[8]  || 0,
+      rt: v[9]  || 0,
+      ot: v[10] === 'buy' ? 'buy' : 'sell'
+    };
+  } catch (e) {
+    console.error('Failed to decode config:', e);
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// ESI helpers
+// ---------------------------------------------------------------------------
 async function searchItem(itemName) {
-  if (!itemName || itemName.trim().length === 0) return null;
-  
+  if (!itemName || !itemName.trim()) return null;
   try {
     const response = await fetch('https://esi.evetech.net/latest/universe/ids/', {
-      method: 'POST',
+      method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify([itemName.trim()])
+      body:    JSON.stringify([itemName.trim()])
     });
-    
     if (!response.ok) return null;
     const data = await response.json();
     return data.inventory_types?.[0] || null;
@@ -291,32 +402,26 @@ async function searchItem(itemName) {
   }
 }
 
-const THE_FORGE_REGION_ID = 10000002;
-const JITA_4_4_STATION_ID = 60003760;
-const HYPERCORE_TYPE_NAME = 'HyperCore';
-const PLEX_TYPE_ID = 44992;
-const HYPERNET_MAX_VALUE = 10000000000000;
-
 async function getJitaOrderPrice(typeId, orderType = 'sell') {
   try {
-    const firstUrl = `https://esi.evetech.net/latest/markets/${THE_FORGE_REGION_ID}/orders/?datasource=tranquility&order_type=${orderType}&type_id=${typeId}`;
-    const response = await fetch(firstUrl);
+    const baseUrl  = `https://esi.evetech.net/latest/markets/${THE_FORGE_REGION_ID}/orders/?datasource=tranquility&order_type=${orderType}&type_id=${typeId}`;
+    const response = await fetch(baseUrl);
     if (!response.ok) return null;
 
     const pageCount = parseInt(response.headers.get('X-Pages') || '1', 10);
-    const pages = [await response.json()];
+    const pages     = [await response.json()];
 
     for (let page = 2; page <= pageCount; page++) {
-      const pageResponse = await fetch(`${firstUrl}&page=${page}`);
-      if (pageResponse.ok) pages.push(await pageResponse.json());
+      const r = await fetch(`${baseUrl}&page=${page}`);
+      if (r.ok) pages.push(await r.json());
     }
 
-    const jitaOrders = pages
+    const prices = pages
       .flat()
-      .filter(order => order.location_id === JITA_4_4_STATION_ID);
+      .filter(order => order.location_id === JITA_4_4_STATION_ID)
+      .map(order => order.price);
 
-    if (jitaOrders.length === 0) return null;
-    const prices = jitaOrders.map(order => order.price);
+    if (prices.length === 0) return null;
     return orderType === 'buy' ? Math.max(...prices) : Math.min(...prices);
   } catch (error) {
     console.error('Price lookup error:', error);
@@ -324,77 +429,143 @@ async function getJitaOrderPrice(typeId, orderType = 'sell') {
   }
 }
 
-async function getLowestJitaSellPrice(typeId) {
-  return getJitaOrderPrice(typeId, 'sell');
-}
-
+// Bug fix: cache the full market-prices response so repeated calls within the
+// same session (e.g. page load + user refresh) do not hammer the ESI endpoint.
 async function getEsiAveragePrice(typeId) {
   try {
-    const response = await fetch('https://esi.evetech.net/latest/markets/prices/?datasource=tranquility');
-    if (!response.ok) return null;
-
-    const prices = await response.json();
-    const itemPrice = prices.find(price => price.type_id === typeId);
-    return itemPrice?.average_price || null;
+    if (!_marketPricesCache) {
+      const response = await fetch('https://esi.evetech.net/latest/markets/prices/?datasource=tranquility');
+      if (!response.ok) return null;
+      _marketPricesCache = await response.json();
+    }
+    return _marketPricesCache.find(p => p.type_id === typeId)?.average_price || null;
   } catch (error) {
     console.error('Average price lookup error:', error);
     return null;
   }
 }
 
-async function estimateHypercoresAt10T() {
-  const hypercoresAt10TInput = document.getElementById('hypercoresAt10T');
-  const loading = document.getElementById('hypercoreEstimateLoading');
-  const success = document.getElementById('hypercoreEstimateSuccess');
-  const error = document.getElementById('hypercoreEstimateError');
+// Returns the EVE image-server URL for a type's icon.
+function typeIconUrl(typeId, size = 32) {
+  return `https://images.evetech.net/types/${typeId}/icon?size=${size}`;
+}
 
-  loading.style.display = 'block';
-  success.style.display = 'none';
-  error.textContent = '';
-
-  const plexAveragePrice = await getEsiAveragePrice(PLEX_TYPE_ID);
-  loading.style.display = 'none';
-
-  if (plexAveragePrice) {
-    const estimatedHypercores = Math.round(HYPERNET_MAX_VALUE / (2 * plexAveragePrice));
-    hypercoresAt10TInput.value = estimatedHypercores;
-    setHypercoreRatioMode('estimated');
-    success.textContent = `Estimated from ESI PLEX average (${isk(plexAveragePrice)} ISK): ${estimatedHypercores.toLocaleString()} HyperCores`;
-    success.style.display = 'block';
-    setTimeout(() => { success.style.display = 'none'; }, 5000);
-    calc();
+// ---------------------------------------------------------------------------
+// Item icon management
+// ---------------------------------------------------------------------------
+function setItemIcon(typeId) {
+  const icon = document.getElementById('itemTypeIcon');
+  const hint = document.getElementById('itemHint');
+  if (typeId) {
+    icon.src           = typeIconUrl(typeId, 32);
+    icon.style.display = 'block';
+    hint.style.display = 'none';
   } else {
-    error.textContent = 'Could not estimate HyperCores from ESI PLEX average. Enter the exact in-game value manually.';
+    clearItemIcon();
   }
+}
+
+function clearItemIcon() {
+  const icon = document.getElementById('itemTypeIcon');
+  const hint = document.getElementById('itemHint');
+  icon.style.display = 'none';
+  icon.src           = '';
+  hint.style.display = '';
+}
+
+// ---------------------------------------------------------------------------
+// UI: HyperCore ratio mode
+// ---------------------------------------------------------------------------
+function setHypercoreRatioMode(mode) {
+  const isUserProvided = mode === 'user-provided';
+  document.getElementById('hypercoreRatioLabel').textContent = isUserProvided
+    ? 'User-provided HyperCores'
+    : 'Estimated HyperCores';
+  document.getElementById('hypercoreRatioField').classList.toggle('user-provided', isUserProvided);
 }
 
 function markHypercoreRatioUserProvided() {
   setHypercoreRatioMode('user-provided');
 }
 
+// ---------------------------------------------------------------------------
+// Data lookups triggered by user actions
+// ---------------------------------------------------------------------------
+async function lookupItem() {
+  const itemNameInput = document.getElementById('itemName');
+  const itemPriceInput = document.getElementById('itemPrice');
+  const orderType      = document.querySelector('input[name="itemOrderType"]:checked').value;
+  const orderDesc      = orderType === 'buy' ? 'highest buy' : 'lowest sell';
+  const loading        = document.getElementById('itemLoading');
+  const success        = document.getElementById('itemSuccess');
+  const error          = document.getElementById('itemError');
+  const hint           = document.getElementById('itemHint');
+
+  const itemName = itemNameInput.value.trim();
+  if (!itemName) {
+    error.textContent = 'Please enter an item name';
+    clearItemIcon();
+    return;
+  }
+
+  hint.style.display    = 'none';
+  loading.style.display = 'block';
+  success.style.display = 'none';
+  error.textContent     = '';
+  clearItemIcon();
+
+  const item = await searchItem(itemName);
+
+  if (!item) {
+    loading.style.display = 'none';
+    error.textContent     = 'Item not found. Please check the exact item name.';
+    hint.style.display    = 'block';
+    return;
+  }
+
+  const price = await getJitaOrderPrice(item.id, orderType);
+  loading.style.display = 'none';
+
+  if (price) {
+    itemPriceInput.value  = Math.round(price);
+    success.textContent   = `Loaded Jita 4-4 ${orderDesc} for "${item.name}": ${isk(price)} ISK`;
+    success.style.display = 'block';
+    setItemIcon(item.id);
+    setTimeout(() => {
+      success.style.display = 'none';
+      hint.style.display    = 'block';
+    }, 5000);
+    calc();
+  } else {
+    error.textContent  = `Found "${item.name}" but no ${orderType} orders found in Jita 4-4`;
+    hint.style.display = 'block';
+    // Still show the icon – we found the item, just no current orders.
+    setItemIcon(item.id);
+  }
+}
+
 async function lookupHypercorePrice() {
-  const hypercorePriceInput = document.getElementById('hypercorePrice');
   const loading = document.getElementById('hypercoreLoading');
   const success = document.getElementById('hypercoreSuccess');
-  const error = document.getElementById('hypercoreError');
+  const error   = document.getElementById('hypercoreError');
 
   loading.style.display = 'block';
   success.style.display = 'none';
-  error.textContent = '';
+  error.textContent     = '';
 
   const hypercore = await searchItem(HYPERCORE_TYPE_NAME);
   if (!hypercore) {
     loading.style.display = 'none';
-    error.textContent = 'Could not find HyperCore item type';
+    error.textContent     = 'Could not find HyperCore item type';
     return;
   }
 
-  const price = await getLowestJitaSellPrice(hypercore.id);
+  const price           = await getJitaOrderPrice(hypercore.id, 'sell');
   loading.style.display = 'none';
 
   if (price) {
-    hypercorePriceInput.value = Math.round(price);
-    success.textContent = `Loaded Jita 4-4 lowest sell for HyperCore: ${isk(price)} ISK`;
+    document.getElementById('hypercorePrice').value = Math.round(price);
+    success.textContent   = `Loaded Jita 4-4 lowest sell for HyperCore: ${isk(price)} ISK`;
     success.style.display = 'block';
     setTimeout(() => { success.style.display = 'none'; }, 5000);
     calc();
@@ -403,81 +574,115 @@ async function lookupHypercorePrice() {
   }
 }
 
-async function lookupItem() {
-  const itemNameInput = document.getElementById('itemName');
-  const itemPriceInput = document.getElementById('itemPrice');
-  const orderType = document.querySelector('input[name="itemOrderType"]:checked').value;
-  const orderDescription = orderType === 'buy' ? 'highest buy' : 'lowest sell';
-  const loading = document.getElementById('itemLoading');
-  const success = document.getElementById('itemSuccess');
-  const error = document.getElementById('itemError');
-  const hint = document.getElementById('itemHint');
-  
-  const itemName = itemNameInput.value.trim();
-  
-  if (!itemName) {
-    error.textContent = 'Please enter an item name';
-    return;
-  }
-  
-  hint.style.display = 'none';
+async function estimateHypercoresAt10T() {
+  const loading = document.getElementById('hypercoreEstimateLoading');
+  const success = document.getElementById('hypercoreEstimateSuccess');
+  const error   = document.getElementById('hypercoreEstimateError');
+
   loading.style.display = 'block';
   success.style.display = 'none';
-  error.textContent = '';
-  
-  const item = await searchItem(itemName);
-  
-  if (!item) {
-    loading.style.display = 'none';
-    error.textContent = 'Item not found. Please check the exact item name.';
-    hint.style.display = 'block';
-    return;
-  }
-  
-  const price = await getJitaOrderPrice(item.id, orderType);
+  error.textContent     = '';
+
+  const plexAvg         = await getEsiAveragePrice(PLEX_TYPE_ID);
   loading.style.display = 'none';
-  
-  if (price) {
-    itemPriceInput.value = Math.round(price);
-    success.textContent = `Loaded Jita 4-4 ${orderDescription} for "${item.name}": ${isk(price)} ISK`;
+
+  if (plexAvg) {
+    const estimated = Math.round(HYPERNET_MAX_VALUE / (2 * plexAvg));
+    document.getElementById('hypercoresAt10T').value = estimated;
+    setHypercoreRatioMode('estimated');
+    success.textContent   = `Estimated from ESI PLEX average (${isk(plexAvg)} ISK): ${estimated.toLocaleString()} HyperCores`;
     success.style.display = 'block';
-    setTimeout(() => { 
-      success.style.display = 'none'; 
-      hint.style.display = 'block';
-    }, 5000);
+    setTimeout(() => { success.style.display = 'none'; }, 5000);
     calc();
   } else {
-    error.textContent = `Found "${item.name}" but no ${orderType} orders found in Jita 4-4`;
-    hint.style.display = 'block';
+    error.textContent = 'Could not estimate HyperCores from ESI PLEX average. Enter the exact in-game value manually.';
   }
 }
 
-document.getElementById('itemName').addEventListener('keypress', (e) => {
-  if (e.key === 'Enter') {
-    e.preventDefault();
-    lookupItem();
-  }
-});
+// ---------------------------------------------------------------------------
+// Share link
+// ---------------------------------------------------------------------------
+async function generateShareLink() {
+  const encoded   = encodeConfig();
+  const url       = window.location.href.split('#')[0] + '#' + encoded;
+  const shareLink = document.getElementById('shareLink');
+  shareLink.href      = url;
+  shareLink.textContent = url;
+  document.getElementById('shareResult').style.display = 'block';
 
+  try {
+    await navigator.clipboard.writeText(url);
+    const copySuccess = document.getElementById('copySuccess');
+    copySuccess.style.display = 'block';
+    setTimeout(() => { copySuccess.style.display = 'none'; }, 2000);
+  } catch (err) {
+    console.error('Failed to copy:', err);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Config load from URL hash
+// ---------------------------------------------------------------------------
+async function loadConfigFromHash() {
+  const hash = window.location.hash.substring(1);
+  if (!hash) return { loaded: false, hasHypercoreRatio: false };
+
+  const config = decodeConfig(hash);
+  if (!config) return { loaded: false, hasHypercoreRatio: false };
+
+  const hasHypercoreRatio = hash.split('~').some(part => part.startsWith('4:'));
+
+  document.getElementById('itemName').value     = config.in || '';
+  document.getElementById('itemPrice').value    = config.ip || 0;
+  document.querySelector(`input[name="itemOrderType"][value="${config.ot || 'sell'}"]`).checked = true;
+  document.getElementById('sellValue').value    = config.sv || 0;
+  document.getElementById('hypercorePrice').value    = config.hp || 0;
+  document.getElementById('hypercoresAt10T').value   = config.hc || 1000000;
+  document.getElementById('numTickets').value   = config.nt || 8;
+  document.getElementById('selfTickets').value  = config.st || 0;
+  document.getElementById('numRuns').value      = config.nr || 1;
+  document.getElementById('rebatePercent').value = config.rp || 0;
+  document.getElementById('rebateTickets').value = config.rt || 0;
+
+  setHypercoreRatioMode(hasHypercoreRatio ? 'user-provided' : 'estimated');
+
+  // If the config includes an item name, try to fetch its icon silently.
+  if (config.in) {
+    searchItem(config.in).then(item => { if (item) setItemIcon(item.id); });
+  }
+
+  calc();
+
+  const success = document.getElementById('itemSuccess');
+  success.textContent   = 'Configuration loaded from shared link!';
+  success.style.display = 'block';
+  setTimeout(() => { success.style.display = 'none'; }, 3000);
+
+  return { loaded: true, hasHypercoreRatio };
+}
+
+// ---------------------------------------------------------------------------
+// Main calculation
+// ---------------------------------------------------------------------------
 function calc() {
-  const itemPrice = parseFloat(document.getElementById('itemPrice').value) || 0;
-  const numTickets = parseInt(document.getElementById('numTickets').value);
-  const selfTickets = parseInt(document.getElementById('selfTickets').value) || 0;
-  const sellValue = parseFloat(document.getElementById('sellValue').value) || 0;
-  const hypercorePrice = parseFloat(document.getElementById('hypercorePrice').value) || 0;
-  const numRuns = parseInt(document.getElementById('numRuns').value) || 1;
-  const hypercoresAt10T = parseFloat(document.getElementById('hypercoresAt10T').value) || 1000000;
-  const rebatePercent = parseFloat(document.getElementById('rebatePercent').value) || 0;
-  const rebateTickets = parseInt(document.getElementById('rebateTickets').value) || 0;
-  
-  const errEl = document.getElementById('ticketError');
+  const itemPrice       = parseFloat(document.getElementById('itemPrice').value)       || 0;
+  const numTickets      = parseInt(document.getElementById('numTickets').value);
+  const selfTickets     = parseInt(document.getElementById('selfTickets').value)        || 0;
+  const sellValue       = parseFloat(document.getElementById('sellValue').value)        || 0;
+  const hypercorePrice  = parseFloat(document.getElementById('hypercorePrice').value)   || 0;
+  const numRuns         = parseInt(document.getElementById('numRuns').value)            || 1;
+  const hypercoresAt10T = parseFloat(document.getElementById('hypercoresAt10T').value)  || 1000000;
+  const rebatePercent   = parseFloat(document.getElementById('rebatePercent').value)    || 0;
+  const rebateTickets   = parseInt(document.getElementById('rebateTickets').value)      || 0;
+
+  const ticketErrEl = document.getElementById('ticketError');
   if (selfTickets > numTickets) {
-    errEl.textContent = 'Cannot exceed total tickets';
+    ticketErrEl.textContent = 'Cannot exceed total tickets';
     return;
   }
-  errEl.textContent = '';
+  ticketErrEl.textContent = '';
 
-  const rebateErrEl = document.getElementById('rebateError');
+  const rebateErrEl      = document.getElementById('rebateError');
   const maxRebateTickets = numTickets - selfTickets;
   if (rebateTickets > maxRebateTickets) {
     rebateErrEl.textContent = `Max ${maxRebateTickets} (excludes self tickets)`;
@@ -485,242 +690,136 @@ function calc() {
   }
   rebateErrEl.textContent = '';
 
-  const ratio = 10000000000000 / hypercoresAt10T;
-  const perTicket = sellValue / numTickets;
-  const hypercores = Math.max(1, Math.floor(sellValue / ratio));
-  const hypercoreCost = hypercores * hypercorePrice;
-  const winChance = selfTickets / numTickets;
-  const grossRev = numTickets * perTicket;
-  const taxAmt = grossRev * 0.05;
-  const netRev = grossRev * 0.95;
-  const selfCost = selfTickets * perTicket;
+  // Core calculations
+  const ratio          = HYPERNET_MAX_VALUE / hypercoresAt10T;
+  const perTicket      = sellValue / numTickets;
+  const hypercores     = Math.max(1, Math.floor(sellValue / ratio));
+  const hypercoreCost  = hypercores * hypercorePrice;
+  const winChance      = selfTickets / numTickets;
+  // grossRev = numTickets * perTicket = sellValue (kept explicit for clarity)
+  const grossRev       = sellValue;
+  const taxAmt         = grossRev * 0.05;
+  const netRev         = grossRev * 0.95;
+  const selfCost       = selfTickets * perTicket;
 
-  // Calculate rebate amounts (only for other people's tickets, not self)
-  const rebatePerTicket = perTicket * (rebatePercent / 100);
-  const totalRebatePaid = rebateTickets * rebatePerTicket;
+  // Rebate (only paid if you win; only for other players' tickets)
+  const rebatePerTicket  = perTicket * (rebatePercent / 100);
+  const totalRebatePaid  = rebateTickets * rebatePerTicket;
 
-  // Show rebate info
   const rebateInfo = document.getElementById('rebateInfo');
   if (rebatePercent > 0 && rebateTickets > 0) {
     rebateInfo.style.display = 'block';
-    document.getElementById('rebateAmount').textContent = isk(totalRebatePaid);
-    document.getElementById('rebateCount').textContent = rebateTickets;
+    document.getElementById('rebateAmount').textContent  = isk(totalRebatePaid);
+    document.getElementById('rebateCount').textContent   = rebateTickets;
     document.getElementById('rebateAverage').textContent = isk(rebatePerTicket);
   } else {
     rebateInfo.style.display = 'none';
   }
 
-  document.getElementById('perTicket').textContent = isk(perTicket);
-  document.getElementById('hypercores').textContent = hypercores;
+  // Per-run display
+  document.getElementById('perTicket').textContent    = isk(perTicket);
+  document.getElementById('hypercores').textContent   = hypercores;
   document.getElementById('hypercoreCost').textContent = isk(hypercoreCost);
-  document.getElementById('winChance').textContent = (winChance * 100).toFixed(2) + '%';
-  document.getElementById('grossRev').textContent = isk(grossRev);
-  document.getElementById('taxAmt').textContent = isk(taxAmt);
-  document.getElementById('netRev').textContent = isk(netRev);
-  document.getElementById('selfCost').textContent = isk(selfCost);
+  document.getElementById('winChance').textContent    = (winChance * 100).toFixed(2) + '%';
+  document.getElementById('grossRev').textContent     = isk(grossRev);
+  document.getElementById('taxAmt').textContent       = isk(taxAmt);
+  document.getElementById('netRev').textContent       = isk(netRev);
+  document.getElementById('selfCost').textContent     = isk(selfCost);
 
-  // If you lose - no rebate paid
-  const baseOut = itemPrice + selfCost + hypercoreCost;
-  const loseOut = baseOut;
-  const loseIn = netRev;
+  // Breakdown table
+  const baseOut   = itemPrice + selfCost + hypercoreCost;
+
+  const loseOut    = baseOut;
+  const loseIn     = netRev;
   const loseProfit = loseIn - loseOut;
 
-  // If you win - rebate is paid
-  const winOut = baseOut + totalRebatePaid;
-  const winIn = netRev + itemPrice;
+  const winOut    = baseOut + totalRebatePaid;
+  const winIn     = netRev + itemPrice;
   const winProfit = winIn - winOut;
 
   document.getElementById('loseItem').textContent = isk(itemPrice);
   document.getElementById('loseSelf').textContent = isk(selfCost);
-  document.getElementById('loseHC').textContent = isk(hypercoreCost);
-  document.getElementById('loseOut').textContent = isk(loseOut);
-  document.getElementById('loseRev').textContent = isk(netRev);
-  document.getElementById('loseIn').textContent = isk(loseIn);
+  document.getElementById('loseHC').textContent   = isk(hypercoreCost);
+  document.getElementById('loseOut').textContent  = isk(loseOut);
+  document.getElementById('loseRev').textContent  = isk(netRev);
+  document.getElementById('loseIn').textContent   = isk(loseIn);
   const lpEl = document.getElementById('loseProfit');
   lpEl.textContent = isk(loseProfit);
-  lpEl.className = loseProfit >= 0 ? 'profit' : 'loss';
+  lpEl.className   = loseProfit >= 0 ? 'profit' : 'loss';
 
-  document.getElementById('winItem').textContent = isk(itemPrice);
-  document.getElementById('winSelf').textContent = isk(selfCost);
-  document.getElementById('winHC').textContent = isk(hypercoreCost);
+  document.getElementById('winItem').textContent   = isk(itemPrice);
+  document.getElementById('winSelf').textContent   = isk(selfCost);
+  document.getElementById('winHC').textContent     = isk(hypercoreCost);
   document.getElementById('winRebate').textContent = isk(totalRebatePaid);
-  document.getElementById('winOut').textContent = isk(winOut);
-  document.getElementById('winRev').textContent = isk(netRev);
-  document.getElementById('winWon').textContent = isk(itemPrice);
-  document.getElementById('winIn').textContent = isk(winIn);
+  document.getElementById('winOut').textContent    = isk(winOut);
+  document.getElementById('winRev').textContent    = isk(netRev);
+  document.getElementById('winWon').textContent    = isk(itemPrice);
+  document.getElementById('winIn').textContent     = isk(winIn);
   const wpEl = document.getElementById('winProfit');
   wpEl.textContent = isk(winProfit);
-  wpEl.className = winProfit >= 0 ? 'profit' : 'loss';
+  wpEl.className   = winProfit >= 0 ? 'profit' : 'loss';
 
-  const expectedWins = numRuns * winChance;
-  const expectedLosses = numRuns * (1 - winChance);
+  // Average row
   const avgRebatePaid = totalRebatePaid * winChance;
-  const avgProfitVal = (winProfit * winChance) + (loseProfit * (1 - winChance));
-  const totalProfitVal = avgProfitVal * numRuns;
-  const avgOutVal = baseOut + avgRebatePaid;
-  const totalInvest = avgOutVal * numRuns;
-  const roiVal = totalInvest > 0 ? (totalProfitVal / totalInvest) * 100 : 0;
-  const avgWonVal = itemPrice * winChance;
-  const avgInVal = netRev + avgWonVal;
-  
-  // Calculate risk of total loss (losing all runs)
-  const loseChance = 1 - winChance;
-  const riskTotalLoss = Math.pow(loseChance, numRuns) * 100;
+  const avgProfitVal  = (winProfit * winChance) + (loseProfit * (1 - winChance));
+  const avgOutVal     = baseOut + avgRebatePaid;
+  const avgWonVal     = itemPrice * winChance;
+  const avgInVal      = netRev + avgWonVal;
 
-  document.getElementById('avgItem').textContent = isk(itemPrice);
-  document.getElementById('avgSelf').textContent = isk(selfCost);
-  document.getElementById('avgHC').textContent = isk(hypercoreCost);
+  document.getElementById('avgItem').textContent   = isk(itemPrice);
+  document.getElementById('avgSelf').textContent   = isk(selfCost);
+  document.getElementById('avgHC').textContent     = isk(hypercoreCost);
   document.getElementById('avgRebate').textContent = isk(avgRebatePaid);
-  document.getElementById('avgOut').textContent = isk(avgOutVal);
-  document.getElementById('avgRev').textContent = isk(netRev);
-  document.getElementById('avgWon').textContent = isk(avgWonVal);
-  document.getElementById('avgIn').textContent = isk(avgInVal);
+  document.getElementById('avgOut').textContent    = isk(avgOutVal);
+  document.getElementById('avgRev').textContent    = isk(netRev);
+  document.getElementById('avgWon').textContent    = isk(avgWonVal);
+  document.getElementById('avgIn').textContent     = isk(avgInVal);
   const aprEl = document.getElementById('avgProfitRow');
   aprEl.textContent = isk(avgProfitVal);
-  aprEl.className = avgProfitVal >= 0 ? 'profit' : 'loss';
+  aprEl.className   = avgProfitVal >= 0 ? 'profit' : 'loss';
 
-  document.getElementById('expectedWins').textContent = expectedWins.toFixed(2);
+  // Multi-run summary
+  const expectedWins   = numRuns * winChance;
+  const expectedLosses = numRuns * (1 - winChance);
+  const totalInvest    = avgOutVal * numRuns;
+  const totalProfitVal = avgProfitVal * numRuns;
+  const roiVal         = totalInvest > 0 ? (totalProfitVal / totalInvest) * 100 : 0;
+  const riskTotalLoss  = Math.pow(1 - winChance, numRuns) * 100;
+
+  document.getElementById('expectedWins').textContent   = expectedWins.toFixed(2);
   document.getElementById('expectedLosses').textContent = expectedLosses.toFixed(2);
-  document.getElementById('totalInvest').textContent = isk(totalInvest);
+  document.getElementById('totalInvest').textContent    = isk(totalInvest);
   const tpEl = document.getElementById('totalProfit');
   tpEl.textContent = isk(totalProfitVal);
-  tpEl.className = 'value ' + (totalProfitVal >= 0 ? 'profit' : 'loss');
+  tpEl.className   = 'value ' + (totalProfitVal >= 0 ? 'profit' : 'loss');
   const roiEl = document.getElementById('roi');
   roiEl.textContent = roiVal.toFixed(2) + '%';
-  roiEl.className = 'value ' + (roiVal >= 0 ? 'profit' : 'loss');
+  roiEl.className   = 'value ' + (roiVal >= 0 ? 'profit' : 'loss');
   const riskEl = document.getElementById('riskLoss');
   riskEl.textContent = riskTotalLoss.toFixed(2) + '%';
-  riskEl.className = 'value ' + (riskTotalLoss > 50 ? 'loss' : riskTotalLoss > 25 ? 'value' : 'profit');
+  riskEl.className   = 'value ' + (riskTotalLoss > 50 ? 'loss' : riskTotalLoss > 25 ? 'value' : 'profit');
 }
 
-function b62(n) {
-  const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
-  if (n === 0) return '0';
-  let result = '';
-  while (n > 0) {
-    result = chars[n % 62] + result;
-    n = Math.floor(n / 62);
-  }
-  return result;
-}
+// ---------------------------------------------------------------------------
+// Event listeners & initialisation
+// ---------------------------------------------------------------------------
+document.getElementById('itemName').addEventListener('keypress', e => {
+  if (e.key === 'Enter') { e.preventDefault(); lookupItem(); }
+});
 
-function unb62(s) {
-  const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
-  let result = 0;
-  for (let i = 0; i < s.length; i++) {
-    result = result * 62 + chars.indexOf(s[i]);
-  }
-  return result;
-}
+// Clear icon whenever the user starts editing the item name.
+document.getElementById('itemName').addEventListener('input', clearItemIcon);
 
-function strToB62(str) {
-  if (!str) return '';
-  const bytes = new TextEncoder().encode(str);
-  let result = '';
-  for (let i = 0; i < bytes.length; i += 3) {
-    const chunk = bytes.slice(i, i + 3);
-    let num = 0;
-    for (let j = 0; j < chunk.length; j++) {
-      num = num * 256 + chunk[j];
-    }
-    result += b62(num);
-    if (i + 3 < bytes.length) result += '.';
-  }
-  return result;
-}
+document.getElementById('hypercoresAt10T').addEventListener('input', markHypercoreRatioUserProvided);
 
-function b62ToStr(encoded) {
-  if (!encoded) return '';
-  const chunks = encoded.split('.');
-  const bytes = [];
-  for (const chunk of chunks) {
-    let num = unb62(chunk);
-    const chunkBytes = [];
-    while (num > 0) {
-      chunkBytes.unshift(num % 256);
-      num = Math.floor(num / 256);
-    }
-    bytes.push(...chunkBytes);
-  }
-  return new TextDecoder().decode(new Uint8Array(bytes));
-}
+document.querySelectorAll('input:not(#itemName), select').forEach(el => el.addEventListener('input', calc));
 
-async function encodeConfig() {
-  const d = ['', 1000000000, 1100000000, 380000, 1000000, 8, 0, 1, 0, 0, 'sell'];
-  const v = [
-    document.getElementById('itemName').value,
-    parseFloat(document.getElementById('itemPrice').value) || 0,
-    parseFloat(document.getElementById('sellValue').value) || 0,
-    parseFloat(document.getElementById('hypercorePrice').value) || 0,
-    parseFloat(document.getElementById('hypercoresAt10T').value) || 1000000,
-    parseInt(document.getElementById('numTickets').value),
-    parseInt(document.getElementById('selfTickets').value) || 0,
-    parseInt(document.getElementById('numRuns').value) || 1,
-    parseFloat(document.getElementById('rebatePercent').value) || 0,
-    parseInt(document.getElementById('rebateTickets').value) || 0,
-    document.querySelector('input[name="itemOrderType"]:checked').value
-  ];
-  
-  const p = [];
-  for (let i = 0; i < v.length; i++) {
-    if (i === 0) {
-      if (v[i]) p.push('0:' + strToB62(v[i]));
-    } else if (i === 10) {
-      if (v[i] !== d[i]) p.push(i + ':' + strToB62(v[i]));
-    } else if (v[i] !== d[i]) {
-      p.push(i + ':' + b62(v[i]));
-    }
-  }
-  return p.join('~');
-}
-
-async function decodeConfig(encoded) {
-  try {
-    const d = ['', 1000000000, 1100000000, 380000, 1000000, 8, 0, 1, 0, 0, 'sell'];
-    const v = [...d];
-    const parts = encoded.split('~');
-    
-    for (const p of parts) {
-      const [idx, val] = p.split(':');
-      const i = parseInt(idx);
-      if (i === 0) {
-        v[0] = b62ToStr(val);
-      } else if (i === 10) {
-        v[10] = b62ToStr(val);
-      } else {
-        v[i] = unb62(val);
-      }
-    }
-    
-    return {
-      in: v[0] || '',
-      ip: v[1] || 0,
-      sv: v[2] || 0,
-      hp: v[3] || 0,
-      hc: v[4] || 1000000,
-      nt: v[5] || 8,
-      st: v[6] || 0,
-      nr: v[7] || 1,
-      rp: v[8] || 0,
-      rt: v[9] || 0,
-      ot: v[10] === 'buy' ? 'buy' : 'sell'
-    };
-  } catch (e) {
-    console.error('Failed to decode config:', e);
-    return null;
-  }
-}
-
-async function initialize() {
+window.addEventListener('DOMContentLoaded', async () => {
   const configLoad = await loadConfigFromHash();
   if (!configLoad.hasHypercoreRatio) await estimateHypercoresAt10T();
   await lookupHypercorePrice();
-}
-
-document.querySelectorAll('input:not(#itemName), select').forEach(el => el.addEventListener('input', calc));
-document.getElementById('hypercoresAt10T').addEventListener('input', markHypercoreRatioUserProvided);
-window.addEventListener('DOMContentLoaded', initialize);
-calc();
+  calc();
+});
 </script>
 </body>
 </html>
