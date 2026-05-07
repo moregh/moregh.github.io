@@ -64,7 +64,7 @@ button:disabled {
 
 .filters {
   display: grid;
-  grid-template-columns: 250px 220px 210px 210px minmax(360px, 1fr);
+  grid-template-columns: 220px 160px 135px 135px minmax(360px, 1fr);
   gap: 12px 16px;
   align-items: start;
   padding: 0 0 14px;
@@ -125,13 +125,13 @@ fieldset {
 .industry-filters {
   display: grid;
   grid-template-columns:
-    minmax(150px, 1.4fr)
-    minmax(110px, 1fr)
-    minmax(110px, 1fr)
-    minmax(120px, 1fr)
-    minmax(150px, 1.2fr)
-    minmax(96px, 0.8fr)
-    minmax(96px, 0.8fr);
+    minmax(125px, 1.25fr)
+    minmax(88px, 0.9fr)
+    minmax(88px, 0.9fr)
+    minmax(88px, 0.9fr)
+    minmax(108px, 1fr)
+    minmax(82px, 0.72fr)
+    minmax(82px, 0.72fr);
   gap: 8px;
   align-items: end;
 }
@@ -170,6 +170,10 @@ select {
   color: var(--ink);
   padding: 0 10px;
   font: inherit;
+}
+
+.hub-filter select {
+  min-width: 0;
 }
 
 .check input {

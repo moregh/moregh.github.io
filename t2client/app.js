@@ -203,6 +203,16 @@ function hubName(id) {
   return staticData?.tradeHubs?.find((hub) => hub.id === id)?.name || id;
 }
 
+function shortHubLabel(hub) {
+  const labels = {
+    jita: "Jita 4-4",
+    amarr: "Amarr 8-4",
+    dodixie: "Dodixie 9-20",
+    hek: "Hek 8-12",
+  };
+  return labels[hub.id] || hub.name;
+}
+
 function typeIconUrl(typeId, size = 32) {
   return `https://images.evetech.net/types/${typeId}/icon?size=${size}`;
 }
@@ -912,7 +922,7 @@ async function loadStaticData() {
   if (staticData.tradeHubs) {
     // CHANGE: use shared buildOptions helper instead of inline map+join
     const hubOptions = buildOptions(staticData.tradeHubs, (hub) => (
-      `<option value="${hub.id}"${hub.id === "jita" ? " selected" : ""}>${hub.name}</option>`
+      `<option value="${hub.id}"${hub.id === "jita" ? " selected" : ""}>${shortHubLabel(hub)}</option>`
     ));
     sourceHub.innerHTML = hubOptions;
     sellHub.innerHTML   = hubOptions;
