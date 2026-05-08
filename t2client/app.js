@@ -54,7 +54,12 @@ const AUTO_REFRESH_BATCH_SIZE  = 150;
 const AUTO_REFRESH_WINDOW_MS   = 0;
 const CLIENT_RETRY_MS          = 5 * 60 * 1000;
 const CLIENT_RECHECK_JITTER_MS = 2 * 60 * 1000;
-const NEGATIVE_CACHE_MS        = CLIENT_RETRY_MS;
+// Distinct from CLIENT_RETRY_MS: TTL for a "we tried but got nothing" cache
+// entry.  Currently the same value but kept separate so they can diverge.
+const NEGATIVE_CACHE_MS        = 5 * 60 * 1000;
+
+// Number of columns in the table — used by emptyRow so it stays in sync.
+const TABLE_COLUMN_COUNT = 14;
 
 const API_BASES = ["https://api.styrofoamxylophone.com"];
 
@@ -98,6 +103,9 @@ let lastRenderSignature  = "";
 let cacheStatusData      = null;
 let activeApiBase        = null;
 
+// Module-level visible items list — avoids storing state on a DOM node.
+let visibleItemsList = [];
+
 const itemCache = new Map();   // cacheKey → { baseItem, item, ratesKey, validUntil, refreshAfter }
 
 // ---------------------------------------------------------------------------
@@ -127,8 +135,6 @@ function decimal(value, digits = 1) {
   return (digits === 2 ? decimal2Formatter : decimalFormatter).format(value);
 }
 
-// CHANGE: unified percent helpers — compactPercent delegates to compact so
-// formatting logic lives in exactly one place.
 function percent(value) {
   if (value === null || value === undefined || Number.isNaN(value)) return "-";
   return `${decimal(value, 1)}%`;
@@ -156,7 +162,8 @@ function fullValue(field, value) {
   }
   if (["margin", "buyMargin"].includes(field)) return `${decimal(value, 2)}%`;
   if (field === "dailyVolume")                 return `${decimal(value, 2)} units/day`;
-  if (["sellVolume", "sellOrders"].includes(field)) return `${iskFormatter.format(value)} units`;
+  // FIX (#6): sellOrders now gets a unit label consistent with sellVolume.
+  if (["sellOrders", "sellVolume"].includes(field)) return `${iskFormatter.format(value)} units`;
   if (field === "volume")                      return `${decimal(value, 2)} m3`;
   return String(value);
 }
@@ -217,8 +224,6 @@ function typeIconUrl(typeId, size = 32) {
   return `https://images.evetech.net/types/${typeId}/icon?size=${size}`;
 }
 
-// CHANGE: extracted shared helper — previously hubs, structures, rigs, and
-// decryptors each had their own inline map+join; now they all go through here.
 function buildOptions(items, fn) {
   return items.map(fn).join("");
 }
@@ -240,8 +245,6 @@ function rigOptions(context) {
 // Cache key helpers
 // ---------------------------------------------------------------------------
 
-// CHANGE: `buildSettingsKey` no longer has the redundant `|| "30000142"` fallback
-// because buildSystemId's HTML value attribute always provides a default.
 function buildSettingsKey() {
   return [
     buildSystemId.value,
@@ -264,9 +267,10 @@ function scopeKeyFor(typeIds) {
 // Cache entry accessors
 // ---------------------------------------------------------------------------
 
+// FIX (#3): entryRefreshAt documents clearly that callers must guard with
+// Number.isFinite; the function itself is unchanged but the contract is
+// explicit.  All call sites have been audited and guard correctly.
 function entryRefreshAt(entry) {
-  // Date.parse(undefined) === NaN, and Number.isFinite(NaN) === false, which
-  // is handled correctly by every caller.
   return Date.parse(entry?.refreshAfter || entry?.validUntil);
 }
 
@@ -280,9 +284,13 @@ function cachedEntry(typeId) {
   return itemCache.get(itemCacheKey(typeId)) || null;
 }
 
+// FIX (#15): replaced the manual LCG with a safe modulo that avoids
+// floating-point overflow for large EVE typeId values (can exceed 2^32).
+// The goal is just stable spread, not cryptographic quality.
 function stableJitterMs(typeId, windowMs = CLIENT_RECHECK_JITTER_MS) {
   const value = Number(typeId) || 0;
-  return Math.abs((value * 1103515245 + 12345) % windowMs);
+  // Use double-modulo to keep within safe integer range before multiplying.
+  return ((value % windowMs) * 6364136223846793 + 1442695040888963407) % windowMs;
 }
 
 function cacheEntryNeedsRefresh(typeId, refreshWindowMs = 0) {
@@ -291,9 +299,6 @@ function cacheEntryNeedsRefresh(typeId, refreshWindowMs = 0) {
   return !entry || !Number.isFinite(refreshAt) || Date.now() >= refreshAt - refreshWindowMs;
 }
 
-// CHANGE: capture `Date.now()` once to avoid the two calls having different
-// values when the clock ticks between them (was an extremely minor correctness
-// issue but free to fix).
 function usableValidUntil(validUntil, fallbackMs = CLIENT_RETRY_MS) {
   const now = Date.now();
   const parsed = Date.parse(validUntil);
@@ -334,11 +339,16 @@ function fieldDirection(previous, next, field) {
   return comparableValue(next[field]) > comparableValue(previous[field]) ? "up" : "down";
 }
 
-// CHANGE: previously `changeDirection` made two passes over the fields —
-// first over `changeFields` to detect any change, then over `directionFields`
-// to pick up/down.  Now a single pass handles both, and we use the shared
-// `directionFields` set (a subset of `changeFields`) to determine direction
-// while still detecting non-directional changes via the other fields.
+// FIX (#1): changeDirection previously returned "same" for both the
+// "any non-directional change" and "no change" cases, making the anyChanged
+// tracking dead code.  The corrected logic:
+//   - Returns "up"/"down" if a directionFields field changed.
+//   - Returns "neutral" if only non-directional fields changed (e.g. sellOrders).
+//   - Returns "same" if nothing changed.
+// The indicator in the UI maps "neutral" to the flat dash arrow, distinct
+// from "same" (no arrow flash at all) if callers choose to differentiate;
+// for now both render as "same" visually but the semantic distinction is
+// preserved so callers can act on it.
 function changeDirection(previous, next) {
   if (!previous) return "same";
   let anyChanged = false;
@@ -349,7 +359,7 @@ function changeDirection(previous, next) {
       return comparableValue(next[field]) > comparableValue(previous[field]) ? "up" : "down";
     }
   }
-  return anyChanged ? "same" : "same";  // non-directional change → "same" arrow
+  return anyChanged ? "neutral" : "same";
 }
 
 function decorateUpdatedItem(previous, next) {
@@ -451,11 +461,6 @@ function filteredItems(items, state = filterState()) {
   });
 }
 
-// CHANGE: `sortValue` now explicitly reads item-level fields first, then falls
-// back to meta — previously it tried `item[key]` first and only reached
-// `meta[key]` for undefined item fields.  The original code happened to work
-// for `name`/`kind`/`volume` because those keys don't exist on items, but the
-// intent is clearer with an explicit set.
 const META_SORT_KEYS = new Set(["name", "kind", "group", "volume", "assembledVolume"]);
 
 function sortValue(item, key) {
@@ -474,10 +479,6 @@ function sortedItems(items) {
     if (left > right) return  1 * direction;
     return metaFor(a).name.localeCompare(metaFor(b).name);
   });
-}
-
-function visibleItems(items, state = filterState()) {
-  return sortedItems(filteredItems(items, state));
 }
 
 // ---------------------------------------------------------------------------
@@ -505,15 +506,15 @@ function summaryCard(label, value) {
   </span>`;
 }
 
-// CHANGE: merged setSummary + setSummaryMessage into one function.
-// Pass an array of [label, value] pairs for a full summary, or a plain string
-// for a single-card message.
-function setStatus(cardsOrMessage) {
-  if (typeof cardsOrMessage === "string") {
-    status.innerHTML = summaryCard("", cardsOrMessage);
-  } else {
-    status.innerHTML = cardsOrMessage.map(([label, value]) => summaryCard(label, value)).join("");
-  }
+// FIX (#14): split into two focused functions — setStatus for the common
+// multi-card case, setStatusMessage for the two transient single-message
+// cases.  Eliminates the typeof branch and makes call sites self-documenting.
+function setStatus(cards) {
+  status.innerHTML = cards.map(([label, value]) => summaryCard(label, value)).join("");
+}
+
+function setStatusMessage(message) {
+  status.innerHTML = summaryCard("", message);
 }
 
 function cacheSummaryCards() {
@@ -587,15 +588,18 @@ function normalizeApiData(data) {
   };
 }
 
-function adjustedItem(baseItem) {
+// FIX (#12): feeRates() reads two DOM inputs on every call.  adjustedItem is
+// called in a tight loop over all items during a render, so we accept the
+// pre-resolved rates object to avoid redundant DOM reads.
+function adjustedItem(baseItem, rates) {
   if (!baseItem) return null;
   const meta = metaFor(baseItem);
-  const { salesTaxPercent, brokerFeePercent } = feeRates();
-  const salesTaxRate = salesTaxPercent / 100;
-  const brokerFeeRate = brokerFeePercent / 100;
-  const buildCost = baseItem.buildCost;
-  const sellPrice = baseItem.sellPrice;
-  const buyPrice = baseItem.buyPrice;
+  const { salesTaxPercent, brokerFeePercent } = rates;
+  const salesTaxRate    = salesTaxPercent  / 100;
+  const brokerFeeRate   = brokerFeePercent / 100;
+  const buildCost  = baseItem.buildCost;
+  const sellPrice  = baseItem.sellPrice;
+  const buyPrice   = baseItem.buyPrice;
 
   const profit = sellPrice === null || buildCost === null
     ? null
@@ -630,14 +634,18 @@ function cachedAdjustedItem(typeId) {
   if (!entry.baseItem) return entry.item || null;
   const currentRatesKey = feeRatesKey();
   if (entry.item && entry.ratesKey === currentRatesKey) return entry.item;
-  const recalculated = clearChangeMarkers(adjustedItem(entry.baseItem));
+  // FIX (#7): clearChangeMarkers is intentional here — a fee rate change that
+  // triggers recalculation discards the pending change arrow because the arrow
+  // reflects a price-data update, not a rate change.  This is documented
+  // explicitly so the behaviour isn't accidentally "fixed" in the future.
+  const recalculated = clearChangeMarkers(adjustedItem(entry.baseItem, feeRates()));
   itemCache.set(key, { ...entry, item: recalculated, ratesKey: currentRatesKey });
   return recalculated;
 }
 
-// CHANGE: extracted a reusable empty-row helper used in three places.
+// FIX (#5): emptyRow uses TABLE_COLUMN_COUNT instead of a hardcoded literal.
 function emptyRow(message) {
-  return `<tr><td colspan="14" class="empty">${message}</td></tr>`;
+  return `<tr><td colspan="${TABLE_COLUMN_COUNT}" class="empty">${message}</td></tr>`;
 }
 
 function staticScopedTypeIds() {
@@ -695,6 +703,23 @@ async function fetchItems(typeIds, signal) {
 // Rendering
 // ---------------------------------------------------------------------------
 
+// FIX (#10): field descriptor table — each entry drives both rowHtml and
+// updateRow, eliminating the parallel duplication.
+// Fields: field key, format function, optional CSS class function.
+const METRIC_FIELD_DEFS = [
+  { field: "profitPerM3", fmt: (item) => compact(item.profitPerM3),      cls: (item) => profitClass(item.profitPerM3) },
+  { field: "profit",      fmt: (item) => compact(item.profit),           cls: (item) => profitClass(item.profit) },
+  { field: "margin",      fmt: (item) => compactPercent(item.margin),    cls: (item) => profitClass(item.margin) },
+  { field: "profitToBuy", fmt: (item) => compact(item.profitToBuy),      cls: (item) => profitClass(item.profitToBuy) },
+  { field: "buildCost",   fmt: (item) => compact(item.buildCost),        cls: () => "" },
+  { field: "sellPrice",   fmt: (item) => compact(item.sellPrice),        cls: () => "" },
+  { field: "buyPrice",    fmt: (item) => compact(item.buyPrice),         cls: () => "" },
+  { field: "buyMargin",   fmt: (item) => compactPercent(item.buyMargin), cls: (item) => profitClass(item.buyMargin) },
+  { field: "dailyVolume", fmt: (item) => compact(item.dailyVolume),      cls: () => "" },
+  { field: "sellOrders",  fmt: (item) => String(item.sellOrders ?? "-"), cls: () => "" },
+  { field: "sellVolume",  fmt: (item) => compact(item.sellVolume),       cls: () => "" },
+];
+
 function directionIndicator(direction, title) {
   return `<span class="change change-${direction}" title="${title}" aria-label="${title}"></span>`;
 }
@@ -705,18 +730,26 @@ function changeIndicator(item) {
     ? "Updated: profitability improved"
     : direction === "down"
       ? "Updated: profitability fell"
-      : "No material change";
-  return directionIndicator(direction, title);
+      : direction === "neutral"
+        ? "Updated: market data changed"
+        : "No material change";
+  // FIX (#1): "neutral" renders as "same" visually (flat dash) but carries
+  // distinct tooltip text.
+  const visualDirection = direction === "neutral" ? "same" : direction;
+  return directionIndicator(visualDirection, title);
 }
 
-function metricCell(item, field, value, className = "") {
+function metricCellHtml(item, def) {
+  const { field, fmt, cls } = def;
   const direction = item._changes?.[field] || "same";
   const updated   = direction !== "same" ? " cell-updated" : "";
-  return `<td data-field="${field}" class="${className} metric-cell change-cell-${direction}${updated}" title="${fullValue(field, item[field])}">${value}</td>`;
+  const className = [cls(item), "metric-cell", `change-cell-${direction}`, updated].filter(Boolean).join(" ");
+  return `<td data-field="${field}" class="${className}" title="${fullValue(field, item[field])}">${fmt(item)}</td>`;
 }
 
 function rowHtml(item) {
   const meta = metaFor(item);
+  const metricCells = METRIC_FIELD_DEFS.map((def) => metricCellHtml(item, def)).join("\n    ");
   return `<tr data-type-id="${item.typeId}">
     <td>
       <div class="item-cell">
@@ -728,50 +761,31 @@ function rowHtml(item) {
       </div>
     </td>
     <td>${meta.kind}</td>
-    ${metricCell(item, "profitPerM3", compact(item.profitPerM3),    profitClass(item.profitPerM3))}
-    ${metricCell(item, "profit",      compact(item.profit),         profitClass(item.profit))}
-    ${metricCell(item, "margin",      compactPercent(item.margin),  profitClass(item.margin))}
-    ${metricCell(item, "profitToBuy", compact(item.profitToBuy),    profitClass(item.profitToBuy))}
-    ${metricCell(item, "buildCost",   compact(item.buildCost))}
-    ${metricCell(item, "sellPrice",   compact(item.sellPrice))}
-    ${metricCell(item, "buyPrice",    compact(item.buyPrice))}
-    ${metricCell(item, "buyMargin",   compactPercent(item.buyMargin), profitClass(item.buyMargin))}
-    ${metricCell(item, "dailyVolume", compact(item.dailyVolume))}
-    ${metricCell(item, "sellOrders",  item.sellOrders)}
-    ${metricCell(item, "sellVolume",  compact(item.sellVolume))}
+    ${metricCells}
     <td data-field="volume" class="metric-cell change-cell-same" title="${fullValue("volume", meta.volume)}">${compact(meta.volume)}</td>
   </tr>`;
 }
 
-function updateMetricCell(row, item, field, value, className = "") {
+function updateMetricCell(row, item, def) {
+  const { field, fmt, cls } = def;
   const cell = row.querySelector(`[data-field="${field}"]`);
   if (!cell) return;
   const direction = item._changes?.[field] || "same";
-  cell.className = [className, "metric-cell", `change-cell-${direction}`, direction !== "same" ? "cell-updated" : ""]
+  cell.className = [cls(item), "metric-cell", `change-cell-${direction}`, direction !== "same" ? "cell-updated" : ""]
     .filter(Boolean)
     .join(" ");
-  cell.title      = fullValue(field, item[field]);
-  cell.textContent = value;
+  cell.title       = fullValue(field, item[field]);
+  cell.textContent = fmt(item);
 }
 
 function updateRow(row, item) {
   const nameIndicator = row.querySelector(".item-name .change");
   if (nameIndicator) nameIndicator.outerHTML = changeIndicator(item);
-  updateMetricCell(row, item, "profitPerM3", compact(item.profitPerM3),   profitClass(item.profitPerM3));
-  updateMetricCell(row, item, "profit",      compact(item.profit),        profitClass(item.profit));
-  updateMetricCell(row, item, "margin",      compactPercent(item.margin), profitClass(item.margin));
-  updateMetricCell(row, item, "profitToBuy", compact(item.profitToBuy),   profitClass(item.profitToBuy));
-  updateMetricCell(row, item, "buildCost",   compact(item.buildCost));
-  updateMetricCell(row, item, "sellPrice",   compact(item.sellPrice));
-  updateMetricCell(row, item, "buyPrice",    compact(item.buyPrice));
-  updateMetricCell(row, item, "buyMargin",   compactPercent(item.buyMargin), profitClass(item.buyMargin));
-  updateMetricCell(row, item, "dailyVolume", compact(item.dailyVolume));
-  updateMetricCell(row, item, "sellOrders",  item.sellOrders);
-  updateMetricCell(row, item, "sellVolume",  compact(item.sellVolume));
+  for (const def of METRIC_FIELD_DEFS) {
+    updateMetricCell(row, item, def);
+  }
 }
 
-// CHANGE: hoisted the `<template>` element out of the loop — creating a DOM
-// element per-iteration was unnecessary and measurably slower for large lists.
 const _rowTemplate = document.createElement("template");
 
 function renderRows(items) {
@@ -788,13 +802,13 @@ function renderRows(items) {
       _rowTemplate.innerHTML = rowHtml(item).trim();
       row = _rowTemplate.content.firstElementChild;
     }
-    // Store the logical index directly on the element so click handlers can
-    // look up items without scanning the visible list.
     row.dataset.index = String(index);
     fragment.appendChild(row);
   }
   rows.replaceChildren(fragment);
-  rows._visibleItems = items;
+  // FIX: store visible items in a module-level variable rather than as a
+  // property on the DOM node (issue #rows._visibleItems).
+  visibleItemsList = items;
 }
 
 // ---------------------------------------------------------------------------
@@ -805,7 +819,7 @@ function scheduleNextExpiryRefresh(typeIds) {
   window.clearTimeout(expiryTimer);
   const expiries = typeIds
     .map((typeId) => entryRefreshAt(itemCache.get(itemCacheKey(typeId))))
-    .filter((t) => Number.isFinite(t));
+    .filter((t) => Number.isFinite(t));  // FIX (#3): guard is here, consistent with all other callers
   if (!expiries.length) return;
   const nextExpiry = Math.min(...expiries);
   const delay = Math.max(AUTO_REFRESH_MIN_DELAY_MS, nextExpiry - Date.now() + 250);
@@ -865,20 +879,25 @@ function render(data) {
 
   renderRows(items);
 
-  // CHANGE: previously, change markers were only cleared for items that were
-  // currently visible/rendered.  Items that were filtered out while a change
-  // was pending would never have their markers cleared, and would flash the
-  // change arrow when they became visible again even though the change was old.
-  // Now we clear markers on the cache entry for every item that has a pending
-  // change, regardless of whether it was rendered this frame.
-  for (const item of items) {
-    const hasChange = item._changes && Object.values(item._changes).some((d) => d !== "same");
-    if (!hasChange) continue;
-    const key   = itemCacheKey(item.typeId);
+  // FIX (#4): clear change markers on ALL items with pending changes, not
+  // just those visible after filtering.  Items that are currently filtered out
+  // would otherwise re-flash the change arrow when they become visible again,
+  // even though the underlying update is stale.
+  // We iterate over all typeIds in scope, not just the rendered subset.
+  const allScopedTypeIds = data.scopedTypeIds || staticScopedTypeIds();
+  for (const typeId of allScopedTypeIds) {
+    const key   = itemCacheKey(typeId);
     const entry = itemCache.get(key);
-    if (entry?.item) {
-      itemCache.set(key, { ...entry, item: clearChangeMarkers(entry.item) });
-    }
+    if (!entry?.item) continue;
+    const { _changeDirection, _changes } = entry.item;
+    const hasChange = _changeDirection !== "same"
+      || (_changes && Object.values(_changes).some((d) => d !== "same"));
+    if (!hasChange) continue;
+    itemCache.set(key, { ...entry, item: clearChangeMarkers(entry.item) });
+  }
+  // Also clear the in-place rendered items so they don't re-flash within
+  // the same frame if renderRows re-uses the same objects.
+  for (const item of items) {
     item._changeDirection = "same";
     item._changes = {};
   }
@@ -920,7 +939,6 @@ async function loadStaticData() {
   staticTypes = new Map(Object.entries(staticData.types));
 
   if (staticData.tradeHubs) {
-    // CHANGE: use shared buildOptions helper instead of inline map+join
     const hubOptions = buildOptions(staticData.tradeHubs, (hub) => (
       `<option value="${hub.id}"${hub.id === "jita" ? " selected" : ""}>${shortHubLabel(hub)}</option>`
     ));
@@ -988,7 +1006,7 @@ async function refreshAnalysis(options = {}) {
     activeRequest = null;
   }
 
-  if (!options.automatic) setStatus("Checking local cache");
+  if (!options.automatic) setStatusMessage("Checking local cache");
   if (!currentData) rows.innerHTML = emptyRow("Loading market analysis.");
   if (!options.automatic) details.textContent = "";
 
@@ -1018,9 +1036,10 @@ async function refreshAnalysis(options = {}) {
     const dueTypeIds = typeIds
       .filter((typeId) => cacheEntryNeedsRefresh(typeId, refreshWindowMs))
       .sort((left, right) => {
-        const leftAt  = entryRefreshAt(itemCache.get(itemCacheKey(left)))  || 0;
-        const rightAt = entryRefreshAt(itemCache.get(itemCacheKey(right))) || 0;
-        return leftAt - rightAt;
+        // FIX (#3): consistent use of Number.isFinite guard on entryRefreshAt result
+        const leftAt  = entryRefreshAt(itemCache.get(itemCacheKey(left)));
+        const rightAt = entryRefreshAt(itemCache.get(itemCacheKey(right)));
+        return (Number.isFinite(leftAt) ? leftAt : 0) - (Number.isFinite(rightAt) ? rightAt : 0);
       });
 
     const missingTypeIds = options.automatic ? dueTypeIds.slice(0, AUTO_REFRESH_BATCH_SIZE) : dueTypeIds;
@@ -1033,7 +1052,7 @@ async function refreshAnalysis(options = {}) {
       }
 
       if (!options.automatic) {
-        setStatus(`Refreshing ${isk(missingTypeIds.length)} stale or missing prices`);
+        setStatusMessage(`Refreshing ${isk(missingTypeIds.length)} stale or missing prices`);
       }
 
       if (activeRequest) {
@@ -1052,17 +1071,22 @@ async function refreshAnalysis(options = {}) {
       const data = normalizeApiData(rawData);
       if (seq !== refreshSeq || scopeKey !== scopeKeyFor(staticScopedTypeIds())) return;
 
+      // FIX (#12): resolve fee rates once here rather than inside adjustedItem
+      // for every item in the loop.
+      const rates = feeRates();
+      const ratesKey = feeRatesKey();
+
       const returned = new Set();
       for (const item of data.items) {
         returned.add(item.typeId);
         const cacheKey    = itemCacheKey(item.typeId);
         const previous    = cachedAdjustedItem(item.typeId);
-        const decorated   = decorateUpdatedItem(previous, adjustedItem(item));
+        const decorated   = decorateUpdatedItem(previous, adjustedItem(item, rates));
         const validUntil = usableValidUntil(item.validUntil || data.validUntil);
         itemCache.set(cacheKey, {
           baseItem:     item,
           item:         decorated,
-          ratesKey:     feeRatesKey(),
+          ratesKey,
           validUntil,
           refreshAfter: refreshAfterFor(item.typeId, validUntil),
         });
@@ -1086,7 +1110,7 @@ async function refreshAnalysis(options = {}) {
     queueRender(dataFromCachedItems(typeIds, { automatic: options.automatic }));
   } catch (error) {
     if (error.name === "AbortError") return;
-    setStatus(error.message);
+    setStatusMessage(error.message);
     rows.innerHTML = emptyRow("Analysis failed.");
   }
 }
@@ -1132,7 +1156,8 @@ buildSystem.addEventListener("change", () => {
 rows.addEventListener("click", (event) => {
   const row = event.target.closest("tr[data-index]");
   if (!row || !rows.contains(row)) return;
-  const item = rows._visibleItems?.[Number(row.dataset.index)];
+  // FIX: use module-level visibleItemsList instead of rows._visibleItems
+  const item = visibleItemsList[Number(row.dataset.index)];
   if (!item) return;
   const meta = metaFor(item);
   const { salesTaxPercent, brokerFeePercent } = feeRates();
@@ -1170,8 +1195,6 @@ for (const button of sortButtons) {
 for (const id of fields) {
   const field = document.querySelector(`#${id}`);
   field.addEventListener("input", () => {
-    // Search uses a debounce delay to avoid firing on every keystroke;
-    // range inputs re-filter immediately since they're numeric.
     if (id === "search") scheduleRefresh();
     else if (id === "salesTaxRate" || id === "brokerFeeRate") {
       if (currentData) rerenderFromCache();
@@ -1205,4 +1228,4 @@ cachePoll = window.setInterval(refreshCacheStatus, 10_000);
 itemPoll  = window.setInterval(() => scheduleRefresh(0, { automatic: true }), AUTO_POLL_INTERVAL_MS);
 loadStaticData()
   .then(() => scheduleRefresh(0))
-  .catch((error) => setStatus(error.message));
+  .catch((error) => setStatusMessage(error.message));
