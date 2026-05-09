@@ -31,21 +31,7 @@ const changeFields = [
 // Fields checked (in order) to decide whether an update was "up" or "down"
 const directionFields = ["profitPerM3", "profit", "margin", "sellPrice", "buyPrice"];
 
-// Compact wire-format field order for inflating array rows from the API
-const itemFields = [
-  "typeId",
-  "buildCost", "manufacturingCost", "inventionCost",
-  "manufacturingJobCost", "inventionJobCost",
-  "sellPrice", "buyPrice",
-  "profit", "profitToBuy", "margin", "buyMargin", "profitPerM3",
-  "dailyVolume", "sellOrders", "sellVolume",
-  "inventionProbability", "inventionRuns",
-  "inventedMaterialEfficiency", "inventedTimeEfficiency",
-  "manufacturingQuantity",
-  "validUntil",
-];
-
-const ITEM_CACHE_SCHEMA        = "cost-model-v3";
+const ITEM_CACHE_SCHEMA        = "client-analysis-v1";
 const DEFAULT_SALES_TAX_RATE   = 7.5;
 const DEFAULT_BROKER_FEE_RATE  = 3.0;
 const AUTO_REFRESH_MIN_DELAY_MS = 5_000;
@@ -57,6 +43,7 @@ const CLIENT_RECHECK_JITTER_MS = 2 * 60 * 1000;
 // Distinct from CLIENT_RETRY_MS: TTL for a "we tried but got nothing" cache
 // entry.  Currently the same value but kept separate so they can diverge.
 const NEGATIVE_CACHE_MS        = 5 * 60 * 1000;
+const MARKET_CACHE_MAX_ROUTES  = 32;
 
 // Number of columns in the table — used by emptyRow so it stays in sync.
 const TABLE_COLUMN_COUNT = 14;
@@ -91,6 +78,7 @@ let currentData          = null;
 let staticData           = null;
 let staticTypes          = new Map();  // typeId (string) → meta object
 let staticSystems        = new Map();  // system name (lowercase) → system object
+let staticCandidates     = new Map();  // product typeId → candidate rows
 let sortState            = { key: "profitPerM3", direction: "desc" };
 let cachePoll            = null;
 let itemPoll             = null;
@@ -102,11 +90,16 @@ let activeRequest        = null;
 let lastRenderSignature  = "";
 let cacheStatusData      = null;
 let activeApiBase        = null;
+let analysisWorker       = null;
+let workerReady          = null;
+let workerRequestId      = 0;
+let workerRequests       = new Map();
 
 // Module-level visible items list — avoids storing state on a DOM node.
 let visibleItemsList = [];
 
 const itemCache = new Map();   // cacheKey → { baseItem, item, ratesKey, validUntil, refreshAfter }
+const marketCache = new Map(); // routeKey → raw market maps used by the worker
 
 // ---------------------------------------------------------------------------
 // Formatters
@@ -191,6 +184,40 @@ async function apiFetch(path, options = {}) {
   throw lastError || new Error("API unavailable");
 }
 
+function postWorker(type, payload = {}) {
+  if (!analysisWorker) throw new Error("Analysis worker is not ready");
+  const id = ++workerRequestId;
+  return new Promise((resolve, reject) => {
+    workerRequests.set(id, { resolve, reject });
+    analysisWorker.postMessage({ id, type, payload });
+  });
+}
+
+async function ensureAnalysisWorker() {
+  if (workerReady) return workerReady;
+  analysisWorker = new Worker("analysis-worker.js");
+  analysisWorker.addEventListener("message", (event) => {
+    const { id, ok, rows: workerRows, error } = event.data || {};
+    const pending = workerRequests.get(id);
+    if (!pending) return;
+    workerRequests.delete(id);
+    if (ok) pending.resolve(workerRows ?? true);
+    else pending.reject(new Error(error || "Analysis worker failed"));
+  });
+  analysisWorker.addEventListener("error", (event) => {
+    for (const pending of workerRequests.values()) pending.reject(new Error(event.message || "Analysis worker failed"));
+    workerRequests.clear();
+    workerReady = null;
+  });
+  workerReady = postWorker("init", {
+    analysis: staticData.analysis,
+    decryptors: staticData.decryptors,
+    structureProfiles: staticData.structureProfiles,
+    rigProfiles: staticData.rigProfiles,
+  });
+  return workerReady;
+}
+
 // ---------------------------------------------------------------------------
 // Static data helpers
 // ---------------------------------------------------------------------------
@@ -204,10 +231,6 @@ function metaFor(item) {
     assembledVolume: 0,
     inventionBlueprint: "unknown blueprint",
   };
-}
-
-function hubName(id) {
-  return staticData?.tradeHubs?.find((hub) => hub.id === id)?.name || id;
 }
 
 function shortHubLabel(hub) {
@@ -255,6 +278,20 @@ function buildSettingsKey() {
   ].join("|");
 }
 
+function marketRouteKey() {
+  return `${sourceHub.value}|${sellHub.value}|${buildSystemId.value}`;
+}
+
+function activeBuildOptions() {
+  return {
+    systemId: Number(buildSystemId.value),
+    structureType: structureType.value,
+    productRig: productRig.value,
+    componentRig: componentRig.value,
+    decryptor: decryptor.value,
+  };
+}
+
 function itemCacheKey(typeId) {
   return `${ITEM_CACHE_SCHEMA}|${sourceHub.value}|${sellHub.value}|${buildSettingsKey()}|${typeId}`;
 }
@@ -274,16 +311,6 @@ function entryRefreshAt(entry) {
   return Date.parse(entry?.refreshAfter || entry?.validUntil);
 }
 
-function freshCacheEntry(typeId) {
-  const entry = itemCache.get(itemCacheKey(typeId));
-  if (!entry || !entry.validUntil || Date.now() >= Date.parse(entry.validUntil)) return null;
-  return entry;
-}
-
-function cachedEntry(typeId) {
-  return itemCache.get(itemCacheKey(typeId)) || null;
-}
-
 // FIX (#15): replaced the manual LCG with a safe modulo that avoids
 // floating-point overflow for large EVE typeId values (can exceed 2^32).
 // The goal is just stable spread, not cryptographic quality.
@@ -291,12 +318,6 @@ function stableJitterMs(typeId, windowMs = CLIENT_RECHECK_JITTER_MS) {
   const value = Number(typeId) || 0;
   // Use double-modulo to keep within safe integer range before multiplying.
   return ((value % windowMs) * 6364136223846793 + 1442695040888963407) % windowMs;
-}
-
-function cacheEntryNeedsRefresh(typeId, refreshWindowMs = 0) {
-  const entry = itemCache.get(itemCacheKey(typeId));
-  const refreshAt = entryRefreshAt(entry);
-  return !entry || !Number.isFinite(refreshAt) || Date.now() >= refreshAt - refreshWindowMs;
 }
 
 function usableValidUntil(validUntil, fallbackMs = CLIENT_RETRY_MS) {
@@ -559,32 +580,150 @@ function timeShort(value) {
   return new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
-function inflateItem(row) {
-  if (!Array.isArray(row)) return row;
-  return Object.fromEntries(itemFields.map((field, i) => [field, row[i]]));
+function inflateRow(fields, row) {
+  return Object.fromEntries(fields.map((field, index) => [field, row[index]]));
 }
 
-function normalizeApiData(data) {
-  if (data.items) return data;
-  const items = (data.i || []).map(inflateItem);
+function activeMarketCache() {
+  const key = marketRouteKey();
+  let cache = marketCache.get(key);
+  if (!cache) {
+    cache = {
+      productOrders: new Map(),
+      inputOrders: new Map(),
+      histories: new Map(),
+      adjustedPrices: new Map(),
+      system: null,
+      generatedAt: null,
+      validUntil: null,
+      cache: null,
+    };
+    marketCache.set(key, cache);
+    while (marketCache.size > MARKET_CACHE_MAX_ROUTES) {
+      marketCache.delete(marketCache.keys().next().value);
+    }
+  }
+  else {
+    marketCache.delete(key);
+    marketCache.set(key, cache);
+  }
+  return cache;
+}
+
+function mergeMarketData(data) {
+  const cache = activeMarketCache();
+  const orderFields = data.f?.o || [];
+  const historyFields = data.f?.h || [];
+  const adjustedFields = data.f?.a || [];
+  for (const row of data.p || []) {
+    const item = inflateRow(orderFields, row);
+    cache.productOrders.set(item.typeId, item);
+  }
+  for (const row of data.i || []) {
+    const item = inflateRow(orderFields, row);
+    cache.inputOrders.set(item.typeId, item);
+  }
+  for (const row of data.m || []) {
+    const item = inflateRow(historyFields, row);
+    cache.histories.set(item.typeId, item);
+  }
+  for (const row of data.a || []) {
+    const item = inflateRow(adjustedFields, row);
+    cache.adjustedPrices.set(item.typeId, item);
+  }
+  if (Array.isArray(data.s)) {
+    cache.system = {
+      systemId: data.s[0],
+      manufacturing: data.s[1],
+      invention: data.s[2],
+      expiresAt: data.s[3],
+    };
+  }
+  cache.generatedAt = data.t || new Date().toISOString();
+  cache.validUntil = data.v;
+  cache.cache = data.c ? {
+    memoryHits: data.c[0],
+    sqliteHits: data.c[1],
+    staleHits:  data.c[2],
+    esiCalls:   data.c[3],
+    misses:     data.c[4],
+  } : null;
+  return cache;
+}
+
+function analysisCandidates(typeId) {
+  return staticCandidates.get(typeId) || [];
+}
+
+function decryptorTypeIds() {
+  return (staticData?.decryptors || [])
+    .map((item) => item.typeId)
+    .filter(Boolean);
+}
+
+function requiredInputIdsFor(typeId) {
+  const analysis = staticData?.analysis;
+  const inputs = new Set((analysis?.typeMarketInputs || {})[String(typeId)] || []);
+  for (const candidate of analysisCandidates(typeId)) {
+    const inventionBlueprintTypeId = candidate?.[3];
+    for (const [materialTypeId] of (analysis?.inventionMaterials || {})[String(inventionBlueprintTypeId)] || []) {
+      inputs.add(materialTypeId);
+    }
+  }
+  for (const decryptorTypeId of decryptorTypeIds()) {
+    inputs.add(decryptorTypeId);
+  }
+  return Array.from(inputs);
+}
+
+function refreshTime(row) {
+  const parsed = Date.parse(row?.expiresAt);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function rawMarketEntryNeedsRefresh(typeId, refreshWindowMs = 0) {
+  const cache = activeMarketCache();
+  const now = Date.now();
+  const routeRetryAt = Date.parse(cache.validUntil);
+  const rows = [
+    cache.productOrders.get(typeId),
+    cache.histories.get(typeId),
+    cache.system,
+    ...requiredInputIdsFor(typeId).map((inputTypeId) => cache.inputOrders.get(inputTypeId)),
+  ];
+  if (rows.some((row) => !row)) return true;
+  const expired = rows.some((row) => refreshTime(row) <= now + refreshWindowMs);
+  return expired && (!Number.isFinite(routeRetryAt) || routeRetryAt <= now + refreshWindowMs);
+}
+
+function rawMarketRefreshAt(typeId) {
+  const cache = activeMarketCache();
+  const rows = [
+    cache.productOrders.get(typeId),
+    cache.histories.get(typeId),
+    cache.system,
+    ...requiredInputIdsFor(typeId).map((inputTypeId) => cache.inputOrders.get(inputTypeId)),
+  ];
+  if (rows.every(Boolean)) {
+    const routeRetryAt = Date.parse(cache.validUntil);
+    if (Number.isFinite(routeRetryAt) && routeRetryAt > Date.now()) return routeRetryAt;
+  }
+  const times = rows.map(refreshTime).filter((value) => Number.isFinite(value) && value > 0);
+  return times.length ? Math.min(...times) : 0;
+}
+
+function marketStateFor(typeIds) {
+  const cache = activeMarketCache();
+  const inputIds = new Set();
+  for (const typeId of typeIds) {
+    for (const inputTypeId of requiredInputIdsFor(typeId)) inputIds.add(inputTypeId);
+  }
   return {
-    generatedAt: data.t,
-    sourceHub: sourceHub.value,
-    sellHub: sellHub.value,
-    sourceMarket: hubName(sourceHub.value),
-    sellMarket: hubName(sellHub.value),
-    scanned: data.sc,
-    returned: items.length,
-    items,
-    unpricedTypeIds: data.u || [],
-    cache: data.c ? {
-      memoryHits:          data.c[0],
-      sqliteHits:          data.c[1],
-      staleHits:           data.c[2],
-      esiCalls:            data.c[3],
-      misses:              data.c[4],
-    } : null,
-    validUntil: data.v,
+    productOrders: typeIds.map((typeId) => cache.productOrders.get(typeId)).filter(Boolean),
+    inputOrders: Array.from(inputIds).map((typeId) => cache.inputOrders.get(typeId)).filter(Boolean),
+    histories: typeIds.map((typeId) => cache.histories.get(typeId)).filter(Boolean),
+    adjustedPrices: Array.from(inputIds).map((typeId) => cache.adjustedPrices.get(typeId)).filter(Boolean),
+    system: cache.system,
   };
 }
 
@@ -681,8 +820,8 @@ function dataFromCachedItems(typeIds, extra = {}) {
   };
 }
 
-async function fetchItems(typeIds, signal) {
-  return apiFetch("/api/items", {
+async function fetchMarketData(typeIds, signal) {
+  return apiFetch("/api/market-data", {
     method: "POST",
     signal,
     headers: { "Content-Type": "text/plain;charset=UTF-8" },
@@ -696,6 +835,16 @@ async function fetchItems(typeIds, signal) {
       d:  decryptor.value,
       y:  typeIds,
     }),
+  });
+}
+
+async function calculateItems(typeIds) {
+  await ensureAnalysisWorker();
+  return postWorker("analyze", {
+    typeIds,
+    options: activeBuildOptions(),
+    market: marketStateFor(typeIds),
+    retryMs: CLIENT_RETRY_MS,
   });
 }
 
@@ -923,7 +1072,10 @@ function rerenderFromCache() {
 // ---------------------------------------------------------------------------
 
 async function loadStaticData() {
-  if (staticData) return staticData;
+  if (staticData) {
+    await ensureAnalysisWorker();
+    return staticData;
+  }
   const stored = localStorage.getItem("tradefind.staticData");
   const cached = stored ? JSON.parse(stored) : null;
   const query = cached?.hash ? `?hash=${encodeURIComponent(cached.hash)}` : "";
@@ -937,6 +1089,11 @@ async function loadStaticData() {
   }
 
   staticTypes = new Map(Object.entries(staticData.types));
+  staticCandidates = new Map();
+  for (const row of staticData.analysis?.candidates || []) {
+    if (!staticCandidates.has(row[0])) staticCandidates.set(row[0], []);
+    staticCandidates.get(row[0]).push(row);
+  }
 
   if (staticData.tradeHubs) {
     const hubOptions = buildOptions(staticData.tradeHubs, (hub) => (
@@ -972,6 +1129,7 @@ async function loadStaticData() {
   }
 
   syncRigControls();
+  await ensureAnalysisWorker();
   return staticData;
 }
 
@@ -1034,11 +1192,10 @@ async function refreshAnalysis(options = {}) {
 
     const refreshWindowMs = options.automatic ? AUTO_REFRESH_WINDOW_MS : 0;
     const dueTypeIds = typeIds
-      .filter((typeId) => cacheEntryNeedsRefresh(typeId, refreshWindowMs))
+      .filter((typeId) => rawMarketEntryNeedsRefresh(typeId, refreshWindowMs))
       .sort((left, right) => {
-        // FIX (#3): consistent use of Number.isFinite guard on entryRefreshAt result
-        const leftAt  = entryRefreshAt(itemCache.get(itemCacheKey(left)));
-        const rightAt = entryRefreshAt(itemCache.get(itemCacheKey(right)));
+        const leftAt  = rawMarketRefreshAt(left);
+        const rightAt = rawMarketRefreshAt(right);
         return (Number.isFinite(leftAt) ? leftAt : 0) - (Number.isFinite(rightAt) ? rightAt : 0);
       });
 
@@ -1062,51 +1219,49 @@ async function refreshAnalysis(options = {}) {
 
       const controller = new AbortController();
       activeRequest    = controller;
-      const response   = await fetchItems(missingTypeIds, controller.signal);
+      const response   = await fetchMarketData(missingTypeIds, controller.signal);
       if (activeRequest === controller) activeRequest = null;
 
       const rawData = await response.json();
       if (!response.ok || rawData.error) throw new Error(rawData.error || "Request failed");
 
-      const data = normalizeApiData(rawData);
+      mergeMarketData(rawData);
       if (seq !== refreshSeq || scopeKey !== scopeKeyFor(staticScopedTypeIds())) return;
-
-      // FIX (#12): resolve fee rates once here rather than inside adjustedItem
-      // for every item in the loop.
-      const rates = feeRates();
-      const ratesKey = feeRatesKey();
-
-      const returned = new Set();
-      for (const item of data.items) {
-        returned.add(item.typeId);
-        const cacheKey    = itemCacheKey(item.typeId);
-        const previous    = cachedAdjustedItem(item.typeId);
-        const decorated   = decorateUpdatedItem(previous, adjustedItem(item, rates));
-        const validUntil = usableValidUntil(item.validUntil || data.validUntil);
-        itemCache.set(cacheKey, {
-          baseItem:     item,
-          item:         decorated,
-          ratesKey,
-          validUntil,
-          refreshAfter: refreshAfterFor(item.typeId, validUntil),
-        });
-      }
-
-      for (const typeId of data.unpricedTypeIds || missingTypeIds) {
-        if (!returned.has(typeId)) {
-          const validUntil = negativeValidUntil();
-          itemCache.set(itemCacheKey(typeId), {
-            item:         null,
-            validUntil,
-            refreshAfter: refreshAfterFor(typeId, validUntil),
-          });
-        }
-      }
-
-      queueRender(dataFromCachedItems(typeIds, { automatic: options.automatic }));
-      return;
     }
 
+    if (seq !== refreshSeq || scopeKey !== scopeKeyFor(staticScopedTypeIds())) return;
+
+    const calculatedItems = await calculateItems(typeIds);
+    if (seq !== refreshSeq || scopeKey !== scopeKeyFor(staticScopedTypeIds())) return;
+
+    const rates = feeRates();
+    const ratesKey = feeRatesKey();
+    const returned = new Set();
+    for (const item of calculatedItems) {
+      returned.add(item.typeId);
+      const cacheKey  = itemCacheKey(item.typeId);
+      const previous  = cachedAdjustedItem(item.typeId);
+      const decorated = decorateUpdatedItem(previous, adjustedItem(item, rates));
+      const validUntil = usableValidUntil(item.validUntil || activeMarketCache().validUntil);
+      itemCache.set(cacheKey, {
+        baseItem:     item,
+        item:         decorated,
+        ratesKey,
+        validUntil,
+        refreshAfter: refreshAfterFor(item.typeId, validUntil),
+      });
+    }
+
+    for (const typeId of typeIds) {
+      if (!returned.has(typeId)) {
+        const validUntil = negativeValidUntil();
+        itemCache.set(itemCacheKey(typeId), {
+          item:         null,
+          validUntil,
+          refreshAfter: refreshAfterFor(typeId, validUntil),
+        });
+      }
+    }
     queueRender(dataFromCachedItems(typeIds, { automatic: options.automatic }));
   } catch (error) {
     if (error.name === "AbortError") return;
