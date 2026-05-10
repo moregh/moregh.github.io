@@ -737,25 +737,25 @@ textarea {
 
 .plan-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(150px, 1fr));
-  gap: 8px;
-  margin-top: 10px;
+  grid-template-columns: repeat(2, minmax(130px, 1fr));
+  gap: 5px;
+  margin-top: 8px;
 }
 
 .plan-card {
   display: grid;
-  gap: 4px;
-  min-height: 54px;
-  padding: 9px 10px;
+  gap: 2px;
+  min-height: 38px;
+  padding: 5px 8px;
   border: 1px solid rgba(227, 179, 65, 0.22);
-  border-radius: 7px;
+  border-radius: 6px;
   background: rgba(227, 179, 65, 0.08);
 }
 
 .plan-label {
   color: #d6bd72;
-  font-size: 11px;
-  line-height: 1.2;
+  font-size: 9px;
+  line-height: 1.1;
   text-transform: uppercase;
 }
 
@@ -763,7 +763,8 @@ textarea {
   align-self: end;
   overflow: hidden;
   color: var(--ink);
-  font-size: 14px;
+  font-size: 12px;
+  line-height: 1.15;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

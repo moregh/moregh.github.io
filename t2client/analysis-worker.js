@@ -263,6 +263,7 @@ function detail(payload) {
   const requiredBpcs = Math.ceil(manufacturingRuns / inventionRuns);
   const probability = inventionProbability(baseInventionProbability, decryptor);
   const expectedAttempts = probability > 0 ? requiredBpcs / probability : requiredBpcs;
+  const plannedAttempts = Math.max(1, Math.ceil(expectedAttempts));
   const inventedMaterialEfficiency = clamp((constants.baseT2InventedMe || 2) + (decryptor?.me || 0), 0, 20);
   const inventedTimeEfficiency = (constants.baseT2InventedTe || 4) + (decryptor?.te || 0);
 
@@ -275,13 +276,13 @@ function detail(payload) {
   const inventionMaterialsNeeded = new Map();
   let inventionEiv = 0;
   for (const [materialTypeId, quantity] of inventionMaterials.get(inventionBlueprintTypeId) || []) {
-    const needed = Math.ceil(quantity * expectedAttempts);
+    const needed = quantity * plannedAttempts;
     addQuantity(inventionMaterialsNeeded, materialTypeId, needed);
-    inventionEiv += adjustedPrice(materialTypeId, adjusted) * quantity * expectedAttempts;
+    inventionEiv += adjustedPrice(materialTypeId, adjusted) * quantity * plannedAttempts;
   }
   if (decryptor?.typeId) {
-    addQuantity(inventionMaterialsNeeded, decryptor.typeId, Math.ceil(expectedAttempts));
-    inventionEiv += adjustedPrice(decryptor.typeId, adjusted) * expectedAttempts;
+    addQuantity(inventionMaterialsNeeded, decryptor.typeId, plannedAttempts);
+    inventionEiv += adjustedPrice(decryptor.typeId, adjusted) * plannedAttempts;
   }
 
   const inventory = new Map((payload.inventory || []).map(([ownedTypeId, quantity]) => [Number(ownedTypeId), Number(quantity) || 0]));
@@ -311,6 +312,7 @@ function detail(payload) {
     inventionRuns,
     requiredBpcs,
     expectedAttempts,
+    plannedAttempts,
     inventionProbability: probability,
     inventedMaterialEfficiency,
     inventedTimeEfficiency,

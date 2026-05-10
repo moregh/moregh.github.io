@@ -1270,6 +1270,7 @@ function renderBuildPlan(detail) {
     ["BPCs", isk(detail.requiredBpcs)],
     ["Runs/BPC", isk(detail.inventionRuns)],
     ["Expected attempts", decimal(detail.expectedAttempts, 2)],
+    ["Planned attempts", isk(detail.plannedAttempts)],
     ["Invention chance", percent(detail.inventionProbability * 100)],
     ["Invented ME", `${decimal(detail.inventedMaterialEfficiency, 1)}%`],
     ["Invented TE", `${decimal(detail.inventedTimeEfficiency, 1)}%`],
