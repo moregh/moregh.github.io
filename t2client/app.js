@@ -42,6 +42,7 @@ const CLIENT_RETRY_MS          = 5 * 60 * 1000;
 const CLIENT_RECHECK_JITTER_MS = 2 * 60 * 1000;
 const MARKET_BITSET_BITS       = 4096;
 const MARKET_BITSET_BYTES      = MARKET_BITSET_BITS / 8;
+const STATIC_DATA_CACHE_VERSION = 2;
 // Distinct from CLIENT_RETRY_MS: TTL for a "we tried but got nothing" cache
 // entry.  Currently the same value but kept separate so they can diverge.
 const NEGATIVE_CACHE_MS        = 5 * 60 * 1000;
@@ -1330,15 +1331,25 @@ async function loadStaticData() {
     return staticData;
   }
   const stored = localStorage.getItem("tradefind.staticData");
-  const cached = stored ? JSON.parse(stored) : null;
-  const query = cached?.hash ? `?hash=${encodeURIComponent(cached.hash)}` : "";
-  const response = await apiFetch(`/api/static-data${query}`);
+  const cachedRecord = stored ? JSON.parse(stored) : null;
+  const cached = (
+    cachedRecord?.version === STATIC_DATA_CACHE_VERSION
+    && cachedRecord?.payload?.schema === STATIC_DATA_CACHE_VERSION
+    && cachedRecord?.payload?.analysis?.typeNames
+  ) ? cachedRecord : null;
+  const query = new URLSearchParams({ v: String(STATIC_DATA_CACHE_VERSION) });
+  if (cached?.hash) query.set("hash", cached.hash);
+  const response = await apiFetch(`/api/static-data?${query}`);
   const data = await response.json();
   if (!response.ok || data.error) throw new Error(data.error || "Static data failed");
 
   staticData  = (data.unchanged && cached) ? cached.payload : data;
   if (!data.unchanged) {
-    localStorage.setItem("tradefind.staticData", JSON.stringify({ hash: data.hash, payload: data }));
+    localStorage.setItem("tradefind.staticData", JSON.stringify({
+      version: STATIC_DATA_CACHE_VERSION,
+      hash: data.hash,
+      payload: data,
+    }));
   }
 
   staticTypes = new Map(Object.entries(staticData.types));
