@@ -40,6 +40,8 @@ const AUTO_REFRESH_BATCH_SIZE  = 150;
 const AUTO_REFRESH_WINDOW_MS   = 0;
 const CLIENT_RETRY_MS          = 5 * 60 * 1000;
 const CLIENT_RECHECK_JITTER_MS = 2 * 60 * 1000;
+const MARKET_PRODUCT_QUERY_CHUNK_SIZE = 150;
+const MARKET_SOURCE_QUERY_CHUNK_SIZE  = 250;
 // Distinct from CLIENT_RETRY_MS: TTL for a "we tried but got nothing" cache
 // entry.  Currently the same value but kept separate so they can diverge.
 const NEGATIVE_CACHE_MS        = 5 * 60 * 1000;
@@ -839,7 +841,30 @@ function dataFromCachedItems(typeIds, extra = {}) {
   };
 }
 
-async function fetchMarketData(request, signal) {
+function chunkArray(values, size) {
+  const chunks = [];
+  for (let index = 0; index < values.length; index += size) {
+    chunks.push(values.slice(index, index + size));
+  }
+  return chunks;
+}
+
+function marketDataRequestChunks(request) {
+  const productChunks = chunkArray(request.productTypeIds, MARKET_PRODUCT_QUERY_CHUNK_SIZE);
+  const sourceChunks = chunkArray(request.sourceTypeIds, MARKET_SOURCE_QUERY_CHUNK_SIZE);
+  const count = Math.max(productChunks.length, sourceChunks.length, request.system ? 1 : 0);
+  const chunks = [];
+  for (let index = 0; index < count; index += 1) {
+    chunks.push({
+      productTypeIds: productChunks[index] || [],
+      sourceTypeIds:  sourceChunks[index] || [],
+      system:         index === 0 && request.system,
+    });
+  }
+  return chunks;
+}
+
+function marketDataPath(request) {
   const query = [
     ["s", sourceHub.value],
     ["b", sellHub.value],
@@ -851,7 +876,18 @@ async function fetchMarketData(request, signal) {
     .filter(([, value]) => value !== "")
     .map(([key, value]) => `${key}=${key === "y" || key === "x" ? value : encodeURIComponent(value)}`)
     .join("&");
-  return apiFetch(`/api/market-data?${query}`, { method: "GET", signal });
+  return `/api/market-data?${query}`;
+}
+
+async function fetchMarketData(request, signal) {
+  const payloads = [];
+  for (const chunk of marketDataRequestChunks(request)) {
+    const response = await apiFetch(marketDataPath(chunk), { method: "GET", signal });
+    const rawData = await response.json();
+    if (!response.ok || rawData.error) throw new Error(rawData.error || "Request failed");
+    payloads.push(rawData);
+  }
+  return payloads;
 }
 
 async function calculateItems(typeIds) {
@@ -1231,13 +1267,10 @@ async function refreshAnalysis(options = {}) {
 
       const controller = new AbortController();
       activeRequest    = controller;
-      const response   = await fetchMarketData(refreshRequest, controller.signal);
+      const payloads   = await fetchMarketData(refreshRequest, controller.signal);
       if (activeRequest === controller) activeRequest = null;
 
-      const rawData = await response.json();
-      if (!response.ok || rawData.error) throw new Error(rawData.error || "Request failed");
-
-      mergeMarketData(rawData);
+      for (const rawData of payloads) mergeMarketData(rawData);
       if (seq !== refreshSeq || scopeKey !== scopeKeyFor(staticScopedTypeIds())) return;
     }
 
