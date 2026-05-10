@@ -60,15 +60,37 @@ function materialQuantity(quantity, mePercent, options, finalT2) {
 
 function jobContext(options, system) {
   const profile = structures.get(options.structureType) || structures.get("npc");
-  const multiplier = (profile?.costMultiplier || 1) * (1 + (profile?.facilityTax || 0));
+  const constants = staticGraph?.constants || {};
+  const configuredFacilityTax = Number(options.facilityTaxPercent);
+  const facilityTax = Number.isFinite(configuredFacilityTax)
+    ? Math.max(0, configuredFacilityTax) / 100
+    : (profile?.facilityTax || 0);
   return {
-    manufacturing: (system?.manufacturing || 0) * multiplier,
-    invention: (system?.invention || 0) * multiplier,
+    manufacturing: system?.manufacturing || 0,
+    invention: system?.invention || 0,
+    costMultiplier: profile?.costMultiplier || 1,
+    facilityTax,
+    sccSurcharge: constants.sccSurcharge ?? 0.04,
   };
 }
 
 function jobCost(eiv, activity, context) {
-  return eiv * (context?.[activity] || 0);
+  return jobCostBreakdown(eiv, activity, context).total;
+}
+
+function jobCostBreakdown(eiv, activity, context) {
+  const indexFee = eiv * (context?.[activity] || 0);
+  const structureFee = indexFee * (context?.costMultiplier || 1);
+  const facilityTax = eiv * (context?.facilityTax || 0);
+  const sccSurcharge = eiv * (context?.sccSurcharge ?? 0.04);
+  return {
+    eiv,
+    indexFee,
+    structureBonus: structureFee - indexFee,
+    facilityTax,
+    sccSurcharge,
+    total: structureFee + facilityTax + sccSurcharge,
+  };
 }
 
 function adjustedPrice(typeId, adjusted) {

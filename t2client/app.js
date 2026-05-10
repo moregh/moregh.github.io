@@ -10,7 +10,7 @@ const fields = [
   "minOrders", "maxOrders",
   "minCost", "maxCost",
   "minM3", "maxM3",
-  "salesTaxRate", "brokerFeeRate",
+  "salesTaxRate", "facilityTaxRate", "brokerFeeRate",
 ];
 
 const kindFilters = {
@@ -42,7 +42,7 @@ const CLIENT_RETRY_MS          = 5 * 60 * 1000;
 const CLIENT_RECHECK_JITTER_MS = 2 * 60 * 1000;
 const MARKET_BITSET_BITS       = 4096;
 const MARKET_BITSET_BYTES      = MARKET_BITSET_BITS / 8;
-const STATIC_DATA_CACHE_VERSION = 2;
+const STATIC_DATA_CACHE_VERSION = 3;
 // Distinct from CLIENT_RETRY_MS: TTL for a "we tried but got nothing" cache
 // entry.  Currently the same value but kept separate so they can diverge.
 const NEGATIVE_CACHE_MS        = 5 * 60 * 1000;
@@ -66,6 +66,7 @@ const productRig   = document.querySelector("#productRig");
 const componentRig = document.querySelector("#componentRig");
 const decryptor    = document.querySelector("#decryptor");
 const salesTaxRate = document.querySelector("#salesTaxRate");
+const facilityTaxRate = document.querySelector("#facilityTaxRate");
 const brokerFeeRate = document.querySelector("#brokerFeeRate");
 const rows         = document.querySelector("#rows");
 const status       = document.querySelector("#status");
@@ -365,6 +366,7 @@ function buildSettingsKey() {
     productRig.value,
     componentRig.value,
     decryptor.value,
+    clampedOptionalPercentInput("facilityTaxRate") ?? "auto",
   ].join("|");
 }
 
@@ -379,6 +381,7 @@ function activeBuildOptions() {
     productRig: productRig.value,
     componentRig: componentRig.value,
     decryptor: decryptor.value,
+    facilityTaxPercent: clampedOptionalPercentInput("facilityTaxRate"),
   };
 }
 
@@ -506,6 +509,11 @@ function clampedPercentInput(id, fallback) {
   const parsed = numericInput(id);
   if (parsed === null) return fallback;
   return Math.max(0, parsed);
+}
+
+function clampedOptionalPercentInput(id) {
+  const parsed = numericInput(id);
+  return parsed === null ? null : Math.max(0, parsed);
 }
 
 function feeRates() {
@@ -1654,6 +1662,7 @@ for (const id of fields) {
   const field = document.querySelector(`#${id}`);
   field.addEventListener("input", () => {
     if (id === "search") scheduleRefresh();
+    else if (id === "facilityTaxRate") scheduleRefresh(0);
     else if (id === "salesTaxRate" || id === "brokerFeeRate") {
       if (currentData) rerenderFromCache();
     }
@@ -1663,6 +1672,7 @@ for (const id of fields) {
     if (event.key !== "Enter") return;
     event.preventDefault();
     if (id === "search") scheduleRefresh(0);
+    else if (id === "facilityTaxRate") scheduleRefresh(0);
     else if (id === "salesTaxRate" || id === "brokerFeeRate") {
       if (currentData) rerenderFromCache();
       else scheduleRefresh(0);
