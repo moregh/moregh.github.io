@@ -151,6 +151,179 @@ function manufacturingCostForProduct(productTypeId, sourcePrices, adjusted, opti
   return result;
 }
 
+function addQuantity(map, typeId, quantity) {
+  if (!quantity || quantity <= 0) return;
+  map.set(typeId, (map.get(typeId) || 0) + quantity);
+}
+
+function quantityForMaterial(baseQuantity, me, options, finalT2, runs) {
+  return materialQuantity(baseQuantity * runs, me, options, finalT2);
+}
+
+function recipePlan(typeId, quantity, options, finalT2) {
+  const recipe = manufacturing.get(typeId);
+  if (!recipe || boughtCompleted.has(typeId)) return null;
+  const decryptor = decryptors.get(options.decryptor) || decryptors.get("none");
+  const constants = staticGraph.constants || {};
+  const outputQuantity = Math.max(recipe[1] || 1, 1);
+  const runs = Math.ceil(quantity / outputQuantity);
+  let me = finalT2 ? (constants.baseT2InventedMe || 2) + (decryptor?.me || 0) : (constants.baseT1BpoMe || 10);
+  me = clamp(me, 0, 20);
+  return {
+    blueprintTypeId: recipe[0],
+    outputQuantity,
+    runs,
+    produced: runs * outputQuantity,
+    materials: (manufacturingMaterials.get(recipe[0]) || []).map(([materialTypeId, baseQuantity]) => [
+      materialTypeId,
+      quantityForMaterial(baseQuantity, me, options, finalT2, runs),
+    ]),
+  };
+}
+
+function collectBuildRequirements(typeId, quantity, options, finalT2, raw, craft, root = false) {
+  const plan = recipePlan(typeId, quantity, options, finalT2);
+  if (!plan) {
+    addQuantity(raw, typeId, quantity);
+    return;
+  }
+  if (!root) addQuantity(craft, typeId, quantity);
+  for (const [materialTypeId, materialQuantityNeeded] of plan.materials) {
+    const nested = manufacturing.get(materialTypeId);
+    if (nested && !boughtCompleted.has(materialTypeId)) {
+      collectBuildRequirements(materialTypeId, materialQuantityNeeded, options, false, raw, craft);
+    } else {
+      addQuantity(raw, materialTypeId, materialQuantityNeeded);
+    }
+  }
+}
+
+function fulfillBuildNeed(typeId, quantity, options, finalT2, inventory, shopping) {
+  let remaining = quantity;
+  const owned = inventory.get(typeId) || 0;
+  if (owned > 0) {
+    const used = Math.min(owned, remaining);
+    remaining -= used;
+    inventory.set(typeId, owned - used);
+  }
+  if (remaining <= 0) return;
+
+  const plan = recipePlan(typeId, remaining, options, finalT2);
+  if (!plan) {
+    addQuantity(shopping, typeId, remaining);
+    return;
+  }
+  if (plan.produced > remaining) {
+    inventory.set(typeId, (inventory.get(typeId) || 0) + (plan.produced - remaining));
+  }
+  for (const [materialTypeId, materialQuantityNeeded] of plan.materials) {
+    fulfillBuildNeed(materialTypeId, materialQuantityNeeded, options, false, inventory, shopping);
+  }
+}
+
+function mapRows(map, sourcePrices) {
+  return Array.from(map.entries())
+    .map(([typeId, quantity]) => ({
+      typeId,
+      quantity,
+      unitPrice: sourcePrices.get(typeId)?.sell ?? null,
+      totalPrice: sourcePrices.get(typeId)?.sell == null ? null : sourcePrices.get(typeId).sell * quantity,
+    }))
+    .sort((left, right) => left.typeId - right.typeId);
+}
+
+function detail(payload) {
+  const typeId = Number(payload.typeId);
+  const units = Math.max(1, Math.ceil(Number(payload.units) || 1));
+  const options = payload.options || {};
+  const market = payload.market || {};
+  const sourcePrices = normalizeOrderRows(market.inputOrders);
+  const adjusted = normalizeAdjustedRows(market.adjustedPrices);
+  const system = market.system || {};
+  const context = jobContext(options, system);
+  const decryptor = decryptors.get(options.decryptor) || decryptors.get("none");
+  const constants = staticGraph.constants || {};
+  const candidates = candidateMap.get(typeId) || [];
+  const candidate = candidates[0];
+  if (!candidate) throw new Error("No build data for item");
+
+  const [
+    productTypeId,
+    ,
+    manufacturingQuantity,
+    inventionBlueprintTypeId,
+    baseInventionRuns,
+    baseInventionProbability,
+  ] = candidate;
+
+  const manufacturedQuantity = Math.max(manufacturingQuantity || 1, 1);
+  const manufacturingRuns = Math.ceil(units / manufacturedQuantity);
+  const outputUnits = manufacturingRuns * manufacturedQuantity;
+  const inventionRuns = Math.max((baseInventionRuns || 1) + (decryptor?.runs || 0), 1);
+  const requiredBpcs = Math.ceil(manufacturingRuns / inventionRuns);
+  const probability = inventionProbability(baseInventionProbability, decryptor);
+  const expectedAttempts = probability > 0 ? requiredBpcs / probability : requiredBpcs;
+  const inventedMaterialEfficiency = clamp((constants.baseT2InventedMe || 2) + (decryptor?.me || 0), 0, 20);
+  const inventedTimeEfficiency = (constants.baseT2InventedTe || 4) + (decryptor?.te || 0);
+
+  const finalPlan = recipePlan(productTypeId, units, options, true);
+  const directMaterials = new Map(finalPlan?.materials || []);
+  const rawRequirements = new Map();
+  const componentBuilds = new Map();
+  collectBuildRequirements(productTypeId, units, options, true, rawRequirements, componentBuilds, true);
+
+  const inventionMaterialsNeeded = new Map();
+  let inventionEiv = 0;
+  for (const [materialTypeId, quantity] of inventionMaterials.get(inventionBlueprintTypeId) || []) {
+    const needed = Math.ceil(quantity * expectedAttempts);
+    addQuantity(inventionMaterialsNeeded, materialTypeId, needed);
+    inventionEiv += adjustedPrice(materialTypeId, adjusted) * quantity * expectedAttempts;
+  }
+  if (decryptor?.typeId) {
+    addQuantity(inventionMaterialsNeeded, decryptor.typeId, Math.ceil(expectedAttempts));
+    inventionEiv += adjustedPrice(decryptor.typeId, adjusted) * expectedAttempts;
+  }
+
+  const inventory = new Map((payload.inventory || []).map(([ownedTypeId, quantity]) => [Number(ownedTypeId), Number(quantity) || 0]));
+  const shopping = new Map();
+  fulfillBuildNeed(productTypeId, units, options, true, inventory, shopping);
+  for (const [materialTypeId, quantity] of inventionMaterialsNeeded) {
+    fulfillBuildNeed(materialTypeId, quantity, options, false, inventory, shopping);
+  }
+
+  const manufacture = manufacturingCostForProduct(
+    productTypeId,
+    sourcePrices,
+    adjusted,
+    options,
+    context,
+    true,
+    new Set(),
+    new Map(),
+  );
+
+  return {
+    typeId: productTypeId,
+    units,
+    outputUnits,
+    manufacturingRuns,
+    manufacturingQuantity: manufacturedQuantity,
+    inventionRuns,
+    requiredBpcs,
+    expectedAttempts,
+    inventionProbability: probability,
+    inventedMaterialEfficiency,
+    inventedTimeEfficiency,
+    manufacturingJobCostTotal: jobCost((manufacture.eiv || 0) * manufacturingRuns, "manufacturing", context),
+    inventionJobCostTotal: jobCost(inventionEiv, "invention", context),
+    directMaterials: mapRows(directMaterials, sourcePrices),
+    componentBuilds: mapRows(componentBuilds, sourcePrices),
+    rawRequirements: mapRows(rawRequirements, sourcePrices),
+    inventionMaterials: mapRows(inventionMaterialsNeeded, sourcePrices),
+    shoppingList: mapRows(shopping, sourcePrices),
+  };
+}
+
 function minExpiryForRows(rows, retryMs) {
   const now = Date.now();
   let hasMissingExpiry = false;
@@ -320,6 +493,10 @@ self.onmessage = (event) => {
     }
     if (type === "analyze") {
       self.postMessage({ id, ok: true, rows: analyze(payload) });
+      return;
+    }
+    if (type === "detail") {
+      self.postMessage({ id, ok: true, detail: detail(payload) });
       return;
     }
     throw new Error(`Unknown worker message: ${type}`);

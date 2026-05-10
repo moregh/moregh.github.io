@@ -69,6 +69,19 @@ const brokerFeeRate = document.querySelector("#brokerFeeRate");
 const rows         = document.querySelector("#rows");
 const status       = document.querySelector("#status");
 const details      = document.querySelector("#details");
+const buildModal   = document.querySelector("#buildModal");
+const buildClose   = document.querySelector("#buildClose");
+const buildIcon    = document.querySelector("#buildIcon");
+const buildTitle   = document.querySelector("#buildTitle");
+const buildSubtitle = document.querySelector("#buildSubtitle");
+const buildUnits   = document.querySelector("#buildUnits");
+const inventoryPaste = document.querySelector("#inventoryPaste");
+const buildPlan    = document.querySelector("#buildPlan");
+const directMaterials = document.querySelector("#directMaterials");
+const componentBuilds = document.querySelector("#componentBuilds");
+const inventionMaterials = document.querySelector("#inventionMaterials");
+const shoppingList = document.querySelector("#shoppingList");
+const copyShopping = document.querySelector("#copyShopping");
 const sortButtons  = Array.from(document.querySelectorAll(".sort"));
 const typeFilters  = Array.from(document.querySelectorAll(".type-filter"));
 
@@ -99,6 +112,9 @@ let analysisWorker       = null;
 let workerReady          = null;
 let workerRequestId      = 0;
 let workerRequests       = new Map();
+let activeBuildItem      = null;
+let buildDetailSeq      = 0;
+let lastShoppingText     = "";
 
 // Module-level visible items list — avoids storing state on a DOM node.
 let visibleItemsList = [];
@@ -240,11 +256,11 @@ async function ensureAnalysisWorker() {
   if (workerReady) return workerReady;
   analysisWorker = new Worker("analysis-worker.js");
   analysisWorker.addEventListener("message", (event) => {
-    const { id, ok, rows: workerRows, error } = event.data || {};
+    const { id, ok, error, ...result } = event.data || {};
     const pending = workerRequests.get(id);
     if (!pending) return;
     workerRequests.delete(id);
-    if (ok) pending.resolve(workerRows ?? true);
+    if (ok) pending.resolve(result.rows ?? result.detail ?? true);
     else pending.reject(new Error(error || "Analysis worker failed"));
   });
   analysisWorker.addEventListener("error", (event) => {
@@ -274,6 +290,24 @@ function metaFor(item) {
     assembledVolume: 0,
     inventionBlueprint: "unknown blueprint",
   };
+}
+
+function typeName(typeId) {
+  return staticData?.analysis?.typeNames?.[String(typeId)]
+    || staticTypes.get(String(typeId))?.name
+    || `Type ${typeId}`;
+}
+
+function typeIdForName(name) {
+  const normalized = name.trim().toLowerCase();
+  if (!normalized) return null;
+  for (const [typeId, itemName] of Object.entries(staticData?.analysis?.typeNames || {})) {
+    if (itemName.toLowerCase() === normalized) return Number(typeId);
+  }
+  for (const [typeId, meta] of staticTypes) {
+    if (meta.name.toLowerCase() === normalized) return Number(typeId);
+  }
+  return null;
 }
 
 function shortHubLabel(hub) {
@@ -925,6 +959,18 @@ async function calculateItems(typeIds) {
   });
 }
 
+async function calculateBuildDetail(typeId, units, inventory) {
+  await ensureAnalysisWorker();
+  return postWorker("detail", {
+    typeId,
+    units,
+    inventory,
+    options: activeBuildOptions(),
+    market: marketStateFor([typeId]),
+    retryMs: CLIENT_RETRY_MS,
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Rendering
 // ---------------------------------------------------------------------------
@@ -1142,6 +1188,121 @@ function rerenderFromCache() {
     generatedAt: currentData?.generatedAt,
     notes: currentData?.notes || [],
   }));
+}
+
+// ---------------------------------------------------------------------------
+// Build detail modal
+// ---------------------------------------------------------------------------
+
+function parseInventoryText(text) {
+  const inventory = new Map();
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    let name = "";
+    let quantity = null;
+    const tabParts = line.split("\t").map((part) => part.trim()).filter(Boolean);
+    if (tabParts.length >= 2) {
+      const quantityIndex = tabParts.findIndex((part) => /^[\d,.]+$/.test(part));
+      if (quantityIndex >= 0) {
+        quantity = Number(tabParts[quantityIndex].replace(/,/g, ""));
+        name = tabParts.filter((_, index) => index !== quantityIndex).join(" ");
+      }
+    }
+    if (quantity === null) {
+      const leading = line.match(/^([\d,.]+)\s+(.+)$/);
+      const trailing = line.match(/^(.+?)\s+([\d,.]+)$/);
+      if (leading) {
+        quantity = Number(leading[1].replace(/,/g, ""));
+        name = leading[2];
+      } else if (trailing) {
+        name = trailing[1];
+        quantity = Number(trailing[2].replace(/,/g, ""));
+      }
+    }
+    const typeId = typeIdForName(name);
+    if (!typeId || !Number.isFinite(quantity) || quantity <= 0) continue;
+    inventory.set(typeId, (inventory.get(typeId) || 0) + quantity);
+  }
+  return Array.from(inventory.entries());
+}
+
+function materialRowsHtml(items, emptyText = "None") {
+  if (!items?.length) return `<p class="empty-small">${emptyText}</p>`;
+  return `<table class="mini-table">
+    <thead><tr><th>Item</th><th>Qty</th><th>Est. cost</th></tr></thead>
+    <tbody>
+      ${items.map((item) => `<tr>
+        <td>${typeName(item.typeId)}</td>
+        <td>${isk(Math.ceil(item.quantity))}</td>
+        <td>${item.totalPrice === null ? "-" : `${isk(item.totalPrice)} ISK`}</td>
+      </tr>`).join("")}
+    </tbody>
+  </table>`;
+}
+
+function shoppingText(items) {
+  return (items || [])
+    .filter((item) => item.quantity > 0)
+    .map((item) => `${typeName(item.typeId)}\t${Math.ceil(item.quantity)}`)
+    .join("\n");
+}
+
+function renderBuildPlan(detail) {
+  const cards = [
+    ["Output", `${isk(detail.outputUnits)} units`],
+    ["Build runs", isk(detail.manufacturingRuns)],
+    ["BPCs", isk(detail.requiredBpcs)],
+    ["Runs/BPC", isk(detail.inventionRuns)],
+    ["Expected attempts", decimal(detail.expectedAttempts, 2)],
+    ["Invention chance", percent(detail.inventionProbability * 100)],
+    ["Invented ME", `${decimal(detail.inventedMaterialEfficiency, 1)}%`],
+    ["Invented TE", `${decimal(detail.inventedTimeEfficiency, 1)}%`],
+    ["Build fees", `${isk(detail.manufacturingJobCostTotal)} ISK`],
+    ["Invention fees", `${isk(detail.inventionJobCostTotal)} ISK`],
+  ];
+  buildPlan.innerHTML = `<div class="plan-grid">${cards.map(([label, value]) => summaryCard(label, value)).join("")}</div>`;
+  directMaterials.innerHTML = materialRowsHtml(detail.directMaterials);
+  componentBuilds.innerHTML = materialRowsHtml(detail.componentBuilds, "No intermediate components");
+  inventionMaterials.innerHTML = materialRowsHtml(detail.inventionMaterials);
+  shoppingList.innerHTML = materialRowsHtml(detail.shoppingList, "Nothing to buy");
+  lastShoppingText = shoppingText(detail.shoppingList);
+}
+
+async function refreshBuildDetail() {
+  if (!activeBuildItem) return;
+  const seq = ++buildDetailSeq;
+  buildPlan.innerHTML = `<p class="empty-small">Calculating build plan...</p>`;
+  try {
+    const units = Math.max(1, Math.ceil(Number(buildUnits.value) || 1));
+    const detail = await calculateBuildDetail(activeBuildItem.typeId, units, parseInventoryText(inventoryPaste.value));
+    if (seq !== buildDetailSeq) return;
+    renderBuildPlan(detail);
+  } catch (error) {
+    if (seq !== buildDetailSeq) return;
+    buildPlan.innerHTML = `<p class="empty-small">${error.message || "Build details failed."}</p>`;
+  }
+}
+
+function openBuildModal(item) {
+  activeBuildItem = item;
+  const meta = metaFor(item);
+  buildIcon.src = typeIconUrl(item.typeId, 64);
+  buildTitle.textContent = meta.name;
+  buildSubtitle.textContent = `${meta.group} · ${sourceHub.selectedOptions[0]?.textContent || sourceHub.value} materials · ${sellHub.selectedOptions[0]?.textContent || sellHub.value} sales`;
+  buildUnits.value = "1";
+  inventoryPaste.value = "";
+  lastShoppingText = "";
+  buildModal.hidden = false;
+  document.body.classList.add("modal-open");
+  refreshBuildDetail();
+}
+
+function closeBuildModal() {
+  buildModal.hidden = true;
+  document.body.classList.remove("modal-open");
+  activeBuildItem = null;
+  buildDetailSeq += 1;
 }
 
 // ---------------------------------------------------------------------------
@@ -1410,18 +1571,23 @@ rows.addEventListener("click", (event) => {
   // FIX: use module-level visibleItemsList instead of rows._visibleItems
   const item = visibleItemsList[Number(row.dataset.index)];
   if (!item) return;
-  const meta = metaFor(item);
-  const { salesTaxPercent, brokerFeePercent } = feeRates();
-  details.innerHTML = `
-    <strong>${meta.name}</strong>
-    costs ${isk(item.manufacturingCost)} ISK/unit to build plus ${isk(item.inventionCost)} ISK/unit expected invention cost.
-    Sell margin ${percent(item.margin)}; buy-order return on build cost ${percent(item.buyMargin)}.
-    Applied sales tax ${percent(salesTaxPercent)}; applied sell-order broker fee ${percent(brokerFeePercent)}. Buy-order profit excludes broker fees.
-    Haul volume ${decimal(meta.volume, 2)} m3; assembled volume ${decimal(meta.assembledVolume, 2)} m3.
-    Invention chance ${decimal(item.inventionProbability * 100, 1)}% via ${meta.inventionBlueprint}, invented runs ${item.inventionRuns}, invented ME ${decimal(item.inventedMaterialEfficiency, 1)}%, TE ${decimal(item.inventedTimeEfficiency, 1)}%, manufacturing output ${item.manufacturingQuantity}.
-    Included job fees: manufacturing ${isk(item.manufacturingJobCost)} ISK/unit, invention ${isk(item.inventionJobCost)} ISK/unit.
-    Sell-region average daily sales ${decimal(item.dailyVolume, 1)} units; sell-hub listing ${isk(item.sellVolume)} units across ${item.sellOrders} sell orders.
-  `;
+  openBuildModal(item);
+});
+
+buildClose.addEventListener("click", closeBuildModal);
+buildModal.addEventListener("click", (event) => {
+  if (event.target === buildModal) closeBuildModal();
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !buildModal.hidden) closeBuildModal();
+});
+buildUnits.addEventListener("input", () => refreshBuildDetail());
+inventoryPaste.addEventListener("input", () => refreshBuildDetail());
+copyShopping.addEventListener("click", async () => {
+  if (!lastShoppingText) return;
+  await navigator.clipboard.writeText(lastShoppingText);
+  copyShopping.textContent = "Copied";
+  window.setTimeout(() => { copyShopping.textContent = "Copy"; }, 1200);
 });
 
 rows.addEventListener("animationend", (event) => {
