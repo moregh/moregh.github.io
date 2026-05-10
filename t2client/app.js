@@ -821,21 +821,16 @@ function dataFromCachedItems(typeIds, extra = {}) {
 }
 
 async function fetchMarketData(typeIds, signal) {
-  return apiFetch("/api/market-data", {
-    method: "POST",
-    signal,
-    headers: { "Content-Type": "text/plain;charset=UTF-8" },
-    body: JSON.stringify({
-      s:  sourceHub.value,
-      b:  sellHub.value,
-      g:  buildSystemId.value,
-      st: structureType.value,
-      pr: productRig.value,
-      cr: componentRig.value,
-      d:  decryptor.value,
-      y:  typeIds,
-    }),
-  });
+  const requestedIds = Array.from(new Set(typeIds)).sort((left, right) => left - right);
+  const query = [
+    ["s", sourceHub.value],
+    ["b", sellHub.value],
+    ["g", buildSystemId.value],
+    ["y", requestedIds.join(",")],
+  ]
+    .map(([key, value]) => `${key}=${key === "y" ? value : encodeURIComponent(value)}`)
+    .join("&");
+  return apiFetch(`/api/market-data?${query}`, { method: "GET", signal });
 }
 
 async function calculateItems(typeIds) {
