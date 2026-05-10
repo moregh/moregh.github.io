@@ -93,6 +93,7 @@ const typeFilters  = Array.from(document.querySelectorAll(".type-filter"));
 let currentData          = null;
 let staticData           = null;
 let staticTypes          = new Map();  // typeId (string) → meta object
+let typeNameIndex        = new Map();  // normalized type name → typeId
 let staticSystems        = new Map();  // system name (lowercase) → system object
 let staticCandidates     = new Map();  // product typeId → candidate rows
 let marketTypeIds        = [];
@@ -309,16 +310,17 @@ function escapeHtml(value) {
   }[char]));
 }
 
+function normalizeTypeName(name) {
+  return String(name || "")
+    .normalize("NFKC")
+    .replace(/[\u2010-\u2015\u2212]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
 function typeIdForName(name) {
-  const normalized = name.trim().toLowerCase();
-  if (!normalized) return null;
-  for (const [typeId, itemName] of Object.entries(staticData?.analysis?.typeNames || {})) {
-    if (itemName.toLowerCase() === normalized) return Number(typeId);
-  }
-  for (const [typeId, meta] of staticTypes) {
-    if (meta.name.toLowerCase() === normalized) return Number(typeId);
-  }
-  return null;
+  return typeNameIndex.get(normalizeTypeName(name)) || null;
 }
 
 function shortHubLabel(hub) {
@@ -1212,21 +1214,20 @@ function parseInventoryText(text) {
     if (!line) continue;
     let name = "";
     let quantity = null;
+
+    // EVE inventory exports put item name first and quantity second; any
+    // remaining columns are group/category/volume/value noise for our purpose.
     const tabParts = line.split("\t").map((part) => part.trim()).filter(Boolean);
     if (tabParts.length >= 2) {
-      const quantityIndex = tabParts.findIndex((part) => /^[\d,.]+$/.test(part));
-      if (quantityIndex >= 0) {
-        quantity = Number(tabParts[quantityIndex].replace(/,/g, ""));
-        name = tabParts.filter((_, index) => index !== quantityIndex).join(" ");
+      const parsedQuantity = Number(tabParts[1].replace(/,/g, ""));
+      if (Number.isFinite(parsedQuantity)) {
+        name = tabParts[0];
+        quantity = parsedQuantity;
       }
     }
     if (quantity === null) {
-      const leading = line.match(/^([\d,.]+)\s+(.+)$/);
-      const trailing = line.match(/^(.+?)\s+([\d,.]+)$/);
-      if (leading) {
-        quantity = Number(leading[1].replace(/,/g, ""));
-        name = leading[2];
-      } else if (trailing) {
+      const trailing = line.match(/^(.+?)\s+([\d,]+)$/);
+      if (trailing) {
         name = trailing[1];
         quantity = Number(trailing[2].replace(/,/g, ""));
       }
@@ -1353,6 +1354,17 @@ async function loadStaticData() {
   }
 
   staticTypes = new Map(Object.entries(staticData.types));
+  typeNameIndex = new Map();
+  const indexTypeName = (typeId, name) => {
+    const normalized = normalizeTypeName(name);
+    if (normalized && !typeNameIndex.has(normalized)) typeNameIndex.set(normalized, Number(typeId));
+  };
+  for (const [typeId, itemName] of Object.entries(staticData.analysis?.typeNames || {})) {
+    indexTypeName(typeId, itemName);
+  }
+  for (const [typeId, meta] of staticTypes) {
+    indexTypeName(typeId, meta.name);
+  }
   marketTypeIds = (staticData.marketTypeIds || []).map(Number).slice(0, MARKET_BITSET_BITS);
   marketTypeIndex = new Map(marketTypeIds.map((typeId, index) => [typeId, index]));
   staticCandidates = new Map();
