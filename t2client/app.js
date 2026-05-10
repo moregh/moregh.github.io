@@ -40,8 +40,8 @@ const AUTO_REFRESH_BATCH_SIZE  = 150;
 const AUTO_REFRESH_WINDOW_MS   = 0;
 const CLIENT_RETRY_MS          = 5 * 60 * 1000;
 const CLIENT_RECHECK_JITTER_MS = 2 * 60 * 1000;
-const MARKET_PRODUCT_QUERY_CHUNK_SIZE = 150;
-const MARKET_SOURCE_QUERY_CHUNK_SIZE  = 250;
+const MARKET_BITSET_BITS       = 4096;
+const MARKET_BITSET_BYTES      = MARKET_BITSET_BITS / 8;
 // Distinct from CLIENT_RETRY_MS: TTL for a "we tried but got nothing" cache
 // entry.  Currently the same value but kept separate so they can diverge.
 const NEGATIVE_CACHE_MS        = 5 * 60 * 1000;
@@ -81,6 +81,8 @@ let staticData           = null;
 let staticTypes          = new Map();  // typeId (string) → meta object
 let staticSystems        = new Map();  // system name (lowercase) → system object
 let staticCandidates     = new Map();  // product typeId → candidate rows
+let marketTypeIds        = [];
+let marketTypeIndex      = new Map();
 let sortState            = { key: "profitPerM3", direction: "desc" };
 let cachePoll            = null;
 let itemPoll             = null;
@@ -92,6 +94,7 @@ let activeRequest        = null;
 let lastRenderSignature  = "";
 let cacheStatusData      = null;
 let activeApiBase        = null;
+let lastChangeBitset     = "";
 let analysisWorker       = null;
 let workerReady          = null;
 let workerRequestId      = 0;
@@ -193,6 +196,44 @@ function postWorker(type, payload = {}) {
     workerRequests.set(id, { resolve, reject });
     analysisWorker.postMessage({ id, type, payload });
   });
+}
+
+function base64UrlFromBytes(bytes) {
+  let binary = "";
+  for (let index = 0; index < bytes.length; index += 1) {
+    binary += String.fromCharCode(bytes[index]);
+  }
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function bytesFromBase64Url(value) {
+  if (!value) return new Uint8Array();
+  const padded = value.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(value.length / 4) * 4, "=");
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
+}
+
+function marketBitsetFor(typeIds) {
+  const bytes = new Uint8Array(MARKET_BITSET_BYTES);
+  for (const typeId of typeIds) {
+    const index = marketTypeIndex.get(Number(typeId));
+    if (index === undefined || index >= MARKET_BITSET_BITS) continue;
+    bytes[index >> 3] |= 1 << (index & 7);
+  }
+  return base64UrlFromBytes(bytes);
+}
+
+function typeIdsFromMarketBitset(value) {
+  const bytes = bytesFromBase64Url(value);
+  const typeIds = [];
+  for (let index = 0; index < marketTypeIds.length && index < MARKET_BITSET_BITS; index += 1) {
+    if (bytes[index >> 3] & (1 << (index & 7))) typeIds.push(marketTypeIds[index]);
+  }
+  return typeIds;
 }
 
 async function ensureAnalysisWorker() {
@@ -542,17 +583,17 @@ function setStatusMessage(message) {
 
 function cacheSummaryCards() {
   if (!cacheStatusData) {
-    return [["Hubs", "Preparing"], ["Orders", "-"], ["History", "-"], ["Refresh", "-"], ["API Cache", "-"]];
+    return [["Hubs", "Preparing"], ["Orders", "-"], ["History", "-"], ["Refresh", "-"], ["Changed", "-"]];
   }
   if (Array.isArray(cacheStatusData.w)) {
     const [running, completed, total] = cacheStatusData.w;
-    const [apiHits = 0, apiMisses = 0] = cacheStatusData.a || [];
+    const [changed = 0, tracked = 0] = cacheStatusData.d || [];
     return [
       ["Hubs",      compactPair(cacheStatusData.h)],
       ["Orders",    compactPair(cacheStatusData.o)],
       ["History",   compactPair(cacheStatusData.m)],
       ["Refresh",   running ? ratioPercent(completed, total) : "Idle"],
-      ["API Cache", ratioPercent(apiHits, apiHits + apiMisses)],
+      ["Changed",   tracked ? compact(changed) : "-"],
     ];
   }
   const hubCount      = cacheStatusData.hubs?.length || 0;
@@ -841,40 +882,24 @@ function dataFromCachedItems(typeIds, extra = {}) {
   };
 }
 
-function chunkArray(values, size) {
-  const chunks = [];
-  for (let index = 0; index < values.length; index += size) {
-    chunks.push(values.slice(index, index + size));
-  }
-  return chunks;
-}
-
 function marketDataRequestChunks(request) {
-  const productChunks = chunkArray(request.productTypeIds, MARKET_PRODUCT_QUERY_CHUNK_SIZE);
-  const sourceChunks = chunkArray(request.sourceTypeIds, MARKET_SOURCE_QUERY_CHUNK_SIZE);
-  const count = Math.max(productChunks.length, sourceChunks.length, request.system ? 1 : 0);
-  const chunks = [];
-  for (let index = 0; index < count; index += 1) {
-    chunks.push({
-      productTypeIds: productChunks[index] || [],
-      sourceTypeIds:  sourceChunks[index] || [],
-      system:         index === 0 && request.system,
-    });
-  }
-  return chunks;
+  return [request];
 }
 
 function marketDataPath(request) {
+  const typeIds = Array.from(new Set([
+    ...request.productTypeIds,
+    ...request.sourceTypeIds,
+  ])).sort((left, right) => left - right);
   const query = [
     ["s", sourceHub.value],
     ["b", sellHub.value],
     ["g", buildSystemId.value],
     ["z", "1"],
-    ["y", request.productTypeIds.join(",")],
-    ["x", request.sourceTypeIds.join(",")],
+    ["q", marketBitsetFor(typeIds)],
   ]
     .filter(([, value]) => value !== "")
-    .map(([key, value]) => `${key}=${key === "y" || key === "x" ? value : encodeURIComponent(value)}`)
+    .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
     .join("&");
   return `/api/market-data?${query}`;
 }
@@ -1141,6 +1166,8 @@ async function loadStaticData() {
   }
 
   staticTypes = new Map(Object.entries(staticData.types));
+  marketTypeIds = (staticData.marketTypeIds || []).map(Number).slice(0, MARKET_BITSET_BITS);
+  marketTypeIndex = new Map(marketTypeIds.map((typeId, index) => [typeId, index]));
   staticCandidates = new Map();
   for (const row of staticData.analysis?.candidates || []) {
     if (!staticCandidates.has(row[0])) staticCandidates.set(row[0], []);
@@ -1321,6 +1348,30 @@ async function refreshAnalysis(options = {}) {
 
 function renderCacheStatus(data) {
   cacheStatusData = data;
+  if (data?.c && data.c !== lastChangeBitset && staticData) {
+    lastChangeBitset = data.c;
+    const scopedTypeIds = staticScopedTypeIds();
+    const interested = new Set([
+      ...scopedTypeIds,
+      ...sourceInputIdsFor(scopedTypeIds),
+    ]);
+    const changed = typeIdsFromMarketBitset(data.c).filter((typeId) => interested.has(typeId));
+    if (changed.length) {
+      const cache = activeMarketCache();
+      cache.validUntil = null;
+      for (const typeId of changed) {
+        for (const row of [
+          cache.productOrders.get(typeId),
+          cache.inputOrders.get(typeId),
+          cache.histories.get(typeId),
+          cache.adjustedPrices.get(typeId),
+        ]) {
+          if (row) row.expiresAt = null;
+        }
+      }
+      scheduleRefresh(0, { automatic: true });
+    }
+  }
   if (currentData) queueRender(currentData);
 }
 
