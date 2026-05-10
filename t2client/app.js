@@ -298,6 +298,16 @@ function typeName(typeId) {
     || `Type ${typeId}`;
 }
 
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    "\"": "&quot;",
+    "'": "&#39;",
+  }[char]));
+}
+
 function typeIdForName(name) {
   const normalized = name.trim().toLowerCase();
   if (!normalized) return null;
@@ -1232,11 +1242,14 @@ function materialRowsHtml(items, emptyText = "None") {
   return `<table class="mini-table">
     <thead><tr><th>Item</th><th>Qty</th><th>Est. cost</th></tr></thead>
     <tbody>
-      ${items.map((item) => `<tr>
-        <td>${typeName(item.typeId)}</td>
+      ${items.map((item) => {
+        const name = typeName(item.typeId);
+        return `<tr>
+        <td><span class="mini-item"><img class="mini-icon" src="${typeIconUrl(item.typeId, 32)}" alt=""><span title="${escapeHtml(name)}">${escapeHtml(name)}</span></span></td>
         <td>${isk(Math.ceil(item.quantity))}</td>
         <td>${item.totalPrice === null ? "-" : `${isk(item.totalPrice)} ISK`}</td>
-      </tr>`).join("")}
+      </tr>`;
+      }).join("")}
     </tbody>
   </table>`;
 }
@@ -1261,7 +1274,9 @@ function renderBuildPlan(detail) {
     ["Build fees", `${isk(detail.manufacturingJobCostTotal)} ISK`],
     ["Invention fees", `${isk(detail.inventionJobCostTotal)} ISK`],
   ];
-  buildPlan.innerHTML = `<div class="plan-grid">${cards.map(([label, value]) => summaryCard(label, value)).join("")}</div>`;
+  buildPlan.innerHTML = `<div class="plan-grid">${cards.map(([label, value]) => (
+    `<div class="plan-card"><span class="plan-label">${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`
+  )).join("")}</div>`;
   directMaterials.innerHTML = materialRowsHtml(detail.directMaterials);
   componentBuilds.innerHTML = materialRowsHtml(detail.componentBuilds, "No intermediate components");
   inventionMaterials.innerHTML = materialRowsHtml(detail.inventionMaterials);

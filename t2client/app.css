@@ -11,6 +11,10 @@
   --accent-strong: #58a6ff;
   --profit: #3fb950;
   --loss: #ff7b72;
+  --industry: #e3b341;
+  --components: #a371f7;
+  --invention: #56d4dd;
+  --shopping: #3fb950;
 }
 
 * {
@@ -597,7 +601,9 @@ tbody tr:hover {
   gap: 16px;
   padding: 16px 18px;
   border-bottom: 1px solid var(--line);
-  background: var(--panel);
+  background:
+    linear-gradient(90deg, rgba(47, 129, 247, 0.18), rgba(22, 27, 34, 0.94) 42%),
+    var(--panel);
 }
 
 .build-title-wrap {
@@ -613,6 +619,7 @@ tbody tr:hover {
   border: 1px solid var(--line);
   border-radius: 6px;
   background: #0b0f14;
+  box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.08);
 }
 
 .build-header h2,
@@ -671,7 +678,7 @@ textarea {
 
 .build-grid {
   display: grid;
-  grid-template-columns: minmax(300px, 0.85fr) minmax(360px, 1fr) minmax(360px, 1fr);
+  grid-template-columns: minmax(360px, 0.95fr) minmax(360px, 1fr) minmax(360px, 1fr);
   grid-auto-rows: minmax(180px, auto);
   gap: 12px;
   min-height: 0;
@@ -680,12 +687,41 @@ textarea {
 }
 
 .build-panel {
+  position: relative;
   min-width: 0;
   overflow: auto;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: var(--panel);
-  padding: 12px;
+  background: linear-gradient(180deg, rgba(31, 38, 48, 0.55), rgba(22, 27, 34, 0.98));
+  padding: 14px 12px 12px;
+}
+
+.build-panel::before {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 3px;
+  border-radius: 8px 8px 0 0;
+  background: var(--accent-strong);
+  content: "";
+}
+
+.plan-panel::before,
+.materials-panel::before {
+  background: var(--industry);
+}
+
+.components-panel::before {
+  background: var(--components);
+}
+
+.invention-panel::before {
+  background: var(--invention);
+}
+
+.shopping-panel::before {
+  background: var(--shopping);
 }
 
 .shopping-panel {
@@ -701,9 +737,35 @@ textarea {
 
 .plan-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
+  grid-template-columns: repeat(2, minmax(150px, 1fr));
+  gap: 8px;
   margin-top: 10px;
+}
+
+.plan-card {
+  display: grid;
+  gap: 4px;
+  min-height: 54px;
+  padding: 9px 10px;
+  border: 1px solid rgba(227, 179, 65, 0.22);
+  border-radius: 7px;
+  background: rgba(227, 179, 65, 0.08);
+}
+
+.plan-label {
+  color: #d6bd72;
+  font-size: 11px;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.plan-card strong {
+  align-self: end;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .mini-table {
@@ -719,10 +781,39 @@ textarea {
   padding: 5px 6px;
 }
 
+.mini-table th {
+  position: static;
+  top: auto;
+  z-index: auto;
+}
+
 .mini-table th:first-child,
 .mini-table td:first-child {
   width: 52%;
   text-align: left;
+}
+
+.mini-item {
+  display: inline-grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: center;
+  width: 100%;
+  gap: 7px;
+  min-width: 0;
+}
+
+.mini-icon {
+  width: 24px;
+  height: 24px;
+  border: 1px solid rgba(139, 148, 158, 0.32);
+  border-radius: 5px;
+  background: #0b1016;
+}
+
+.mini-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .empty-small {
