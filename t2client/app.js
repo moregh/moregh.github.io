@@ -681,35 +681,54 @@ function refreshTime(row) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function rawMarketEntryNeedsRefresh(typeId, refreshWindowMs = 0) {
-  const cache = activeMarketCache();
+function rowNeedsRefresh(row, refreshWindowMs = 0, routeRetryAt = null) {
   const now = Date.now();
-  const routeRetryAt = Date.parse(cache.validUntil);
-  const rows = [
-    cache.productOrders.get(typeId),
-    cache.histories.get(typeId),
-    cache.system,
-    ...requiredInputIdsFor(typeId).map((inputTypeId) => cache.inputOrders.get(inputTypeId)),
-  ];
-  if (rows.some((row) => !row)) return true;
-  const expired = rows.some((row) => refreshTime(row) <= now + refreshWindowMs);
-  return expired && (!Number.isFinite(routeRetryAt) || routeRetryAt <= now + refreshWindowMs);
+  if (!row) return true;
+  if (refreshTime(row) > now + refreshWindowMs) return false;
+  return !Number.isFinite(routeRetryAt) || routeRetryAt <= now + refreshWindowMs;
 }
 
-function rawMarketRefreshAt(typeId) {
-  const cache = activeMarketCache();
-  const rows = [
-    cache.productOrders.get(typeId),
-    cache.histories.get(typeId),
-    cache.system,
-    ...requiredInputIdsFor(typeId).map((inputTypeId) => cache.inputOrders.get(inputTypeId)),
-  ];
-  if (rows.every(Boolean)) {
-    const routeRetryAt = Date.parse(cache.validUntil);
-    if (Number.isFinite(routeRetryAt) && routeRetryAt > Date.now()) return routeRetryAt;
+function sourceInputIdsFor(typeIds) {
+  const inputIds = new Set();
+  for (const typeId of typeIds) {
+    for (const inputTypeId of requiredInputIdsFor(typeId)) inputIds.add(inputTypeId);
   }
-  const times = rows.map(refreshTime).filter((value) => Number.isFinite(value) && value > 0);
-  return times.length ? Math.min(...times) : 0;
+  return inputIds;
+}
+
+function marketDataRefreshRequest(typeIds, refreshWindowMs = 0) {
+  const cache = activeMarketCache();
+  const routeRetryAt = Date.parse(cache.validUntil);
+  const productTypeIds = [];
+  const sourceTypeIds = [];
+
+  for (const typeId of typeIds) {
+    if (
+      rowNeedsRefresh(cache.productOrders.get(typeId), refreshWindowMs, routeRetryAt) ||
+      rowNeedsRefresh(cache.histories.get(typeId), refreshWindowMs, routeRetryAt)
+    ) {
+      productTypeIds.push(typeId);
+    }
+  }
+
+  for (const inputTypeId of sourceInputIdsFor(typeIds)) {
+    if (
+      rowNeedsRefresh(cache.inputOrders.get(inputTypeId), refreshWindowMs, routeRetryAt) ||
+      rowNeedsRefresh(cache.adjustedPrices.get(inputTypeId), refreshWindowMs, routeRetryAt)
+    ) {
+      sourceTypeIds.push(inputTypeId);
+    }
+  }
+
+  return {
+    productTypeIds: Array.from(new Set(productTypeIds)).sort((left, right) => left - right),
+    sourceTypeIds:  Array.from(new Set(sourceTypeIds)).sort((left, right) => left - right),
+    system:         rowNeedsRefresh(cache.system, refreshWindowMs, routeRetryAt),
+  };
+}
+
+function marketDataRequestSize(request) {
+  return request.productTypeIds.length + request.sourceTypeIds.length + (request.system ? 1 : 0);
 }
 
 function marketStateFor(typeIds) {
@@ -820,15 +839,17 @@ function dataFromCachedItems(typeIds, extra = {}) {
   };
 }
 
-async function fetchMarketData(typeIds, signal) {
-  const requestedIds = Array.from(new Set(typeIds)).sort((left, right) => left - right);
+async function fetchMarketData(request, signal) {
   const query = [
     ["s", sourceHub.value],
     ["b", sellHub.value],
     ["g", buildSystemId.value],
-    ["y", requestedIds.join(",")],
+    ["z", "1"],
+    ["y", request.productTypeIds.join(",")],
+    ["x", request.sourceTypeIds.join(",")],
   ]
-    .map(([key, value]) => `${key}=${key === "y" ? value : encodeURIComponent(value)}`)
+    .filter(([, value]) => value !== "")
+    .map(([key, value]) => `${key}=${key === "y" || key === "x" ? value : encodeURIComponent(value)}`)
     .join("&");
   return apiFetch(`/api/market-data?${query}`, { method: "GET", signal });
 }
@@ -1186,25 +1207,21 @@ async function refreshAnalysis(options = {}) {
     }
 
     const refreshWindowMs = options.automatic ? AUTO_REFRESH_WINDOW_MS : 0;
-    const dueTypeIds = typeIds
-      .filter((typeId) => rawMarketEntryNeedsRefresh(typeId, refreshWindowMs))
-      .sort((left, right) => {
-        const leftAt  = rawMarketRefreshAt(left);
-        const rightAt = rawMarketRefreshAt(right);
-        return (Number.isFinite(leftAt) ? leftAt : 0) - (Number.isFinite(rightAt) ? rightAt : 0);
-      });
+    const refreshRequest = marketDataRefreshRequest(typeIds, refreshWindowMs);
+    if (options.automatic) {
+      refreshRequest.productTypeIds = refreshRequest.productTypeIds.slice(0, AUTO_REFRESH_BATCH_SIZE);
+    }
+    const requestSize = marketDataRequestSize(refreshRequest);
 
-    const missingTypeIds = options.automatic ? dueTypeIds.slice(0, AUTO_REFRESH_BATCH_SIZE) : dueTypeIds;
-
-    if (missingTypeIds.length) {
-      if (!options.automatic && missingTypeIds.length < typeIds.length) {
+    if (requestSize) {
+      if (!options.automatic && refreshRequest.productTypeIds.length < typeIds.length) {
         queueRender(dataFromCachedItems(typeIds, {
           notes: ["Showing fresh local rows while refreshing expired or missing items."],
         }));
       }
 
       if (!options.automatic) {
-        setStatusMessage(`Refreshing ${isk(missingTypeIds.length)} stale or missing prices`);
+        setStatusMessage(`Refreshing ${isk(requestSize)} stale or missing market rows`);
       }
 
       if (activeRequest) {
@@ -1214,7 +1231,7 @@ async function refreshAnalysis(options = {}) {
 
       const controller = new AbortController();
       activeRequest    = controller;
-      const response   = await fetchMarketData(missingTypeIds, controller.signal);
+      const response   = await fetchMarketData(refreshRequest, controller.signal);
       if (activeRequest === controller) activeRequest = null;
 
       const rawData = await response.json();
