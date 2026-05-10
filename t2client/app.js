@@ -1274,7 +1274,9 @@ function renderBuildPlan(detail) {
     ["Invention chance", percent(detail.inventionProbability * 100)],
     ["Invented ME", `${decimal(detail.inventedMaterialEfficiency, 1)}%`],
     ["Invented TE", `${decimal(detail.inventedTimeEfficiency, 1)}%`],
-    ["Build fees", `${isk(detail.manufacturingJobCostTotal)} ISK`],
+    ["Final build fee", `${isk(detail.finalProductManufacturingJobCostTotal)} ISK`],
+    ["Component fees", `${isk(detail.componentManufacturingJobCostTotal)} ISK`],
+    ["Build fees total", `${isk(detail.manufacturingJobCostTotal)} ISK`],
     ["Invention fees", `${isk(detail.inventionJobCostTotal)} ISK`],
   ];
   buildPlan.innerHTML = `<div class="plan-grid">${cards.map(([label, value]) => (

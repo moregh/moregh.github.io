@@ -198,6 +198,42 @@ function collectBuildRequirements(typeId, quantity, options, finalT2, raw, craft
   }
 }
 
+function manufacturingFeesForProduct(typeId, quantity, options, finalT2, adjusted, context, root = false) {
+  const plan = recipePlan(typeId, quantity, options, finalT2);
+  if (!plan) {
+    return { finalProduct: 0, components: 0 };
+  }
+
+  const eiv = plan.materials.reduce(
+    (total, [materialTypeId, materialQuantityNeeded]) => (
+      total + adjustedPrice(materialTypeId, adjusted) * materialQuantityNeeded
+    ),
+    0,
+  );
+  const fee = jobCost(eiv, "manufacturing", context);
+  const totals = {
+    finalProduct: root ? fee : 0,
+    components: root ? 0 : fee,
+  };
+
+  for (const [materialTypeId, materialQuantityNeeded] of plan.materials) {
+    const nested = manufacturing.get(materialTypeId);
+    if (nested && !boughtCompleted.has(materialTypeId)) {
+      const nestedFees = manufacturingFeesForProduct(
+        materialTypeId,
+        materialQuantityNeeded,
+        options,
+        false,
+        adjusted,
+        context,
+      );
+      totals.finalProduct += nestedFees.finalProduct;
+      totals.components += nestedFees.components;
+    }
+  }
+  return totals;
+}
+
 function fulfillBuildNeed(typeId, quantity, options, finalT2, inventory, shopping) {
   let remaining = quantity;
   const owned = inventory.get(typeId) || 0;
@@ -302,6 +338,16 @@ function detail(payload) {
     new Set(),
     new Map(),
   );
+  const manufacturingFees = manufacturingFeesForProduct(
+    productTypeId,
+    units,
+    options,
+    true,
+    adjusted,
+    context,
+    true,
+  );
+  const manufacturingJobCostTotal = manufacturingFees.finalProduct + manufacturingFees.components;
 
   return {
     typeId: productTypeId,
@@ -316,7 +362,9 @@ function detail(payload) {
     inventionProbability: probability,
     inventedMaterialEfficiency,
     inventedTimeEfficiency,
-    manufacturingJobCostTotal: jobCost((manufacture.eiv || 0) * manufacturingRuns, "manufacturing", context),
+    manufacturingJobCostTotal,
+    finalProductManufacturingJobCostTotal: manufacturingFees.finalProduct,
+    componentManufacturingJobCostTotal: manufacturingFees.components,
     inventionJobCostTotal: jobCost(inventionEiv, "invention", context),
     directMaterials: mapRows(directMaterials, sourcePrices),
     componentBuilds: mapRows(componentBuilds, sourcePrices),
