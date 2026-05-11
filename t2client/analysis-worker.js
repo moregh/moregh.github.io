@@ -9,6 +9,8 @@ let typeGroups = new Map();
 let typeCategories = new Map();
 let typeMarketGroups = new Map();
 let typeMetaGroups = new Map();
+let shipSizeByGroup = new Map();
+let rigApplicabilityCache = new Map();
 let decryptors = new Map();
 let structures = new Map();
 let rigs = new Map();
@@ -37,15 +39,29 @@ function futureOrRetry(expiresAt, retryMs) {
 }
 
 function normalizeOrderRows(rows) {
-  return new Map((rows || []).map((row) => [row.typeId, row]));
+  const result = new Map();
+  for (const row of rows || []) result.set(row.typeId, row);
+  return result;
 }
 
 function normalizeHistoryRows(rows) {
-  return new Map((rows || []).map((row) => [row.typeId, row]));
+  const result = new Map();
+  for (const row of rows || []) result.set(row.typeId, row);
+  return result;
 }
 
 function normalizeAdjustedRows(rows) {
-  return new Map((rows || []).map((row) => [row.typeId, row]));
+  const result = new Map();
+  for (const row of rows || []) result.set(row.typeId, row);
+  return result;
+}
+
+function makeShipSizeMap() {
+  const result = new Map();
+  for (const [size, groups] of Object.entries(SHIP_SIZE_GROUPS)) {
+    for (const group of groups) result.set(group, size);
+  }
+  return result;
 }
 
 const SHIP_SIZE_GROUPS = {
@@ -77,28 +93,27 @@ function typeScope(typeId) {
 }
 
 function shipSizeForGroup(group) {
-  for (const [size, groups] of Object.entries(SHIP_SIZE_GROUPS)) {
-    if (groups.has(group)) return size;
-  }
-  return null;
+  return shipSizeByGroup.get(group) || null;
 }
 
 function rigAppliesToType(rig, productTypeId) {
   if (!rig || rig.id === "none" || !rig.materialBonus) return false;
+  const cacheKey = `${rig.id}:${productTypeId}`;
+  if (rigApplicabilityCache.has(cacheKey)) return rigApplicabilityCache.get(cacheKey);
   const scope = rig.scope || {};
   const type = typeScope(productTypeId);
+  let applies = false;
   if (scope.kind === "ships") {
-    return type.category === "Ship";
-  }
-  if (scope.kind === "advancedShips") {
-    return type.category === "Ship"
+    applies = type.category === "Ship";
+  } else if (scope.kind === "advancedShips") {
+    applies = type.category === "Ship"
       && type.metaGroup === 2
       && shipSizeForGroup(type.group) === scope.size;
+  } else if (scope.kind === "advancedComponents") {
+    applies = type.category === "Commodity" && type.group === "Construction Components";
   }
-  if (scope.kind === "advancedComponents") {
-    return type.category === "Commodity" && type.group === "Construction Components";
-  }
-  return false;
+  rigApplicabilityCache.set(cacheKey, applies);
+  return applies;
 }
 
 function materialQuantity(quantity, mePercent, options, finalT2, productTypeId) {
@@ -492,13 +507,13 @@ function detail(payload) {
 function minExpiryForRows(rows, retryMs) {
   const now = Date.now();
   let hasMissingExpiry = false;
-  const expiries = [];
+  let validUntil = Number.POSITIVE_INFINITY;
   for (const row of rows) {
     const expiresAt = parseTime(row?.expiresAt);
-    if (Number.isFinite(expiresAt) && expiresAt > now) expiries.push(expiresAt);
+    if (Number.isFinite(expiresAt) && expiresAt > now) validUntil = Math.min(validUntil, expiresAt);
     else hasMissingExpiry = true;
   }
-  const validUntil = expiries.length ? Math.min(...expiries) : now + retryMs;
+  if (validUntil === Number.POSITIVE_INFINITY) validUntil = now + retryMs;
   return isoFromMs(hasMissingExpiry ? Math.min(validUntil, now + retryMs) : validUntil);
 }
 
@@ -516,6 +531,7 @@ function analyze(payload) {
   const constants = staticGraph.constants || {};
   const retryMs = payload.retryMs || 300000;
   const manufacturingCache = new Map();
+  const adjustedRows = Array.from(adjusted.values());
   const rows = [];
 
   for (const typeId of typeIds) {
@@ -585,9 +601,10 @@ function analyze(payload) {
       const margin = profit === null || !totalCost ? null : (profit / totalCost) * 100;
       const buyMargin = profitToBuy === null || !totalCost ? null : (profitToBuy / totalCost) * 100;
 
-      const manufacturingSourceRows = (staticGraph.typeMarketInputs?.[String(productTypeId)] || [])
-        .map((sourceTypeId) => sourcePrices.get(sourceTypeId));
-      const adjustedRows = Array.from(adjusted.values());
+      const manufacturingSourceRows = [];
+      for (const sourceTypeId of staticGraph.typeMarketInputs?.[String(productTypeId)] || []) {
+        manufacturingSourceRows.push(sourcePrices.get(sourceTypeId));
+      }
       const validUntil = minExpiryForRows([
         sale,
         history,
@@ -654,6 +671,8 @@ self.onmessage = (event) => {
       typeCategories = toMap(staticGraph.typeCategories);
       typeMarketGroups = toMap(staticGraph.typeMarketGroups);
       typeMetaGroups = toMap(staticGraph.typeMetaGroups);
+      shipSizeByGroup = makeShipSizeMap();
+      rigApplicabilityCache = new Map();
       decryptors = new Map((payload.decryptors || []).map((item) => [item.id, item]));
       structures = new Map((payload.structureProfiles || []).map((item) => [item.id, item]));
       rigs = new Map((payload.rigProfiles || []).map((item) => [item.id, item]));

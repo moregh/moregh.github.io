@@ -94,11 +94,15 @@ const typeFilters  = Array.from(document.querySelectorAll(".type-filter"));
 let currentData          = null;
 let staticData           = null;
 let staticTypes          = new Map();  // typeId (string) → meta object
+let staticTypeList       = [];         // flattened product metadata for fast filtering
 let typeNameIndex        = new Map();  // normalized type name → typeId
 let staticSystems        = new Map();  // system name (lowercase) → system object
 let staticCandidates     = new Map();  // product typeId → candidate rows
 let marketTypeIds        = [];
 let marketTypeIndex      = new Map();
+let requiredInputIdsCache = new Map();
+let decryptorTypeIdList   = [];
+let scopedTypeIdsCache    = { key: "", typeIds: [] };
 let sortState            = { key: "profitPerM3", direction: "desc" };
 let cachePoll            = null;
 let itemPoll             = null;
@@ -573,7 +577,7 @@ function filteredItems(items, state = filterState()) {
     const meta = metaFor(item);
     if (!state.enabledKinds.has(meta.kind)) return false;
     if (state.search) {
-      if (!`${meta.name} ${meta.group}`.toLowerCase().includes(state.search)) return false;
+      if (!(meta.searchText || `${meta.name} ${meta.group}`.toLowerCase()).includes(state.search)) return false;
     }
     if (belowMin(item.profit,       state.minProfit))      return false;
     if (aboveMax(item.profit,       state.maxProfit))      return false;
@@ -765,12 +769,12 @@ function analysisCandidates(typeId) {
 }
 
 function decryptorTypeIds() {
-  return (staticData?.decryptors || [])
-    .map((item) => item.typeId)
-    .filter(Boolean);
+  return decryptorTypeIdList;
 }
 
 function requiredInputIdsFor(typeId) {
+  const cached = requiredInputIdsCache.get(typeId);
+  if (cached) return cached;
   const analysis = staticData?.analysis;
   const inputs = new Set((analysis?.typeMarketInputs || {})[String(typeId)] || []);
   for (const candidate of analysisCandidates(typeId)) {
@@ -782,7 +786,9 @@ function requiredInputIdsFor(typeId) {
   for (const decryptorTypeId of decryptorTypeIds()) {
     inputs.add(decryptorTypeId);
   }
-  return Array.from(inputs);
+  const result = Array.from(inputs);
+  requiredInputIdsCache.set(typeId, result);
+  return result;
 }
 
 function refreshTime(row) {
@@ -810,6 +816,7 @@ function marketDataRefreshRequest(typeIds, refreshWindowMs = 0) {
   const routeRetryAt = Date.parse(cache.validUntil);
   const productTypeIds = [];
   const sourceTypeIds = [];
+  const seenSourceTypeIds = new Set();
 
   for (const typeId of typeIds) {
     if (
@@ -820,12 +827,16 @@ function marketDataRefreshRequest(typeIds, refreshWindowMs = 0) {
     }
   }
 
-  for (const inputTypeId of sourceInputIdsFor(typeIds)) {
-    if (
-      rowNeedsRefresh(cache.inputOrders.get(inputTypeId), refreshWindowMs, routeRetryAt) ||
-      rowNeedsRefresh(cache.adjustedPrices.get(inputTypeId), refreshWindowMs, routeRetryAt)
-    ) {
-      sourceTypeIds.push(inputTypeId);
+  for (const typeId of typeIds) {
+    for (const inputTypeId of requiredInputIdsFor(typeId)) {
+      if (seenSourceTypeIds.has(inputTypeId)) continue;
+      seenSourceTypeIds.add(inputTypeId);
+      if (
+        rowNeedsRefresh(cache.inputOrders.get(inputTypeId), refreshWindowMs, routeRetryAt) ||
+        rowNeedsRefresh(cache.adjustedPrices.get(inputTypeId), refreshWindowMs, routeRetryAt)
+      ) {
+        sourceTypeIds.push(inputTypeId);
+      }
     }
   }
 
@@ -846,11 +857,27 @@ function marketStateFor(typeIds) {
   for (const typeId of typeIds) {
     for (const inputTypeId of requiredInputIdsFor(typeId)) inputIds.add(inputTypeId);
   }
+  const productOrders = [];
+  const histories = [];
+  for (const typeId of typeIds) {
+    const order = cache.productOrders.get(typeId);
+    if (order) productOrders.push(order);
+    const history = cache.histories.get(typeId);
+    if (history) histories.push(history);
+  }
+  const inputOrders = [];
+  const adjustedPrices = [];
+  for (const typeId of inputIds) {
+    const order = cache.inputOrders.get(typeId);
+    if (order) inputOrders.push(order);
+    const adjustedPrice = cache.adjustedPrices.get(typeId);
+    if (adjustedPrice) adjustedPrices.push(adjustedPrice);
+  }
   return {
-    productOrders: typeIds.map((typeId) => cache.productOrders.get(typeId)).filter(Boolean),
-    inputOrders: Array.from(inputIds).map((typeId) => cache.inputOrders.get(typeId)).filter(Boolean),
-    histories: typeIds.map((typeId) => cache.histories.get(typeId)).filter(Boolean),
-    adjustedPrices: Array.from(inputIds).map((typeId) => cache.adjustedPrices.get(typeId)).filter(Boolean),
+    productOrders,
+    inputOrders,
+    histories,
+    adjustedPrices,
     system: cache.system,
   };
 }
@@ -917,13 +944,16 @@ function emptyRow(message) {
 
 function staticScopedTypeIds() {
   const state = filterState();
-  return Array.from(staticTypes.values())
-    .filter((meta) => {
-      if (!state.enabledKinds.has(meta.kind)) return false;
-      if (!state.search) return true;
-      return `${meta.name} ${meta.group}`.toLowerCase().includes(state.search);
-    })
-    .map((meta) => meta.typeId);
+  const key = `${Array.from(state.enabledKinds).sort().join(",")}|${state.search}`;
+  if (scopedTypeIdsCache.key === key) return scopedTypeIdsCache.typeIds;
+  const typeIds = [];
+  for (const meta of staticTypeList) {
+    if (!state.enabledKinds.has(meta.kind)) continue;
+    if (state.search && !meta.searchText.includes(state.search)) continue;
+    typeIds.push(meta.typeId);
+  }
+  scopedTypeIdsCache = { key, typeIds };
+  return typeIds;
 }
 
 function dataFromCachedItems(typeIds, extra = {}) {
@@ -1121,11 +1151,12 @@ function renderRows(items) {
 
 function scheduleNextExpiryRefresh(typeIds) {
   window.clearTimeout(expiryTimer);
-  const expiries = typeIds
-    .map((typeId) => entryRefreshAt(itemCache.get(itemCacheKey(typeId))))
-    .filter((t) => Number.isFinite(t));  // FIX (#3): guard is here, consistent with all other callers
-  if (!expiries.length) return;
-  const nextExpiry = Math.min(...expiries);
+  let nextExpiry = Number.POSITIVE_INFINITY;
+  for (const typeId of typeIds) {
+    const refreshAt = entryRefreshAt(itemCache.get(itemCacheKey(typeId)));
+    if (Number.isFinite(refreshAt) && refreshAt < nextExpiry) nextExpiry = refreshAt;
+  }
+  if (nextExpiry === Number.POSITIVE_INFINITY) return;
   const delay = Math.max(AUTO_REFRESH_MIN_DELAY_MS, nextExpiry - Date.now() + 250);
   expiryTimer = window.setTimeout(() => scheduleRefresh(0, { automatic: true }), delay);
 }
@@ -1161,8 +1192,12 @@ function render(data) {
   const filtered = filteredItems(data.items, state);
   const items    = sortedItems(filtered);
 
-  const pricedCount      = filtered.filter((item) => item.sellPrice !== null && item.buildCost !== null).length;
-  const profitableCount  = filtered.filter((item) => item.profit !== null && item.profit > 0).length;
+  let pricedCount = 0;
+  let profitableCount = 0;
+  for (const item of filtered) {
+    if (item.sellPrice !== null && item.buildCost !== null) pricedCount += 1;
+    if (item.profit !== null && item.profit > 0) profitableCount += 1;
+  }
 
   const signature = visibleSignature(items);
   if (data.automatic && signature === lastRenderSignature) return;
@@ -1382,7 +1417,16 @@ async function loadStaticData() {
   }
 
   staticTypes = new Map(Object.entries(staticData.types));
+  for (const meta of staticTypes.values()) {
+    meta.searchText = `${meta.name} ${meta.group}`.toLowerCase();
+  }
+  staticTypeList = Array.from(staticTypes.values());
   typeNameIndex = new Map();
+  requiredInputIdsCache = new Map();
+  scopedTypeIdsCache = { key: "", typeIds: [] };
+  decryptorTypeIdList = (staticData.decryptors || [])
+    .map((item) => item.typeId)
+    .filter(Boolean);
   const indexTypeName = (typeId, name) => {
     const normalized = normalizeTypeName(name);
     if (normalized && !typeNameIndex.has(normalized)) typeNameIndex.set(normalized, Number(typeId));
