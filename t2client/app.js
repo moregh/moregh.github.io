@@ -1283,7 +1283,13 @@ function renderBuildPlan(detail) {
     ["Invented ME", `${decimal(detail.inventedMaterialEfficiency, 1)}%`],
     ["Invented TE", `${decimal(detail.inventedTimeEfficiency, 1)}%`],
     ["Final build fee", `${isk(detail.finalProductManufacturingJobCostTotal)} ISK`],
+    ["Final gross", `${isk(detail.finalProductManufacturingGrossCostTotal)} ISK`],
+    ["Final SCC", `${isk(detail.finalProductManufacturingSccSurchargeTotal)} ISK`],
+    ["Final facility", `${isk(detail.finalProductManufacturingFacilityTaxTotal)} ISK`],
     ["Component fees", `${isk(detail.componentManufacturingJobCostTotal)} ISK`],
+    ["Component gross", `${isk(detail.componentManufacturingGrossCostTotal)} ISK`],
+    ["Component SCC", `${isk(detail.componentManufacturingSccSurchargeTotal)} ISK`],
+    ["Component facility", `${isk(detail.componentManufacturingFacilityTaxTotal)} ISK`],
     ["Build fees total", `${isk(detail.manufacturingJobCostTotal)} ISK`],
     ["Invention fees", `${isk(detail.inventionJobCostTotal)} ISK`],
   ];

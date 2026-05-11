@@ -220,10 +220,35 @@ function collectBuildRequirements(typeId, quantity, options, finalT2, raw, craft
   }
 }
 
+function emptyJobBreakdown() {
+  return {
+    eiv: 0,
+    indexFee: 0,
+    structureBonus: 0,
+    facilityTax: 0,
+    sccSurcharge: 0,
+    total: 0,
+  };
+}
+
+function addJobBreakdown(target, source) {
+  target.eiv += source.eiv || 0;
+  target.indexFee += source.indexFee || 0;
+  target.structureBonus += source.structureBonus || 0;
+  target.facilityTax += source.facilityTax || 0;
+  target.sccSurcharge += source.sccSurcharge || 0;
+  target.total += source.total || 0;
+}
+
 function manufacturingFeesForProduct(typeId, quantity, options, finalT2, adjusted, context, root = false) {
   const plan = recipePlan(typeId, quantity, options, finalT2);
   if (!plan) {
-    return { finalProduct: 0, components: 0 };
+    return {
+      finalProduct: 0,
+      components: 0,
+      finalProductBreakdown: emptyJobBreakdown(),
+      componentBreakdown: emptyJobBreakdown(),
+    };
   }
 
   const eiv = plan.materials.reduce(
@@ -232,11 +257,14 @@ function manufacturingFeesForProduct(typeId, quantity, options, finalT2, adjuste
     ),
     0,
   );
-  const fee = jobCost(eiv, "manufacturing", context);
+  const breakdown = jobCostBreakdown(eiv, "manufacturing", context);
   const totals = {
-    finalProduct: root ? fee : 0,
-    components: root ? 0 : fee,
+    finalProduct: root ? breakdown.total : 0,
+    components: root ? 0 : breakdown.total,
+    finalProductBreakdown: emptyJobBreakdown(),
+    componentBreakdown: emptyJobBreakdown(),
   };
+  addJobBreakdown(root ? totals.finalProductBreakdown : totals.componentBreakdown, breakdown);
 
   for (const [materialTypeId, materialQuantityNeeded] of plan.materials) {
     const nested = manufacturing.get(materialTypeId);
@@ -251,6 +279,8 @@ function manufacturingFeesForProduct(typeId, quantity, options, finalT2, adjuste
       );
       totals.finalProduct += nestedFees.finalProduct;
       totals.components += nestedFees.components;
+      addJobBreakdown(totals.finalProductBreakdown, nestedFees.finalProductBreakdown);
+      addJobBreakdown(totals.componentBreakdown, nestedFees.componentBreakdown);
     }
   }
   return totals;
@@ -387,6 +417,12 @@ function detail(payload) {
     manufacturingJobCostTotal,
     finalProductManufacturingJobCostTotal: manufacturingFees.finalProduct,
     componentManufacturingJobCostTotal: manufacturingFees.components,
+    finalProductManufacturingGrossCostTotal: manufacturingFees.finalProductBreakdown.indexFee + manufacturingFees.finalProductBreakdown.structureBonus,
+    finalProductManufacturingSccSurchargeTotal: manufacturingFees.finalProductBreakdown.sccSurcharge,
+    finalProductManufacturingFacilityTaxTotal: manufacturingFees.finalProductBreakdown.facilityTax,
+    componentManufacturingGrossCostTotal: manufacturingFees.componentBreakdown.indexFee + manufacturingFees.componentBreakdown.structureBonus,
+    componentManufacturingSccSurchargeTotal: manufacturingFees.componentBreakdown.sccSurcharge,
+    componentManufacturingFacilityTaxTotal: manufacturingFees.componentBreakdown.facilityTax,
     inventionJobCostTotal: jobCost(inventionEiv, "invention", context),
     directMaterials: mapRows(directMaterials, sourcePrices),
     componentBuilds: mapRows(componentBuilds, sourcePrices),
