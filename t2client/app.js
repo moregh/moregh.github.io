@@ -42,7 +42,7 @@ const CLIENT_RETRY_MS          = 5 * 60 * 1000;
 const CLIENT_RECHECK_JITTER_MS = 2 * 60 * 1000;
 const MARKET_BITSET_BITS       = 4096;
 const MARKET_BITSET_BYTES      = MARKET_BITSET_BITS / 8;
-const STATIC_DATA_CACHE_VERSION = 3;
+const STATIC_DATA_CACHE_VERSION = 4;
 // Distinct from CLIENT_RETRY_MS: TTL for a "we tried but got nothing" cache
 // entry.  Currently the same value but kept separate so they can diverge.
 const NEGATIVE_CACHE_MS        = 5 * 60 * 1000;
@@ -344,15 +344,26 @@ function buildOptions(items, fn) {
 
 function rigLabel(rig, context) {
   if (rig.id === "none") return `No ${context} rig`;
-  if (rig.id === "t1")   return `T1 ${context} rig`;
-  if (rig.id === "t2")   return `T2 ${context} rig`;
-  return `${rig.name} (${context})`;
+  return rig.name;
 }
 
 function rigOptions(context) {
-  return buildOptions(staticData.rigProfiles, (rig) => (
+  const structureId = structureType?.value || "npc";
+  const rigs = (staticData.rigProfiles || []).filter((rig) => (
+    rig.id === "none" || (rig.allowedStructures || []).includes(structureId)
+  ));
+  return buildOptions(rigs, (rig) => (
     `<option value="${rig.id}">${rigLabel(rig, context)}</option>`
   ));
+}
+
+function refreshRigOptions() {
+  const previousProductRig = productRig.value || "none";
+  const previousComponentRig = componentRig.value || "none";
+  productRig.innerHTML = rigOptions("product");
+  componentRig.innerHTML = rigOptions("components");
+  productRig.value = productRig.querySelector(`option[value="${previousProductRig}"]`) ? previousProductRig : "none";
+  componentRig.value = componentRig.querySelector(`option[value="${previousComponentRig}"]`) ? previousComponentRig : "none";
 }
 
 // ---------------------------------------------------------------------------
@@ -1405,8 +1416,7 @@ async function loadStaticData() {
   }
 
   if (staticData.rigProfiles) {
-    productRig.innerHTML  = rigOptions("product");
-    componentRig.innerHTML = rigOptions("components");
+    refreshRigOptions();
   }
 
   if (staticData.decryptors) {
@@ -1438,6 +1448,7 @@ function selectedStructureProfile() {
 
 function syncRigControls() {
   const allowsRigs = selectedStructureProfile()?.allowsRigs !== false;
+  refreshRigOptions();
   productRig.disabled  = !allowsRigs;
   componentRig.disabled = !allowsRigs;
   if (!allowsRigs) {

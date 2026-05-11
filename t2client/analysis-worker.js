@@ -5,6 +5,10 @@ let manufacturingMaterials = new Map();
 let inventionMaterials = new Map();
 let boughtCompleted = new Set();
 let basePrices = new Map();
+let typeGroups = new Map();
+let typeCategories = new Map();
+let typeMarketGroups = new Map();
+let typeMetaGroups = new Map();
 let decryptors = new Map();
 let structures = new Map();
 let rigs = new Map();
@@ -44,12 +48,65 @@ function normalizeAdjustedRows(rows) {
   return new Map((rows || []).map((row) => [row.typeId, row]));
 }
 
-function materialQuantity(quantity, mePercent, options, finalT2) {
+const SHIP_SIZE_GROUPS = {
+  small: new Set([
+    "Assault Frigate", "Covert Ops", "Electronic Attack Ship", "Expedition Frigate",
+    "Frigate", "Interceptor", "Logistics Frigate", "Stealth Bomber", "Tactical Destroyer",
+    "Destroyer", "Interdictor",
+  ]),
+  medium: new Set([
+    "Cruiser", "Heavy Assault Cruiser", "Heavy Interdiction Cruiser", "Recon Ship",
+    "Logistics", "Strategic Cruiser", "Combat Battlecruiser", "Attack Battlecruiser",
+    "Battlecruiser", "Command Ship", "Industrial", "Mining Barge", "Exhumer",
+    "Blockade Runner", "Deep Space Transport",
+  ]),
+  large: new Set([
+    "Battleship", "Black Ops", "Marauder", "Capital Industrial Ship", "Carrier",
+    "Dreadnought", "Force Auxiliary", "Freighter", "Jump Freighter", "Supercarrier",
+    "Titan", "Industrial Command Ship",
+  ]),
+};
+
+function typeScope(typeId) {
+  return {
+    group: typeGroups.get(typeId) || "",
+    category: typeCategories.get(typeId) || "",
+    marketGroups: typeMarketGroups.get(typeId) || [],
+    metaGroup: typeMetaGroups.get(typeId) || null,
+  };
+}
+
+function shipSizeForGroup(group) {
+  for (const [size, groups] of Object.entries(SHIP_SIZE_GROUPS)) {
+    if (groups.has(group)) return size;
+  }
+  return null;
+}
+
+function rigAppliesToType(rig, productTypeId) {
+  if (!rig || rig.id === "none" || !rig.materialBonus) return false;
+  const scope = rig.scope || {};
+  const type = typeScope(productTypeId);
+  if (scope.kind === "ships") {
+    return type.category === "Ship";
+  }
+  if (scope.kind === "advancedShips") {
+    return type.category === "Ship"
+      && type.metaGroup === 2
+      && shipSizeForGroup(type.group) === scope.size;
+  }
+  if (scope.kind === "advancedComponents") {
+    return type.category === "Commodity" && type.group === "Construction Components";
+  }
+  return false;
+}
+
+function materialQuantity(quantity, mePercent, options, finalT2, productTypeId) {
   const profile = structures.get(options.structureType) || structures.get("npc");
   const allowsRigs = profile?.allowsRigs !== false;
   const rigId = allowsRigs ? (finalT2 ? options.productRig : options.componentRig) : "none";
   const rig = rigs.get(rigId) || rigs.get("none");
-  const rigMultiplier = 1 - (rig?.materialBonus || 0);
+  const rigMultiplier = rigAppliesToType(rig, productTypeId) ? 1 - (rig?.materialBonus || 0) : 1;
   const multiplier = Math.max(
     0,
     (1 - (mePercent / 100)) * (profile?.materialMultiplier || 1) * rigMultiplier,
@@ -135,7 +192,7 @@ function manufacturingCostForProduct(productTypeId, sourcePrices, adjusted, opti
   let eiv = 0;
   const missing = new Set();
   for (const [materialTypeId, baseQuantity] of manufacturingMaterials.get(blueprintTypeId) || []) {
-    const quantity = materialQuantity(baseQuantity, me, options, finalT2);
+    const quantity = materialQuantity(baseQuantity, me, options, finalT2, productTypeId);
     const nested = manufacturing.get(materialTypeId);
     let unitCost = null;
     let unitEiv = 0;
@@ -178,8 +235,8 @@ function addQuantity(map, typeId, quantity) {
   map.set(typeId, (map.get(typeId) || 0) + quantity);
 }
 
-function quantityForMaterial(baseQuantity, me, options, finalT2, runs) {
-  return materialQuantity(baseQuantity * runs, me, options, finalT2);
+function quantityForMaterial(baseQuantity, me, options, finalT2, runs, productTypeId) {
+  return materialQuantity(baseQuantity * runs, me, options, finalT2, productTypeId);
 }
 
 function recipePlan(typeId, quantity, options, finalT2) {
@@ -198,7 +255,7 @@ function recipePlan(typeId, quantity, options, finalT2) {
     produced: runs * outputQuantity,
     materials: (manufacturingMaterials.get(recipe[0]) || []).map(([materialTypeId, baseQuantity]) => [
       materialTypeId,
-      quantityForMaterial(baseQuantity, me, options, finalT2, runs),
+      quantityForMaterial(baseQuantity, me, options, finalT2, runs, typeId),
     ]),
   };
 }
@@ -593,6 +650,10 @@ self.onmessage = (event) => {
       inventionMaterials = toMap(staticGraph.inventionMaterials);
       boughtCompleted = new Set(staticGraph.boughtCompletedTypeIds || []);
       basePrices = toMap(staticGraph.typeBasePrices);
+      typeGroups = toMap(staticGraph.typeGroups);
+      typeCategories = toMap(staticGraph.typeCategories);
+      typeMarketGroups = toMap(staticGraph.typeMarketGroups);
+      typeMetaGroups = toMap(staticGraph.typeMetaGroups);
       decryptors = new Map((payload.decryptors || []).map((item) => [item.id, item]));
       structures = new Map((payload.structureProfiles || []).map((item) => [item.id, item]));
       rigs = new Map((payload.rigProfiles || []).map((item) => [item.id, item]));
