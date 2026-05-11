@@ -111,6 +111,25 @@
             <input id="maxM3" type="number" min="0" step="1" placeholder="Max">
           </fieldset>
         </div>
+
+        <section class="stockpile-panel" aria-label="Current stockpile">
+          <label class="stockpile-input">
+            Stockpile
+            <textarea id="stockpilePaste" spellcheck="false" placeholder="Paste item names and quantities from inventory"></textarea>
+          </label>
+          <div class="stockpile-tools">
+            <label>
+              Show
+              <select id="stockpileFilter">
+                <option value="all" selected>All items</option>
+                <option value="buildable">Buildable now</option>
+                <option value="missing">Needs materials</option>
+              </select>
+            </label>
+            <button id="clearStockpile" class="secondary small-button" type="button">Clear</button>
+            <p id="stockpileStatus" class="stockpile-status">No stockpile loaded</p>
+          </div>
+        </section>
       </section>
 
       <section class="summary-bar">
@@ -188,10 +207,7 @@
             Units to build
             <input id="buildUnits" type="number" min="1" step="1" value="1">
           </label>
-          <label class="inventory-input">
-            Materials on hand
-            <textarea id="inventoryPaste" spellcheck="false" placeholder="Paste item names and quantities from inventory"></textarea>
-          </label>
+          <p class="stockpile-note">Shopping list uses the stockpile from the main screen.</p>
         </section>
 
         <section class="build-grid">

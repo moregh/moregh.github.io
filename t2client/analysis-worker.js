@@ -392,6 +392,54 @@ function mapRows(map, sourcePrices) {
     .sort((left, right) => left.typeId - right.typeId);
 }
 
+function inventoryMapFromPayload(payloadInventory) {
+  return new Map(
+    (payloadInventory || [])
+      .map(([ownedTypeId, quantity]) => [Number(ownedTypeId), Number(quantity) || 0])
+      .filter(([, quantity]) => quantity > 0),
+  );
+}
+
+function inventionMaterialsForCandidate(candidate, options) {
+  const [
+    ,
+    ,
+    manufacturingQuantity,
+    inventionBlueprintTypeId,
+    baseInventionRuns,
+    baseInventionProbability,
+  ] = candidate;
+  const decryptor = decryptors.get(options.decryptor) || decryptors.get("none");
+  const manufacturedQuantity = Math.max(manufacturingQuantity || 1, 1);
+  const inventionRuns = Math.max((baseInventionRuns || 1) + (decryptor?.runs || 0), 1);
+  const probability = inventionProbability(baseInventionProbability, decryptor);
+  const manufacturingRuns = Math.ceil(1 / manufacturedQuantity);
+  const requiredBpcs = Math.ceil(manufacturingRuns / inventionRuns);
+  const expectedAttempts = probability > 0 ? requiredBpcs / probability : requiredBpcs;
+  const plannedAttempts = Math.max(1, Math.ceil(expectedAttempts));
+  const materials = new Map();
+  for (const [materialTypeId, quantity] of inventionMaterials.get(inventionBlueprintTypeId) || []) {
+    addQuantity(materials, materialTypeId, quantity * plannedAttempts);
+  }
+  if (decryptor?.typeId) addQuantity(materials, decryptor.typeId, plannedAttempts);
+  return materials;
+}
+
+function canBuildFromInventory(productTypeId, candidate, options, inventoryTemplate) {
+  if (!inventoryTemplate?.size) return false;
+  const inventory = new Map(inventoryTemplate);
+  inventory.delete(productTypeId);
+  const shopping = new Map();
+  fulfillBuildNeed(productTypeId, 1, options, true, inventory, shopping);
+  for (const [materialTypeId, quantity] of inventionMaterialsForCandidate(candidate, options)) {
+    fulfillBuildNeed(materialTypeId, quantity, options, false, inventory, shopping);
+  }
+  for (const quantity of shopping.values()) {
+    if (quantity > 0) return false;
+  }
+  return true;
+}
+
 function detail(payload) {
   const typeId = Number(payload.typeId);
   const units = Math.max(1, Math.ceil(Number(payload.units) || 1));
@@ -445,7 +493,8 @@ function detail(payload) {
     inventionEiv += adjustedPrice(decryptor.typeId, adjusted) * plannedAttempts;
   }
 
-  const inventory = new Map((payload.inventory || []).map(([ownedTypeId, quantity]) => [Number(ownedTypeId), Number(quantity) || 0]));
+  const inventory = inventoryMapFromPayload(payload.inventory);
+  inventory.delete(productTypeId);
   const shopping = new Map();
   fulfillBuildNeed(productTypeId, units, options, true, inventory, shopping);
   for (const [materialTypeId, quantity] of inventionMaterialsNeeded) {
@@ -531,6 +580,7 @@ function analyze(payload) {
   const constants = staticGraph.constants || {};
   const retryMs = payload.retryMs || 300000;
   const manufacturingCache = new Map();
+  const inventoryTemplate = inventoryMapFromPayload(payload.inventory);
   const adjustedRows = Array.from(adjusted.values());
   const rows = [];
 
@@ -636,6 +686,7 @@ function analyze(payload) {
         inventedMaterialEfficiency: clamp((constants.baseT2InventedMe || 2) + (decryptor?.me || 0), 0, 20),
         inventedTimeEfficiency: (constants.baseT2InventedTe || 4) + (decryptor?.te || 0),
         manufacturingQuantity: manufacturedQuantity,
+        stockpileBuildable: canBuildFromInventory(productTypeId, candidate, options, inventoryTemplate),
         validUntil,
       };
       if (

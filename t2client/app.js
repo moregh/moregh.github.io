@@ -77,7 +77,10 @@ const buildIcon    = document.querySelector("#buildIcon");
 const buildTitle   = document.querySelector("#buildTitle");
 const buildSubtitle = document.querySelector("#buildSubtitle");
 const buildUnits   = document.querySelector("#buildUnits");
-const inventoryPaste = document.querySelector("#inventoryPaste");
+const stockpilePaste = document.querySelector("#stockpilePaste");
+const stockpileFilter = document.querySelector("#stockpileFilter");
+const stockpileStatus = document.querySelector("#stockpileStatus");
+const clearStockpile = document.querySelector("#clearStockpile");
 const buildPlan    = document.querySelector("#buildPlan");
 const directMaterials = document.querySelector("#directMaterials");
 const componentBuilds = document.querySelector("#componentBuilds");
@@ -122,6 +125,9 @@ let workerRequests       = new Map();
 let activeBuildItem      = null;
 let buildDetailSeq      = 0;
 let lastShoppingText     = "";
+let stockpileEntriesList = [];
+let stockpileVersion     = 0;
+let stockpileTimer       = null;
 
 // Module-level visible items list — avoids storing state on a DOM node.
 let visibleItemsList = [];
@@ -401,7 +407,7 @@ function activeBuildOptions() {
 }
 
 function itemCacheKey(typeId) {
-  return `${ITEM_CACHE_SCHEMA}|${sourceHub.value}|${sellHub.value}|${buildSettingsKey()}|${typeId}`;
+  return `${ITEM_CACHE_SCHEMA}|${sourceHub.value}|${sellHub.value}|${buildSettingsKey()}|stockpile:${stockpileVersion}|${typeId}`;
 }
 
 function scopeKeyFor(typeIds) {
@@ -567,6 +573,7 @@ function filterState() {
     maxCost:        numericInput("maxCost"),
     minM3:          numericInput("minM3"),
     maxM3:          numericInput("maxM3"),
+    stockpile:      stockpileFilter?.value || "all",
   };
 }
 
@@ -591,6 +598,8 @@ function filteredItems(items, state = filterState()) {
     if (aboveMax(item.buildCost,    state.maxCost))        return false;
     if (state.minM3 !== null && meta.volume < state.minM3) return false;
     if (state.maxM3 !== null && meta.volume > state.maxM3) return false;
+    if (state.stockpile === "buildable" && !item.stockpileBuildable) return false;
+    if (state.stockpile === "missing" && item.stockpileBuildable) return false;
     return true;
   });
 }
@@ -626,6 +635,7 @@ function visibleSignature(items) {
     item.buildCost, item.sellPrice, item.buyPrice,
     item.profitToBuy, item.buyMargin,
     item.dailyVolume, item.sellOrders, item.sellVolume,
+    item.stockpileBuildable ? 1 : 0,
   ].join(":")).join("|");
 }
 
@@ -1017,16 +1027,17 @@ async function calculateItems(typeIds) {
     typeIds,
     options: activeBuildOptions(),
     market: marketStateFor(typeIds),
+    inventory: stockpileEntries(),
     retryMs: CLIENT_RETRY_MS,
   });
 }
 
-async function calculateBuildDetail(typeId, units, inventory) {
+async function calculateBuildDetail(typeId, units) {
   await ensureAnalysisWorker();
   return postWorker("detail", {
     typeId,
     units,
-    inventory,
+    inventory: stockpileEntries(),
     options: activeBuildOptions(),
     market: marketStateFor([typeId]),
     retryMs: CLIENT_RETRY_MS,
@@ -1081,6 +1092,15 @@ function metricCellHtml(item, def) {
   return `<td data-field="${field}" class="${className}" title="${fullValue(field, item[field])}">${fmt(item)}</td>`;
 }
 
+function stockpileBadge(item) {
+  if (!stockpileEntriesList.length) {
+    return `<span class="stockpile-badge empty" title="No stockpile loaded"></span>`;
+  }
+  return item.stockpileBuildable
+    ? `<span class="stockpile-badge ready" title="Current stockpile can build one unit">Ready</span>`
+    : `<span class="stockpile-badge missing" title="Current stockpile is missing required inputs">Needs mats</span>`;
+}
+
 function rowHtml(item) {
   const meta = metaFor(item);
   const metricCells = METRIC_FIELD_DEFS.map((def) => metricCellHtml(item, def)).join("\n    ");
@@ -1090,7 +1110,7 @@ function rowHtml(item) {
         <img class="type-icon" src="${typeIconUrl(item.typeId)}" alt="" loading="lazy" decoding="async">
         <div class="item-copy">
           <div class="item-name">${changeIndicator(item)}<span>${meta.name}</span></div>
-          <div class="subtle">${meta.group}</div>
+          <div class="subtle"><span>${meta.group}</span>${stockpileBadge(item)}</div>
         </div>
       </div>
     </td>
@@ -1115,6 +1135,8 @@ function updateMetricCell(row, item, def) {
 function updateRow(row, item) {
   const nameIndicator = row.querySelector(".item-name .change");
   if (nameIndicator) nameIndicator.outerHTML = changeIndicator(item);
+  const badge = row.querySelector(".stockpile-badge");
+  if (badge) badge.outerHTML = stockpileBadge(item);
   for (const def of METRIC_FIELD_DEFS) {
     updateMetricCell(row, item, def);
   }
@@ -1194,9 +1216,11 @@ function render(data) {
 
   let pricedCount = 0;
   let profitableCount = 0;
+  let buildableCount = 0;
   for (const item of filtered) {
     if (item.sellPrice !== null && item.buildCost !== null) pricedCount += 1;
     if (item.profit !== null && item.profit > 0) profitableCount += 1;
+    if (item.stockpileBuildable) buildableCount += 1;
   }
 
   const signature = visibleSignature(items);
@@ -1207,6 +1231,7 @@ function render(data) {
     ["Shown",      isk(items.length)],
     ["Priced",     isk(pricedCount)],
     ["Profitable", isk(profitableCount)],
+    ...(stockpileEntriesList.length ? [["Buildable", isk(buildableCount)]] : []),
     ["Updated",    timeShort(data.generatedAt)],
     ...cacheSummaryCards(),
   ]);
@@ -1293,6 +1318,38 @@ function parseInventoryText(text) {
   return Array.from(inventory.entries());
 }
 
+function stockpileEntries() {
+  return stockpileEntriesList;
+}
+
+function updateStockpileStatus() {
+  if (!stockpileStatus) return;
+  if (!stockpilePaste?.value.trim()) {
+    stockpileStatus.textContent = "No stockpile loaded";
+    return;
+  }
+  const totalQuantity = stockpileEntriesList.reduce((total, [, quantity]) => total + quantity, 0);
+  stockpileStatus.textContent = `${isk(stockpileEntriesList.length)} item types, ${isk(totalQuantity)} total units loaded`;
+}
+
+function applyStockpileText(text, options = {}) {
+  const { persist = true, refresh = true } = options;
+  if (persist) localStorage.setItem("tradefind.stockpileText", text);
+  stockpileEntriesList = staticData ? parseInventoryText(text) : [];
+  stockpileVersion += 1;
+  itemCache.clear();
+  updateStockpileStatus();
+  if (refresh && staticData) scheduleRefresh(0);
+  if (refresh && activeBuildItem) refreshBuildDetail();
+}
+
+function loadStoredStockpile() {
+  if (!stockpilePaste) return;
+  const stored = localStorage.getItem("tradefind.stockpileText") || "";
+  stockpilePaste.value = stored;
+  applyStockpileText(stored, { persist: false, refresh: false });
+}
+
 function materialRowsHtml(items, emptyText = "None") {
   if (!items?.length) return `<p class="empty-small">${emptyText}</p>`;
   return `<table class="mini-table">
@@ -1355,7 +1412,7 @@ async function refreshBuildDetail() {
   buildPlan.innerHTML = `<p class="empty-small">Calculating build plan...</p>`;
   try {
     const units = Math.max(1, Math.ceil(Number(buildUnits.value) || 1));
-    const detail = await calculateBuildDetail(activeBuildItem.typeId, units, parseInventoryText(inventoryPaste.value));
+    const detail = await calculateBuildDetail(activeBuildItem.typeId, units);
     if (seq !== buildDetailSeq) return;
     renderBuildPlan(detail);
   } catch (error) {
@@ -1371,7 +1428,6 @@ function openBuildModal(item) {
   buildTitle.textContent = meta.name;
   buildSubtitle.textContent = `${meta.group} · ${sourceHub.selectedOptions[0]?.textContent || sourceHub.value} materials · ${sellHub.selectedOptions[0]?.textContent || sellHub.value} sales`;
   buildUnits.value = "1";
-  inventoryPaste.value = "";
   lastShoppingText = "";
   buildModal.hidden = false;
   document.body.classList.add("modal-open");
@@ -1478,6 +1534,7 @@ async function loadStaticData() {
   }
 
   syncRigControls();
+  loadStoredStockpile();
   await ensureAnalysisWorker();
   return staticData;
 }
@@ -1524,6 +1581,7 @@ async function refreshAnalysis(options = {}) {
 
     const typeIds  = staticScopedTypeIds();
     const scopeKey = scopeKeyFor(typeIds);
+    const stockpileSnapshotVersion = stockpileVersion;
 
     if (!typeIds.length) {
       queueRender({
@@ -1575,6 +1633,7 @@ async function refreshAnalysis(options = {}) {
     if (seq !== refreshSeq || scopeKey !== scopeKeyFor(staticScopedTypeIds())) return;
 
     const calculatedItems = await calculateItems(typeIds);
+    if (stockpileSnapshotVersion !== stockpileVersion) return;
     if (seq !== refreshSeq || scopeKey !== scopeKeyFor(staticScopedTypeIds())) return;
 
     const rates = feeRates();
@@ -1692,7 +1751,19 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !buildModal.hidden) closeBuildModal();
 });
 buildUnits.addEventListener("input", () => refreshBuildDetail());
-inventoryPaste.addEventListener("input", () => refreshBuildDetail());
+stockpilePaste.addEventListener("input", () => {
+  window.clearTimeout(stockpileTimer);
+  stockpileTimer = window.setTimeout(() => {
+    applyStockpileText(stockpilePaste.value);
+  }, 300);
+});
+stockpileFilter.addEventListener("change", () => {
+  if (currentData) queueRender(currentData);
+});
+clearStockpile.addEventListener("click", () => {
+  stockpilePaste.value = "";
+  applyStockpileText("");
+});
 copyShopping.addEventListener("click", async () => {
   if (!lastShoppingText) return;
   await navigator.clipboard.writeText(lastShoppingText);
