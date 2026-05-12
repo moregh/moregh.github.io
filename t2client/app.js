@@ -90,6 +90,7 @@ const directMaterials = document.querySelector("#directMaterials");
 const componentBuilds = document.querySelector("#componentBuilds");
 const inventionMaterials = document.querySelector("#inventionMaterials");
 const shoppingList = document.querySelector("#shoppingList");
+const shoppingTotal = document.querySelector("#shoppingTotal");
 const copyShopping = document.querySelector("#copyShopping");
 const sortButtons  = Array.from(document.querySelectorAll(".sort"));
 const typeFilters  = Array.from(document.querySelectorAll(".type-filter"));
@@ -1392,11 +1393,40 @@ function materialRowsHtml(items, emptyText = "None") {
   </table>`;
 }
 
+function buildInputRowsHtml(items, emptyText = "None") {
+  if (!items?.length) return `<p class="empty-small">${emptyText}</p>`;
+  return `<table class="mini-table build-input-table">
+    <thead><tr><th>Item</th><th>Req'd</th><th>Have</th><th>Need</th><th>Can build</th></tr></thead>
+    <tbody>
+      ${items.map((item) => {
+        const name = typeName(item.typeId);
+        const needClass = item.need > 0 ? "need" : "covered";
+        return `<tr>
+        <td><span class="mini-item"><img class="mini-icon" src="${typeIconUrl(item.typeId, 32)}" alt=""><span title="${escapeHtml(name)}">${escapeHtml(name)}</span></span></td>
+        <td class="required">${isk(Math.ceil(item.required ?? item.quantity ?? 0))}</td>
+        <td class="have">${isk(Math.floor(item.have || 0))}</td>
+        <td class="${needClass}">${isk(Math.ceil(item.need || 0))}</td>
+        <td class="can-build">${isk(Math.floor(item.canBuild || 0))}</td>
+      </tr>`;
+      }).join("")}
+    </tbody>
+  </table>`;
+}
+
 function shoppingText(items) {
   return (items || [])
     .filter((item) => item.quantity > 0)
     .map((item) => `${typeName(item.typeId)}\t${Math.ceil(item.quantity)}`)
     .join("\n");
+}
+
+function shoppingTotalValue(items) {
+  let total = 0;
+  for (const item of items || []) {
+    if (item.totalPrice === null || item.totalPrice === undefined || Number.isNaN(item.totalPrice)) continue;
+    total += item.totalPrice;
+  }
+  return total;
 }
 
 function renderBuildPlan(detail) {
@@ -1424,10 +1454,11 @@ function renderBuildPlan(detail) {
   buildPlan.innerHTML = `<div class="plan-grid">${cards.map(([label, value]) => (
     `<div class="plan-card"><span class="plan-label">${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`
   )).join("")}</div>`;
-  directMaterials.innerHTML = materialRowsHtml(detail.directMaterials);
-  componentBuilds.innerHTML = materialRowsHtml(detail.componentBuilds, "No intermediate components");
+  directMaterials.innerHTML = buildInputRowsHtml(detail.directMaterials);
+  componentBuilds.innerHTML = buildInputRowsHtml(detail.componentBuilds, "No intermediate components");
   inventionMaterials.innerHTML = materialRowsHtml(detail.inventionMaterials);
   shoppingList.innerHTML = materialRowsHtml(detail.shoppingList, "Nothing to buy");
+  shoppingTotal.textContent = `${isk(shoppingTotalValue(detail.shoppingList))} ISK`;
   lastShoppingText = shoppingText(detail.shoppingList);
 }
 
@@ -1435,6 +1466,7 @@ async function refreshBuildDetail() {
   if (!activeBuildItem) return;
   const seq = ++buildDetailSeq;
   buildPlan.innerHTML = `<p class="empty-small">Calculating build plan...</p>`;
+  if (shoppingTotal) shoppingTotal.textContent = "- ISK";
   try {
     const units = Math.max(1, Math.ceil(Number(buildUnits.value) || 1));
     const detail = await calculateBuildDetail(activeBuildItem.typeId, units);

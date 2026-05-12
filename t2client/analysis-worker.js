@@ -392,6 +392,53 @@ function mapRows(map, sourcePrices) {
     .sort((left, right) => left.typeId - right.typeId);
 }
 
+function canFulfillFromInventory(typeId, quantity, options, finalT2, inventoryTemplate) {
+  if (!inventoryTemplate?.size || quantity <= 0) return false;
+  const inventory = new Map(inventoryTemplate);
+  inventory.delete(typeId);
+  const shopping = new Map();
+  fulfillBuildNeed(typeId, quantity, options, finalT2, inventory, shopping);
+  for (const missingQuantity of shopping.values()) {
+    if (missingQuantity > 0) return false;
+  }
+  return true;
+}
+
+function buildableQuantityFromInventory(typeId, options, finalT2, inventoryTemplate) {
+  if (!manufacturing.has(typeId) || boughtCompleted.has(typeId)) return 0;
+  if (!canFulfillFromInventory(typeId, 1, options, finalT2, inventoryTemplate)) return 0;
+  let low = 1;
+  let high = 1;
+  const maxProbe = 1_000_000_000;
+  while (high < maxProbe && canFulfillFromInventory(typeId, high * 2, options, finalT2, inventoryTemplate)) {
+    low = high * 2;
+    high *= 2;
+  }
+  high = Math.min(high * 2, maxProbe);
+  while (low + 1 < high) {
+    const mid = Math.floor((low + high) / 2);
+    if (canFulfillFromInventory(typeId, mid, options, finalT2, inventoryTemplate)) low = mid;
+    else high = mid;
+  }
+  return low;
+}
+
+function buildInputRows(map, inventoryTemplate, options) {
+  return Array.from(map.entries())
+    .map(([typeId, required]) => {
+      const have = inventoryTemplate.get(typeId) || 0;
+      return {
+        typeId,
+        quantity: required,
+        required,
+        have,
+        need: Math.max(required - have, 0),
+        canBuild: buildableQuantityFromInventory(typeId, options, false, inventoryTemplate),
+      };
+    })
+    .sort((left, right) => left.typeId - right.typeId);
+}
+
 function inventoryMapFromPayload(payloadInventory) {
   return new Map(
     (payloadInventory || [])
@@ -493,7 +540,8 @@ function detail(payload) {
     inventionEiv += adjustedPrice(decryptor.typeId, adjusted) * plannedAttempts;
   }
 
-  const inventory = inventoryMapFromPayload(payload.inventory);
+  const inventoryTemplate = inventoryMapFromPayload(payload.inventory);
+  const inventory = new Map(inventoryTemplate);
   inventory.delete(productTypeId);
   const shopping = new Map();
   fulfillBuildNeed(productTypeId, units, options, true, inventory, shopping);
@@ -545,8 +593,8 @@ function detail(payload) {
     componentManufacturingSccSurchargeTotal: manufacturingFees.componentBreakdown.sccSurcharge,
     componentManufacturingFacilityTaxTotal: manufacturingFees.componentBreakdown.facilityTax,
     inventionJobCostTotal: jobCost(inventionEiv, "invention", context),
-    directMaterials: mapRows(directMaterials, sourcePrices),
-    componentBuilds: mapRows(componentBuilds, sourcePrices),
+    directMaterials: buildInputRows(directMaterials, inventoryTemplate, options),
+    componentBuilds: buildInputRows(componentBuilds, inventoryTemplate, options),
     rawRequirements: mapRows(rawRequirements, sourcePrices),
     inventionMaterials: mapRows(inventionMaterialsNeeded, sourcePrices),
     shoppingList: mapRows(shopping, sourcePrices),

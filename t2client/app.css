@@ -958,6 +958,15 @@ tbody tr:hover {
   gap: 12px;
 }
 
+.shopping-total {
+  margin-left: auto;
+  color: var(--gold);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
 .plan-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(126px, 1fr));
@@ -1018,6 +1027,36 @@ tbody tr:hover {
 .mini-table td:first-child {
   width: 52%;
   text-align: left;
+}
+
+.build-input-table th:first-child,
+.build-input-table td:first-child {
+  width: 40%;
+}
+
+.build-input-table .required {
+  color: #d9c07a;
+  font-weight: 900;
+}
+
+.build-input-table .have {
+  color: var(--cyan);
+  font-weight: 900;
+}
+
+.build-input-table .need {
+  color: var(--loss);
+  font-weight: 900;
+}
+
+.build-input-table .covered {
+  color: var(--profit);
+  font-weight: 900;
+}
+
+.build-input-table .can-build {
+  color: var(--components);
+  font-weight: 900;
 }
 
 .mini-item {
