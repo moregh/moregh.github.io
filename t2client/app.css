@@ -100,21 +100,19 @@ button:disabled {
 .app-shell {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: 360px minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr);
   gap: 14px;
   padding: 14px;
-  transition: grid-template-columns 180ms ease;
-}
-
-.app-shell.sidebar-collapsed {
-  grid-template-columns: 64px minmax(0, 1fr);
 }
 
 .command-sidebar {
   position: sticky;
   top: 14px;
+  width: 378px;
   height: calc(100vh - 28px);
   min-width: 0;
+  display: grid;
+  grid-template-columns: 58px 320px;
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -122,29 +120,96 @@ button:disabled {
     linear-gradient(180deg, rgba(213, 166, 55, 0.08), transparent 170px),
     var(--panel);
   box-shadow: var(--shadow);
+  transition: width 180ms ease;
 }
 
-.sidebar-header {
-  min-height: 70px;
+.sidebar-collapsed .command-sidebar {
+  width: 58px;
+}
+
+.filter-tabs {
+  min-width: 0;
+  display: grid;
+  grid-template-rows: repeat(5, minmax(72px, 1fr));
+  gap: 1px;
+  border-right: 1px solid var(--line);
+  background: #060a0f;
+}
+
+.filter-tab {
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  padding: 8px 0;
+  background: #080d13;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 11px;
+  text-orientation: mixed;
+  text-transform: uppercase;
+  writing-mode: vertical-rl;
+}
+
+.filter-tab.active {
+  border-left: 3px solid var(--cyan);
+  background:
+    linear-gradient(90deg, rgba(55, 213, 230, 0.18), transparent),
+    #0d151c;
+  color: var(--cyan);
+}
+
+.sidebar-content {
+  min-width: 0;
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  background:
+    linear-gradient(180deg, rgba(213, 166, 55, 0.08), transparent 160px),
+    var(--panel);
+  min-width: 0;
+  opacity: 1;
+  transform: translateX(0);
+  transition: opacity 150ms ease, transform 180ms ease;
+}
+
+.sidebar-collapsed .sidebar-content {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-12px);
+}
+
+.drawer-header {
+  min-height: 58px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 14px;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--line);
   background: rgba(5, 7, 11, 0.72);
 }
 
-.brand-block {
+.drawer-header > div {
   min-width: 0;
   display: grid;
-  gap: 4px;
+  gap: 3px;
 }
 
-.brand-kicker,
-.brand-block strong {
+.brand-kicker {
   overflow: hidden;
-  font-size: 17px;
+  color: var(--gold);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.drawer-header strong {
+  overflow: hidden;
+  font-size: 16px;
   line-height: 1.1;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -152,52 +217,6 @@ button:disabled {
 
 .sidebar-toggle {
   flex: 0 0 auto;
-}
-
-.sidebar-content {
-  height: calc(100% - 70px);
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  min-width: 0;
-  opacity: 1;
-  transition: opacity 140ms ease;
-}
-
-.sidebar-collapsed .brand-block,
-.sidebar-collapsed .sidebar-content {
-  opacity: 0;
-  pointer-events: none;
-}
-
-.sidebar-collapsed .sidebar-header {
-  justify-content: center;
-  padding: 12px;
-}
-
-.filter-tabs {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 1px;
-  padding: 10px 10px 0;
-}
-
-.filter-tab {
-  min-height: 34px;
-  border-color: transparent;
-  border-radius: 4px 4px 0 0;
-  padding: 0 6px;
-  background: #0a0f15;
-  color: var(--muted);
-  font-family: var(--mono);
-  font-size: 11px;
-  text-transform: uppercase;
-}
-
-.filter-tab.active {
-  border-color: rgba(55, 213, 230, 0.42);
-  border-bottom-color: transparent;
-  background: linear-gradient(180deg, rgba(55, 213, 230, 0.16), rgba(55, 213, 230, 0.04));
-  color: var(--cyan);
 }
 
 .filters {
@@ -1038,14 +1057,19 @@ tbody tr:hover {
   .command-sidebar {
     position: relative;
     top: 0;
+    width: 100%;
+    grid-template-columns: 58px minmax(0, 1fr);
     height: auto;
     max-height: none;
   }
 
-  .sidebar-collapsed .brand-block,
+  .sidebar-collapsed .command-sidebar {
+    width: 58px;
+  }
+
   .sidebar-collapsed .sidebar-content {
-    opacity: 1;
-    pointer-events: auto;
+    opacity: 0;
+    pointer-events: none;
   }
 
   .details {
@@ -1068,7 +1092,15 @@ tbody tr:hover {
   }
 
   .filter-tabs {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: repeat(5, minmax(58px, 1fr));
+  }
+
+  .command-sidebar {
+    grid-template-columns: 50px minmax(0, 1fr);
+  }
+
+  .sidebar-collapsed .command-sidebar {
+    width: 50px;
   }
 
   .tax-grid,

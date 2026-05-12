@@ -59,6 +59,7 @@ const API_BASES = ["https://api.styrofoamxylophone.com"];
 
 const appShell     = document.querySelector("#appShell");
 const sidebarToggle = document.querySelector("#sidebarToggle");
+const activePanelTitle = document.querySelector("#activePanelTitle");
 const sourceHub    = document.querySelector("#sourceHub");
 const sellHub      = document.querySelector("#sellHub");
 const buildSystem  = document.querySelector("#buildSystem");
@@ -94,6 +95,13 @@ const typeFilters  = Array.from(document.querySelectorAll(".type-filter"));
 const filterTabs   = Array.from(document.querySelectorAll("[data-filter-tab]"));
 const filterPanels = Array.from(document.querySelectorAll("[data-filter-panel]"));
 const fieldElements = new Map(fields.map((id) => [id, document.querySelector(`#${id}`)]));
+const filterTabTitles = {
+  scope: "Scan controls",
+  route: "Route setup",
+  industry: "Industry setup",
+  limits: "Result limits",
+  stockpile: "Stockpile",
+};
 
 // ---------------------------------------------------------------------------
 // State
@@ -1733,13 +1741,14 @@ async function refreshCacheStatus() {
 function setSidebarCollapsed(collapsed) {
   appShell?.classList.toggle("sidebar-collapsed", collapsed);
   if (sidebarToggle) {
-    sidebarToggle.textContent = collapsed ? "›" : "‹";
-    sidebarToggle.setAttribute("aria-label", collapsed ? "Expand controls" : "Collapse controls");
+    sidebarToggle.textContent = "×";
+    sidebarToggle.setAttribute("aria-label", "Collapse controls");
   }
   localStorage.setItem("tradefind.sidebarCollapsed", collapsed ? "1" : "0");
 }
 
 function activateFilterTab(tabId) {
+  if (activePanelTitle) activePanelTitle.textContent = filterTabTitles[tabId] || "Controls";
   for (const tab of filterTabs) {
     const active = tab.dataset.filterTab === tabId;
     tab.classList.toggle("active", active);
