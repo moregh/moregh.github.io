@@ -10,18 +10,18 @@
     <main class="app-shell" id="appShell">
       <aside class="command-sidebar" id="commandSidebar" aria-label="Analysis controls">
         <nav class="filter-tabs" aria-label="Control sections">
-          <button class="filter-tab active" type="button" data-filter-tab="scope">Scan</button>
-          <button class="filter-tab" type="button" data-filter-tab="route">Route</button>
+          <button class="filter-tab active" type="button" data-filter-tab="scope">Product Filter</button>
+          <button class="filter-tab" type="button" data-filter-tab="route">Trade Hubs</button>
           <button class="filter-tab" type="button" data-filter-tab="industry">Industry</button>
           <button class="filter-tab" type="button" data-filter-tab="limits">Limits</button>
-          <button class="filter-tab" type="button" data-filter-tab="stockpile">Stock</button>
+          <button class="filter-tab" type="button" data-filter-tab="stockpile">Stockpile</button>
         </nav>
 
         <div class="sidebar-content">
           <header class="drawer-header">
             <div>
               <span class="brand-kicker">Tradefind</span>
-              <strong id="activePanelTitle">Scan controls</strong>
+              <strong id="activePanelTitle">Product Filter</strong>
             </div>
             <button id="sidebarToggle" class="icon-button sidebar-toggle" type="button" aria-label="Collapse controls">×</button>
           </header>
@@ -31,6 +31,11 @@
               <label class="search-filter">
                 Search
                 <input id="search" placeholder="Item or group">
+              </label>
+
+              <label>
+                Quantity
+                <input id="analysisQuantity" type="number" min="1" step="1" value="1" title="Manufacturing runs used for table pricing and build requirements">
               </label>
 
               <fieldset class="type-filters">

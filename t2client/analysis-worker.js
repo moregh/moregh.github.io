@@ -400,7 +400,7 @@ function inventoryMapFromPayload(payloadInventory) {
   );
 }
 
-function inventionMaterialsForCandidate(candidate, options) {
+function inventionMaterialsForCandidate(candidate, options, units = 1) {
   const [
     ,
     ,
@@ -413,7 +413,7 @@ function inventionMaterialsForCandidate(candidate, options) {
   const manufacturedQuantity = Math.max(manufacturingQuantity || 1, 1);
   const inventionRuns = Math.max((baseInventionRuns || 1) + (decryptor?.runs || 0), 1);
   const probability = inventionProbability(baseInventionProbability, decryptor);
-  const manufacturingRuns = Math.ceil(1 / manufacturedQuantity);
+  const manufacturingRuns = Math.ceil(Math.max(units || 1, 1) / manufacturedQuantity);
   const requiredBpcs = Math.ceil(manufacturingRuns / inventionRuns);
   const expectedAttempts = probability > 0 ? requiredBpcs / probability : requiredBpcs;
   const plannedAttempts = Math.max(1, Math.ceil(expectedAttempts));
@@ -425,13 +425,13 @@ function inventionMaterialsForCandidate(candidate, options) {
   return materials;
 }
 
-function canBuildFromInventory(productTypeId, candidate, options, inventoryTemplate) {
+function canBuildFromInventory(productTypeId, candidate, options, inventoryTemplate, units = 1) {
   if (!inventoryTemplate?.size) return false;
   const inventory = new Map(inventoryTemplate);
   inventory.delete(productTypeId);
   const shopping = new Map();
-  fulfillBuildNeed(productTypeId, 1, options, true, inventory, shopping);
-  for (const [materialTypeId, quantity] of inventionMaterialsForCandidate(candidate, options)) {
+  fulfillBuildNeed(productTypeId, units, options, true, inventory, shopping);
+  for (const [materialTypeId, quantity] of inventionMaterialsForCandidate(candidate, options, units)) {
     fulfillBuildNeed(materialTypeId, quantity, options, false, inventory, shopping);
   }
   for (const quantity of shopping.values()) {
@@ -579,6 +579,7 @@ function analyze(payload) {
   const decryptor = decryptors.get(options.decryptor) || decryptors.get("none");
   const constants = staticGraph.constants || {};
   const retryMs = payload.retryMs || 300000;
+  const analysisRuns = Math.max(1, Math.ceil(Number(payload.runs) || 1));
   const manufacturingCache = new Map();
   const inventoryTemplate = inventoryMapFromPayload(payload.inventory);
   const adjustedRows = Array.from(adjusted.values());
@@ -633,6 +634,7 @@ function analyze(payload) {
       }
 
       const manufacturedQuantity = Math.max(manufacturingQuantity || 1, 1);
+      const outputUnits = manufacturedQuantity * analysisRuns;
       const inventionRuns = Math.max((baseInventionRuns || 1) + (decryptor?.runs || 0), 1);
       const probability = inventionProbability(baseInventionProbability, decryptor);
       const inventionJobCost = jobCost(inventionEiv, "invention", context);
@@ -646,10 +648,15 @@ function analyze(payload) {
       const history = histories.get(productTypeId) || {};
       const sellPrice = sale.sell ?? null;
       const buyPrice = sale.buy ?? null;
-      const profit = sellPrice === null || totalCost === null ? null : sellPrice - totalCost;
-      const profitToBuy = buyPrice === null || totalCost === null ? null : buyPrice - totalCost;
-      const margin = profit === null || !totalCost ? null : (profit / totalCost) * 100;
-      const buyMargin = profitToBuy === null || !totalCost ? null : (profitToBuy / totalCost) * 100;
+      const scaledCost = totalCost === null ? null : totalCost * outputUnits;
+      const scaledManufacturingCost = manufacturingCost === null ? null : manufacturingCost * outputUnits;
+      const scaledInventionCost = inventionCost === null ? null : inventionCost * outputUnits;
+      const scaledSellPrice = sellPrice === null ? null : sellPrice * outputUnits;
+      const scaledBuyPrice = buyPrice === null ? null : buyPrice * outputUnits;
+      const profit = scaledSellPrice === null || scaledCost === null ? null : scaledSellPrice - scaledCost;
+      const profitToBuy = scaledBuyPrice === null || scaledCost === null ? null : scaledBuyPrice - scaledCost;
+      const margin = profit === null || !scaledCost ? null : (profit / scaledCost) * 100;
+      const buyMargin = profitToBuy === null || !scaledCost ? null : (profitToBuy / scaledCost) * 100;
 
       const manufacturingSourceRows = [];
       for (const sourceTypeId of staticGraph.typeMarketInputs?.[String(productTypeId)] || []) {
@@ -666,13 +673,15 @@ function analyze(payload) {
 
       const row = {
         typeId: productTypeId,
-        buildCost: missing.size ? null : totalCost,
-        manufacturingCost,
-        inventionCost: missing.size ? null : inventionCost,
-        manufacturingJobCost: missing.size ? null : jobCost(manufacture.eiv * manufacturedQuantity, "manufacturing", context),
+        quantity: outputUnits,
+        runs: analysisRuns,
+        buildCost: missing.size ? null : scaledCost,
+        manufacturingCost: scaledManufacturingCost,
+        inventionCost: missing.size ? null : scaledInventionCost,
+        manufacturingJobCost: missing.size ? null : jobCost(manufacture.eiv * manufacturedQuantity, "manufacturing", context) * analysisRuns,
         inventionJobCost: missing.size ? null : inventionJobCost,
-        sellPrice,
-        buyPrice,
+        sellPrice: scaledSellPrice,
+        buyPrice: scaledBuyPrice,
         profit,
         profitToBuy,
         margin,
@@ -686,7 +695,7 @@ function analyze(payload) {
         inventedMaterialEfficiency: clamp((constants.baseT2InventedMe || 2) + (decryptor?.me || 0), 0, 20),
         inventedTimeEfficiency: (constants.baseT2InventedTe || 4) + (decryptor?.te || 0),
         manufacturingQuantity: manufacturedQuantity,
-        stockpileBuildable: canBuildFromInventory(productTypeId, candidate, options, inventoryTemplate),
+        stockpileBuildable: canBuildFromInventory(productTypeId, candidate, options, inventoryTemplate, outputUnits),
         validUntil,
       };
       if (

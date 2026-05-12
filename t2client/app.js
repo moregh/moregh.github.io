@@ -3,7 +3,7 @@
 // ---------------------------------------------------------------------------
 
 const fields = [
-  "search",
+  "search", "analysisQuantity",
   "minProfit", "maxProfit",
   "minProfitM3", "maxProfitM3",
   "minDailyVolume", "maxDailyVolume",
@@ -60,6 +60,7 @@ const API_BASES = ["https://api.styrofoamxylophone.com"];
 const appShell     = document.querySelector("#appShell");
 const sidebarToggle = document.querySelector("#sidebarToggle");
 const activePanelTitle = document.querySelector("#activePanelTitle");
+const analysisQuantity = document.querySelector("#analysisQuantity");
 const sourceHub    = document.querySelector("#sourceHub");
 const sellHub      = document.querySelector("#sellHub");
 const buildSystem  = document.querySelector("#buildSystem");
@@ -96,8 +97,8 @@ const filterTabs   = Array.from(document.querySelectorAll("[data-filter-tab]"));
 const filterPanels = Array.from(document.querySelectorAll("[data-filter-panel]"));
 const fieldElements = new Map(fields.map((id) => [id, document.querySelector(`#${id}`)]));
 const filterTabTitles = {
-  scope: "Scan controls",
-  route: "Route setup",
+  scope: "Product Filter",
+  route: "Trade Hubs",
   industry: "Industry setup",
   limits: "Result limits",
   stockpile: "Stockpile",
@@ -395,6 +396,7 @@ function refreshRigOptions() {
 
 function buildSettingsKey() {
   return [
+    `runs:${analysisRuns()}`,
     buildSystemId.value,
     structureType.value,
     productRig.value,
@@ -564,6 +566,11 @@ function feeRates() {
 function feeRatesKey() {
   const { salesTaxPercent, brokerFeePercent } = feeRates();
   return `${salesTaxPercent.toFixed(4)}|${brokerFeePercent.toFixed(4)}`;
+}
+
+function analysisRuns() {
+  const parsed = Number(analysisQuantity?.value || 1);
+  return Math.max(1, Math.ceil(Number.isFinite(parsed) ? parsed : 1));
 }
 
 function selectedKinds() {
@@ -936,7 +943,7 @@ function adjustedItem(baseItem, rates) {
     : (profitToBuy / buildCost) * 100;
   const profitPerM3 = profit === null || !meta.volume
     ? null
-    : profit / meta.volume;
+    : profit / (meta.volume * Math.max(baseItem.quantity || 1, 1));
 
   return {
     ...baseItem,
@@ -1043,6 +1050,7 @@ async function calculateItems(typeIds) {
   return postWorker("analyze", {
     typeIds,
     options: activeBuildOptions(),
+    runs: analysisRuns(),
     market: marketStateFor(typeIds),
     inventory: stockpileEntries(),
     retryMs: CLIENT_RETRY_MS,
@@ -1444,7 +1452,7 @@ function openBuildModal(item) {
   buildIcon.src = typeIconUrl(item.typeId, 64);
   buildTitle.textContent = meta.name;
   buildSubtitle.textContent = `${meta.group} · ${sourceHub.selectedOptions[0]?.textContent || sourceHub.value} materials · ${sellHub.selectedOptions[0]?.textContent || sellHub.value} sales`;
-  buildUnits.value = "1";
+  buildUnits.value = String(Math.max(item.quantity || 1, 1));
   lastShoppingText = "";
   buildModal.hidden = false;
   document.body.classList.add("modal-open");
@@ -1845,6 +1853,7 @@ for (const id of fields) {
   if (!field) continue;
   field.addEventListener("input", () => {
     if (id === "search") scheduleRefresh();
+    else if (id === "analysisQuantity") scheduleRefresh(0);
     else if (id === "facilityTaxRate") scheduleRefresh(0);
     else if (id === "salesTaxRate" || id === "brokerFeeRate") {
       if (currentData) rerenderFromCache();
@@ -1855,6 +1864,7 @@ for (const id of fields) {
     if (event.key !== "Enter") return;
     event.preventDefault();
     if (id === "search") scheduleRefresh(0);
+    else if (id === "analysisQuantity") scheduleRefresh(0);
     else if (id === "facilityTaxRate") scheduleRefresh(0);
     else if (id === "salesTaxRate" || id === "brokerFeeRate") {
       if (currentData) rerenderFromCache();
