@@ -57,6 +57,8 @@ const API_BASES = ["https://api.styrofoamxylophone.com"];
 // DOM references
 // ---------------------------------------------------------------------------
 
+const appShell     = document.querySelector("#appShell");
+const sidebarToggle = document.querySelector("#sidebarToggle");
 const sourceHub    = document.querySelector("#sourceHub");
 const sellHub      = document.querySelector("#sellHub");
 const buildSystem  = document.querySelector("#buildSystem");
@@ -89,6 +91,9 @@ const shoppingList = document.querySelector("#shoppingList");
 const copyShopping = document.querySelector("#copyShopping");
 const sortButtons  = Array.from(document.querySelectorAll(".sort"));
 const typeFilters  = Array.from(document.querySelectorAll(".type-filter"));
+const filterTabs   = Array.from(document.querySelectorAll("[data-filter-tab]"));
+const filterPanels = Array.from(document.querySelectorAll("[data-filter-panel]"));
+const fieldElements = new Map(fields.map((id) => [id, document.querySelector(`#${id}`)]));
 
 // ---------------------------------------------------------------------------
 // State
@@ -519,8 +524,12 @@ function clearChangeMarkers(item) {
 // Filter helpers
 // ---------------------------------------------------------------------------
 
+function fieldElement(id) {
+  return fieldElements.get(id) || document.querySelector(`#${id}`);
+}
+
 function numericInput(id) {
-  const value = document.querySelector(`#${id}`).value.trim();
+  const value = fieldElement(id).value.trim();
   if (!value) return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
@@ -560,7 +569,7 @@ function selectedKinds() {
 function filterState() {
   return {
     enabledKinds:   selectedKinds(),
-    search:         document.querySelector("#search").value.trim().toLowerCase(),
+    search:         fieldElement("search").value.trim().toLowerCase(),
     minProfit:      numericInput("minProfit"),
     maxProfit:      numericInput("maxProfit"),
     minProfitM3:    numericInput("minProfitM3"),
@@ -1721,6 +1730,38 @@ async function refreshCacheStatus() {
 // Event listeners
 // ---------------------------------------------------------------------------
 
+function setSidebarCollapsed(collapsed) {
+  appShell?.classList.toggle("sidebar-collapsed", collapsed);
+  if (sidebarToggle) {
+    sidebarToggle.textContent = collapsed ? "›" : "‹";
+    sidebarToggle.setAttribute("aria-label", collapsed ? "Expand controls" : "Collapse controls");
+  }
+  localStorage.setItem("tradefind.sidebarCollapsed", collapsed ? "1" : "0");
+}
+
+function activateFilterTab(tabId) {
+  for (const tab of filterTabs) {
+    const active = tab.dataset.filterTab === tabId;
+    tab.classList.toggle("active", active);
+    tab.setAttribute("aria-selected", active ? "true" : "false");
+  }
+  for (const panel of filterPanels) {
+    panel.classList.toggle("active", panel.dataset.filterPanel === tabId);
+  }
+  localStorage.setItem("tradefind.activeFilterTab", tabId);
+}
+
+sidebarToggle?.addEventListener("click", () => {
+  setSidebarCollapsed(!appShell?.classList.contains("sidebar-collapsed"));
+});
+
+for (const tab of filterTabs) {
+  tab.addEventListener("click", () => {
+    activateFilterTab(tab.dataset.filterTab);
+    if (appShell?.classList.contains("sidebar-collapsed")) setSidebarCollapsed(false);
+  });
+}
+
 sourceHub.addEventListener("change",   () => scheduleRefresh(0));
 sellHub.addEventListener("change",     () => scheduleRefresh(0));
 structureType.addEventListener("change", () => { syncRigControls(); scheduleRefresh(0); });
@@ -1791,7 +1832,8 @@ for (const button of sortButtons) {
 }
 
 for (const id of fields) {
-  const field = document.querySelector(`#${id}`);
+  const field = fieldElement(id);
+  if (!field) continue;
   field.addEventListener("input", () => {
     if (id === "search") scheduleRefresh();
     else if (id === "facilityTaxRate") scheduleRefresh(0);
@@ -1822,6 +1864,8 @@ for (const field of typeFilters) {
 // Startup
 // ---------------------------------------------------------------------------
 
+activateFilterTab(localStorage.getItem("tradefind.activeFilterTab") || "scope");
+setSidebarCollapsed(localStorage.getItem("tradefind.sidebarCollapsed") === "1");
 updateSortHeaders();
 refreshCacheStatus();
 cachePoll = window.setInterval(refreshCacheStatus, 10_000);

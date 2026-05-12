@@ -7,186 +7,214 @@
     <link rel="stylesheet" href="app.css">
   </head>
   <body>
-    <main class="shell">
-      <section class="filters" aria-label="Result filters">
-        <fieldset class="type-filters">
-          <legend>Types</legend>
-          <label class="check"><input class="type-filter" type="checkbox" value="Ship" checked> Ships</label>
-          <label class="check"><input class="type-filter" type="checkbox" value="Drone" checked> Drones</label>
-          <label class="check"><input class="type-filter" type="checkbox" value="Module" checked> Modules</label>
-          <label class="check"><input class="type-filter" type="checkbox" value="Charge" checked> Ammo</label>
-        </fieldset>
+    <main class="app-shell" id="appShell">
+      <aside class="command-sidebar" id="commandSidebar" aria-label="Analysis controls">
+        <header class="sidebar-header">
+          <div class="brand-block">
+            <span class="brand-kicker">Tradefind</span>
+            <strong>T2 Build Console</strong>
+          </div>
+          <button id="sidebarToggle" class="icon-button sidebar-toggle" type="button" aria-label="Collapse controls">‹</button>
+        </header>
 
-        <label class="search-filter">
-          Search
-          <input id="search" placeholder="Item or group">
-        </label>
+        <div class="sidebar-content">
+          <nav class="filter-tabs" aria-label="Control sections">
+            <button class="filter-tab active" type="button" data-filter-tab="scope">Scan</button>
+            <button class="filter-tab" type="button" data-filter-tab="route">Route</button>
+            <button class="filter-tab" type="button" data-filter-tab="industry">Industry</button>
+            <button class="filter-tab" type="button" data-filter-tab="limits">Limits</button>
+            <button class="filter-tab" type="button" data-filter-tab="stockpile">Stock</button>
+          </nav>
 
-        <label class="hub-filter">
-          Materals
-          <select id="sourceHub">
-            <option value="jita" selected>Jita 4-4</option>
-            <option value="amarr">Amarr 8-4</option>
-            <option value="dodixie">Dodixie 9-20</option>
-            <option value="hek">Hek 8-12</option>
-          </select>
-        </label>
+          <section class="filters" aria-label="Result filters">
+            <div class="filter-panel active" data-filter-panel="scope">
+              <label class="search-filter">
+                Search
+                <input id="search" placeholder="Item or group">
+              </label>
 
-        <label class="hub-filter">
-          Sales
-          <select id="sellHub">
-            <option value="jita" selected>Jita 4-4</option>
-            <option value="amarr">Amarr 8-4</option>
-            <option value="dodixie">Dodixie 9-20</option>
-            <option value="hek">Hek 8-12</option>
-          </select>
-        </label>
+              <fieldset class="type-filters">
+                <legend>Item classes</legend>
+                <label class="check"><input class="type-filter" type="checkbox" value="Ship" checked> Ships</label>
+                <label class="check"><input class="type-filter" type="checkbox" value="Drone" checked> Drones</label>
+                <label class="check"><input class="type-filter" type="checkbox" value="Module" checked> Modules</label>
+                <label class="check"><input class="type-filter" type="checkbox" value="Charge" checked> Ammo</label>
+              </fieldset>
+            </div>
 
-        <div class="industry-filters">
-          <label>
-            Build system
-            <input id="buildSystem" list="solarSystems" value="Jita">
-            <input id="buildSystemId" type="hidden" value="30000142">
-            <datalist id="solarSystems"></datalist>
-          </label>
-          <label>
-            Structure
-            <select id="structureType"></select>
-          </label>
-          <label>
-            Product Rig
-            <select id="productRig"></select>
-          </label>
-          <label>
-            Components Rig
-            <select id="componentRig"></select>
-          </label>
-          <label>
-            Decryptor
-            <select id="decryptor"></select>
-          </label>
-          <label>
-            Sales tax %
-            <input id="salesTaxRate" type="number" min="0" step="0.01" value="7.5">
-          </label>
-          <label>
-            Facility tax %
-            <input id="facilityTaxRate" type="number" min="0" step="0.01" placeholder="Auto">
-          </label>
-          <label>
-            Broker fee %
-            <input id="brokerFeeRate" type="number" min="0" step="0.01" value="3">
-          </label>
+            <div class="filter-panel" data-filter-panel="route">
+              <label class="hub-filter">
+                Materials hub
+                <select id="sourceHub">
+                  <option value="jita" selected>Jita 4-4</option>
+                  <option value="amarr">Amarr 8-4</option>
+                  <option value="dodixie">Dodixie 9-20</option>
+                  <option value="hek">Hek 8-12</option>
+                </select>
+              </label>
+
+              <label class="hub-filter">
+                Sales hub
+                <select id="sellHub">
+                  <option value="jita" selected>Jita 4-4</option>
+                  <option value="amarr">Amarr 8-4</option>
+                  <option value="dodixie">Dodixie 9-20</option>
+                  <option value="hek">Hek 8-12</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="filter-panel industry-filters" data-filter-panel="industry">
+              <label>
+                Build system
+                <input id="buildSystem" list="solarSystems" value="Jita">
+                <input id="buildSystemId" type="hidden" value="30000142">
+                <datalist id="solarSystems"></datalist>
+              </label>
+              <label>
+                Facility
+                <select id="structureType"></select>
+              </label>
+              <label>
+                Product rig
+                <select id="productRig"></select>
+              </label>
+              <label>
+                Component rig
+                <select id="componentRig"></select>
+              </label>
+              <label>
+                Decryptor
+                <select id="decryptor"></select>
+              </label>
+              <div class="tax-grid">
+                <label>
+                  Sales tax %
+                  <input id="salesTaxRate" type="number" min="0" step="0.01" value="7.5">
+                </label>
+                <label>
+                  Facility tax %
+                  <input id="facilityTaxRate" type="number" min="0" step="0.01" placeholder="Auto">
+                </label>
+                <label>
+                  Broker fee %
+                  <input id="brokerFeeRate" type="number" min="0" step="0.01" value="3">
+                </label>
+              </div>
+            </div>
+
+            <div class="filter-panel range-filters" data-filter-panel="limits">
+              <fieldset class="range-pair">
+                <legend>Profit</legend>
+                <input id="minProfit" type="number" step="100000" placeholder="Min">
+                <input id="maxProfit" type="number" step="100000" placeholder="Max">
+              </fieldset>
+              <fieldset class="range-pair">
+                <legend>ISK/m3</legend>
+                <input id="minProfitM3" type="number" step="1000" placeholder="Min">
+                <input id="maxProfitM3" type="number" step="1000" placeholder="Max">
+              </fieldset>
+              <fieldset class="range-pair">
+                <legend>Daily sold</legend>
+                <input id="minDailyVolume" type="number" min="0" step="1" placeholder="Min">
+                <input id="maxDailyVolume" type="number" min="0" step="1" placeholder="Max">
+              </fieldset>
+              <fieldset class="range-pair">
+                <legend>Sell orders</legend>
+                <input id="minOrders" type="number" min="0" step="1" placeholder="Min">
+                <input id="maxOrders" type="number" min="0" step="1" placeholder="Max">
+              </fieldset>
+              <fieldset class="range-pair">
+                <legend>Build cost</legend>
+                <input id="minCost" type="number" min="0" step="1000000" placeholder="Min">
+                <input id="maxCost" type="number" min="0" step="1000000" placeholder="Max">
+              </fieldset>
+              <fieldset class="range-pair">
+                <legend>m3</legend>
+                <input id="minM3" type="number" min="0" step="1" placeholder="Min">
+                <input id="maxM3" type="number" min="0" step="1" placeholder="Max">
+              </fieldset>
+            </div>
+
+            <section class="filter-panel stockpile-panel" data-filter-panel="stockpile" aria-label="Current stockpile">
+              <label class="stockpile-input">
+                Current stockpile
+                <textarea id="stockpilePaste" spellcheck="false" placeholder="Paste item names and quantities"></textarea>
+              </label>
+              <div class="stockpile-tools">
+                <label>
+                  Stock filter
+                  <select id="stockpileFilter">
+                    <option value="all" selected>All items</option>
+                    <option value="buildable">Buildable now</option>
+                    <option value="missing">Needs materials</option>
+                  </select>
+                </label>
+                <button id="clearStockpile" class="secondary small-button" type="button">Clear</button>
+                <p id="stockpileStatus" class="stockpile-status">No stockpile loaded</p>
+              </div>
+            </section>
+          </section>
         </div>
+      </aside>
 
-        <div class="range-filters">
-          <fieldset class="range-pair">
-            <legend>Profit</legend>
-            <input id="minProfit" type="number" step="100000" placeholder="Min">
-            <input id="maxProfit" type="number" step="100000" placeholder="Max">
-          </fieldset>
-          <fieldset class="range-pair">
-            <legend>Profit/m3</legend>
-            <input id="minProfitM3" type="number" step="1000" placeholder="Min">
-            <input id="maxProfitM3" type="number" step="1000" placeholder="Max">
-          </fieldset>
-          <fieldset class="range-pair">
-            <legend>Daily volume</legend>
-            <input id="minDailyVolume" type="number" min="0" step="1" placeholder="Min">
-            <input id="maxDailyVolume" type="number" min="0" step="1" placeholder="Max">
-          </fieldset>
-          <fieldset class="range-pair">
-            <legend>Sell orders</legend>
-            <input id="minOrders" type="number" min="0" step="1" placeholder="Min">
-            <input id="maxOrders" type="number" min="0" step="1" placeholder="Max">
-          </fieldset>
-          <fieldset class="range-pair">
-            <legend>Build cost</legend>
-            <input id="minCost" type="number" min="0" step="1000000" placeholder="Min">
-            <input id="maxCost" type="number" min="0" step="1000000" placeholder="Max">
-          </fieldset>
-          <fieldset class="range-pair">
-            <legend>m3</legend>
-            <input id="minM3" type="number" min="0" step="1" placeholder="Min">
-            <input id="maxM3" type="number" min="0" step="1" placeholder="Max">
-          </fieldset>
-        </div>
-
-        <section class="stockpile-panel" aria-label="Current stockpile">
-          <label class="stockpile-input">
-            Stockpile
-            <textarea id="stockpilePaste" spellcheck="false" placeholder="Paste item names and quantities from inventory"></textarea>
-          </label>
-          <div class="stockpile-tools">
-            <label>
-              Show
-              <select id="stockpileFilter">
-                <option value="all" selected>All items</option>
-                <option value="buildable">Buildable now</option>
-                <option value="missing">Needs materials</option>
-              </select>
-            </label>
-            <button id="clearStockpile" class="secondary small-button" type="button">Clear</button>
-            <p id="stockpileStatus" class="stockpile-status">No stockpile loaded</p>
+      <section class="console-main">
+        <section class="summary-bar">
+          <div class="summary-grid" id="status">
+            <span class="summary-card">Loading market data</span>
           </div>
         </section>
-      </section>
 
-      <section class="summary-bar">
-        <div class="summary-grid" id="status">
-          <span class="summary-card">Loading market data</span>
-        </div>
-      </section>
+        <section class="details" id="details"></section>
 
-      <section class="table-wrap">
-        <table>
-          <colgroup>
-            <col class="col-item">
-            <col class="col-type">
-            <col class="col-profit-m3">
-            <col class="col-profit">
-            <col class="col-margin">
-            <col class="col-buy-profit">
-            <col class="col-cost">
-            <col class="col-sell">
-            <col class="col-buy">
-            <col class="col-buy-margin">
-            <col class="col-daily">
-            <col class="col-orders">
-            <col class="col-listed">
-            <col class="col-volume">
-          </colgroup>
-          <thead>
-            <tr class="column-groups">
-              <th colspan="2">Item</th>
-              <th colspan="4">Profitability</th>
-              <th colspan="4">Pricing</th>
-              <th colspan="4">Market</th>
-            </tr>
-            <tr>
-              <th><button class="sort" data-sort="name">Item</button></th>
-              <th><button class="sort" data-sort="kind">Type</button></th>
-              <th><button class="sort" data-sort="profitPerM3">ISK/m3</button></th>
-              <th><button class="sort" data-sort="profit">Profit</button></th>
-              <th><button class="sort" data-sort="margin">Sell %</button></th>
-              <th><button class="sort" data-sort="profitToBuy">Buy profit</button></th>
-              <th><button class="sort" data-sort="buildCost">Build cost</button></th>
-              <th><button class="sort" data-sort="sellPrice">Sell price</button></th>
-              <th><button class="sort" data-sort="buyPrice">Buy order</button></th>
-              <th><button class="sort" data-sort="buyMargin">Buy %</button></th>
-              <th><button class="sort" data-sort="dailyVolume">Daily sold</button></th>
-              <th><button class="sort" data-sort="sellOrders">Sell orders</button></th>
-              <th><button class="sort" data-sort="sellVolume">Listed qty</button></th>
-              <th><button class="sort" data-sort="volume">m3</button></th>
-            </tr>
-          </thead>
-          <tbody id="rows">
-            <tr><td colspan="14" class="empty">Loading market analysis.</td></tr>
-          </tbody>
-        </table>
+        <section class="table-wrap">
+          <table>
+            <colgroup>
+              <col class="col-item">
+              <col class="col-type">
+              <col class="col-profit-m3">
+              <col class="col-profit">
+              <col class="col-margin">
+              <col class="col-buy-profit">
+              <col class="col-cost">
+              <col class="col-sell">
+              <col class="col-buy">
+              <col class="col-buy-margin">
+              <col class="col-daily">
+              <col class="col-orders">
+              <col class="col-listed">
+              <col class="col-volume">
+            </colgroup>
+            <thead>
+              <tr class="column-groups">
+                <th colspan="2">Item</th>
+                <th colspan="4">Profitability</th>
+                <th colspan="4">Pricing</th>
+                <th colspan="4">Market</th>
+              </tr>
+              <tr>
+                <th><button class="sort" data-sort="name">Item</button></th>
+                <th><button class="sort" data-sort="kind">Type</button></th>
+                <th><button class="sort" data-sort="profitPerM3">ISK/m3</button></th>
+                <th><button class="sort" data-sort="profit">Profit</button></th>
+                <th><button class="sort" data-sort="margin">Sell %</button></th>
+                <th><button class="sort" data-sort="profitToBuy">Buy profit</button></th>
+                <th><button class="sort" data-sort="buildCost">Build cost</button></th>
+                <th><button class="sort" data-sort="sellPrice">Sell price</button></th>
+                <th><button class="sort" data-sort="buyPrice">Buy order</button></th>
+                <th><button class="sort" data-sort="buyMargin">Buy %</button></th>
+                <th><button class="sort" data-sort="dailyVolume">Daily sold</button></th>
+                <th><button class="sort" data-sort="sellOrders">Sell orders</button></th>
+                <th><button class="sort" data-sort="sellVolume">Listed qty</button></th>
+                <th><button class="sort" data-sort="volume">m3</button></th>
+              </tr>
+            </thead>
+            <tbody id="rows">
+              <tr><td colspan="14" class="empty">Loading market analysis.</td></tr>
+            </tbody>
+          </table>
+        </section>
       </section>
-
-      <section class="details" id="details"></section>
     </main>
 
     <div class="modal-backdrop" id="buildModal" hidden>
