@@ -10,10 +10,8 @@
     <main class="app-shell" id="appShell">
       <aside class="command-sidebar" id="commandSidebar" aria-label="Analysis controls">
         <nav class="filter-tabs" aria-label="Control sections">
-          <button class="filter-tab active" type="button" data-filter-tab="scope">Product Filter</button>
-          <button class="filter-tab" type="button" data-filter-tab="route">Trade Hubs</button>
-          <button class="filter-tab" type="button" data-filter-tab="industry">Industry</button>
-          <button class="filter-tab" type="button" data-filter-tab="limits">Limits</button>
+          <button class="filter-tab active" type="button" data-filter-tab="products">Products</button>
+          <button class="filter-tab" type="button" data-filter-tab="locations">Locations</button>
           <button class="filter-tab" type="button" data-filter-tab="stockpile">Stockpile</button>
         </nav>
 
@@ -21,13 +19,13 @@
           <header class="drawer-header">
             <div>
               <span class="brand-kicker">Tradefind</span>
-              <strong id="activePanelTitle">Product Filter</strong>
+              <strong id="activePanelTitle">Products</strong>
             </div>
             <button id="sidebarToggle" class="icon-button sidebar-toggle" type="button" aria-label="Collapse controls">×</button>
           </header>
 
           <section class="filters" aria-label="Result filters">
-            <div class="filter-panel active" data-filter-panel="scope">
+            <div class="filter-panel active products-panel" data-filter-panel="products">
               <label class="search-filter">
                 Search
                 <input id="search" placeholder="Item or group">
@@ -45,9 +43,43 @@
                 <label class="check"><input class="type-filter" type="checkbox" value="Module" checked> Modules</label>
                 <label class="check"><input class="type-filter" type="checkbox" value="Charge" checked> Ammo</label>
               </fieldset>
+
+              <fieldset class="range-filters">
+                <legend>Result limits</legend>
+                <fieldset class="range-pair">
+                  <legend>Profit</legend>
+                  <input id="minProfit" type="number" step="100000" placeholder="Min">
+                  <input id="maxProfit" type="number" step="100000" placeholder="Max">
+                </fieldset>
+                <fieldset class="range-pair">
+                  <legend>ISK/m3</legend>
+                  <input id="minProfitM3" type="number" step="1000" placeholder="Min">
+                  <input id="maxProfitM3" type="number" step="1000" placeholder="Max">
+                </fieldset>
+                <fieldset class="range-pair">
+                  <legend>Daily sold</legend>
+                  <input id="minDailyVolume" type="number" min="0" step="1" placeholder="Min">
+                  <input id="maxDailyVolume" type="number" min="0" step="1" placeholder="Max">
+                </fieldset>
+                <fieldset class="range-pair">
+                  <legend>Sell orders</legend>
+                  <input id="minOrders" type="number" min="0" step="1" placeholder="Min">
+                  <input id="maxOrders" type="number" min="0" step="1" placeholder="Max">
+                </fieldset>
+                <fieldset class="range-pair">
+                  <legend>Build cost</legend>
+                  <input id="minCost" type="number" min="0" step="1000000" placeholder="Min">
+                  <input id="maxCost" type="number" min="0" step="1000000" placeholder="Max">
+                </fieldset>
+                <fieldset class="range-pair">
+                  <legend>m3</legend>
+                  <input id="minM3" type="number" min="0" step="1" placeholder="Min">
+                  <input id="maxM3" type="number" min="0" step="1" placeholder="Max">
+                </fieldset>
+              </fieldset>
             </div>
 
-            <div class="filter-panel" data-filter-panel="route">
+            <div class="filter-panel locations-panel" data-filter-panel="locations">
               <label class="hub-filter">
                 Materials hub
                 <select id="sourceHub">
@@ -67,9 +99,7 @@
                   <option value="hek">Hek 8-12</option>
                 </select>
               </label>
-            </div>
 
-            <div class="filter-panel industry-filters" data-filter-panel="industry">
               <label>
                 Build system
                 <input id="buildSystem" list="solarSystems" value="Jita">
@@ -106,39 +136,6 @@
                   <input id="brokerFeeRate" type="number" min="0" step="0.01" value="3">
                 </label>
               </div>
-            </div>
-
-            <div class="filter-panel range-filters" data-filter-panel="limits">
-              <fieldset class="range-pair">
-                <legend>Profit</legend>
-                <input id="minProfit" type="number" step="100000" placeholder="Min">
-                <input id="maxProfit" type="number" step="100000" placeholder="Max">
-              </fieldset>
-              <fieldset class="range-pair">
-                <legend>ISK/m3</legend>
-                <input id="minProfitM3" type="number" step="1000" placeholder="Min">
-                <input id="maxProfitM3" type="number" step="1000" placeholder="Max">
-              </fieldset>
-              <fieldset class="range-pair">
-                <legend>Daily sold</legend>
-                <input id="minDailyVolume" type="number" min="0" step="1" placeholder="Min">
-                <input id="maxDailyVolume" type="number" min="0" step="1" placeholder="Max">
-              </fieldset>
-              <fieldset class="range-pair">
-                <legend>Sell orders</legend>
-                <input id="minOrders" type="number" min="0" step="1" placeholder="Min">
-                <input id="maxOrders" type="number" min="0" step="1" placeholder="Max">
-              </fieldset>
-              <fieldset class="range-pair">
-                <legend>Build cost</legend>
-                <input id="minCost" type="number" min="0" step="1000000" placeholder="Min">
-                <input id="maxCost" type="number" min="0" step="1000000" placeholder="Max">
-              </fieldset>
-              <fieldset class="range-pair">
-                <legend>m3</legend>
-                <input id="minM3" type="number" min="0" step="1" placeholder="Min">
-                <input id="maxM3" type="number" min="0" step="1" placeholder="Max">
-              </fieldset>
             </div>
 
             <section class="filter-panel stockpile-panel" data-filter-panel="stockpile" aria-label="Current stockpile">

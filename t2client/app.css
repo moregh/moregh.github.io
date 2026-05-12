@@ -130,7 +130,7 @@ button:disabled {
 .filter-tabs {
   min-width: 0;
   display: grid;
-  grid-template-rows: repeat(5, minmax(72px, 1fr));
+  grid-template-rows: repeat(3, minmax(110px, 1fr));
   gap: 1px;
   border-right: 1px solid var(--line);
   background: #060a0f;
@@ -318,9 +318,18 @@ textarea:focus {
   accent-color: var(--gold);
 }
 
-.industry-filters,
+.locations-panel,
 .range-filters {
   align-content: start;
+}
+
+.range-filters {
+  display: grid;
+  gap: 8px;
+}
+
+.range-filters > legend {
+  margin-top: 2px;
 }
 
 .tax-grid {
@@ -1131,7 +1140,7 @@ tbody tr:hover {
   }
 
   .filter-tabs {
-    grid-template-rows: repeat(5, minmax(58px, 1fr));
+    grid-template-rows: repeat(3, minmax(82px, 1fr));
   }
 
   .command-sidebar {

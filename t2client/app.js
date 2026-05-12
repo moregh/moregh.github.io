@@ -98,11 +98,15 @@ const filterTabs   = Array.from(document.querySelectorAll("[data-filter-tab]"));
 const filterPanels = Array.from(document.querySelectorAll("[data-filter-panel]"));
 const fieldElements = new Map(fields.map((id) => [id, document.querySelector(`#${id}`)]));
 const filterTabTitles = {
-  scope: "Product Filter",
-  route: "Trade Hubs",
-  industry: "Industry setup",
-  limits: "Result limits",
+  products: "Products",
+  locations: "Locations",
   stockpile: "Stockpile",
+};
+const legacyFilterTabs = {
+  scope: "products",
+  limits: "products",
+  route: "locations",
+  industry: "locations",
 };
 
 // ---------------------------------------------------------------------------
@@ -1788,6 +1792,8 @@ function setSidebarCollapsed(collapsed) {
 }
 
 function activateFilterTab(tabId) {
+  tabId = legacyFilterTabs[tabId] || tabId;
+  if (!filterTabTitles[tabId]) tabId = "products";
   if (activePanelTitle) activePanelTitle.textContent = filterTabTitles[tabId] || "Controls";
   for (const tab of filterTabs) {
     const active = tab.dataset.filterTab === tabId;
