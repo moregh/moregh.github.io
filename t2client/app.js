@@ -18,6 +18,7 @@ const kindFilters = {
   Drone:  ["Drone", "Fighter"],
   Module: ["Module", "Structure Module"],
   Charge: ["Charge"],
+  Deployable: ["Deployable"],
 };
 
 // Fields whose changes are tracked for the "direction" arrow on the item name
@@ -42,7 +43,7 @@ const CLIENT_RETRY_MS          = 5 * 60 * 1000;
 const CLIENT_RECHECK_JITTER_MS = 2 * 60 * 1000;
 const MARKET_BITSET_BITS       = 4096;
 const MARKET_BITSET_BYTES      = MARKET_BITSET_BITS / 8;
-const STATIC_DATA_CACHE_VERSION = 4;
+const STATIC_DATA_CACHE_VERSION = 5;
 // Distinct from CLIENT_RETRY_MS: TTL for a "we tried but got nothing" cache
 // entry.  Currently the same value but kept separate so they can diverge.
 const NEGATIVE_CACHE_MS        = 5 * 60 * 1000;
@@ -83,6 +84,7 @@ const buildSubtitle = document.querySelector("#buildSubtitle");
 const buildUnits   = document.querySelector("#buildUnits");
 const stockpilePaste = document.querySelector("#stockpilePaste");
 const stockpileFilter = document.querySelector("#stockpileFilter");
+const excludeBpcOnly = document.querySelector("#excludeBpcOnly");
 const stockpileStatus = document.querySelector("#stockpileStatus");
 const clearStockpile = document.querySelector("#clearStockpile");
 const buildPlan    = document.querySelector("#buildPlan");
@@ -603,6 +605,7 @@ function filterState() {
     minM3:          numericInput("minM3"),
     maxM3:          numericInput("maxM3"),
     stockpile:      stockpileFilter?.value || "all",
+    excludeBpcOnly: Boolean(excludeBpcOnly?.checked),
   };
 }
 
@@ -612,6 +615,7 @@ function filteredItems(items, state = filterState()) {
   return items.filter((item) => {
     const meta = metaFor(item);
     if (!state.enabledKinds.has(meta.kind)) return false;
+    if (state.excludeBpcOnly && meta.hasT1BpoSource === false) return false;
     if (state.search) {
       if (!(meta.searchText || `${meta.name} ${meta.group}`.toLowerCase()).includes(state.search)) return false;
     }
@@ -983,11 +987,12 @@ function emptyRow(message) {
 
 function staticScopedTypeIds() {
   const state = filterState();
-  const key = `${Array.from(state.enabledKinds).sort().join(",")}|${state.search}`;
+  const key = `${Array.from(state.enabledKinds).sort().join(",")}|${state.search}|${state.excludeBpcOnly ? 1 : 0}`;
   if (scopedTypeIdsCache.key === key) return scopedTypeIdsCache.typeIds;
   const typeIds = [];
   for (const meta of staticTypeList) {
     if (!state.enabledKinds.has(meta.kind)) continue;
+    if (state.excludeBpcOnly && meta.hasT1BpoSource === false) continue;
     if (state.search && !meta.searchText.includes(state.search)) continue;
     typeIds.push(meta.typeId);
   }
@@ -1916,6 +1921,8 @@ for (const id of fields) {
 for (const field of typeFilters) {
   field.addEventListener("change", () => scheduleRefresh(0));
 }
+
+excludeBpcOnly?.addEventListener("change", () => scheduleRefresh(0));
 
 // ---------------------------------------------------------------------------
 // Startup
