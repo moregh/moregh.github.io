@@ -1227,12 +1227,12 @@ const METRIC_FIELD_DEFS = [
   { field: "profit",      fmt: (item) => compact(item.profit),           cls: (item) => profitClass(item.profit) },
   { field: "margin",      fmt: (item) => compactPercent(item.margin),    cls: (item) => profitClass(item.margin) },
   { field: "profitToBuy", fmt: (item) => compact(item.profitToBuy),      cls: (item) => profitClass(item.profitToBuy) },
+  { field: "buyMargin",   fmt: (item) => compactPercent(item.buyMargin), cls: (item) => profitClass(item.buyMargin) },
   { field: "buildCost",   fmt: (item) => compact(item.buildCost),        cls: () => "" },
   { field: "sellPrice",   fmt: (item) => compact(item.sellPrice),        cls: () => "" },
   { field: "buyPrice",    fmt: (item) => compact(item.buyPrice),         cls: () => "" },
-  { field: "buyMargin",   fmt: (item) => compactPercent(item.buyMargin), cls: (item) => profitClass(item.buyMargin) },
   { field: "dailyVolume", fmt: (item) => compact(item.dailyVolume),      cls: () => "" },
-  { field: "sellOrders",  fmt: (item) => String(item.sellOrders ?? "-"), cls: () => "" },
+  { field: "sellOrders",  fmt: (item) => compact(item.sellOrders),       cls: () => "" },
   { field: "sellVolume",  fmt: (item) => compact(item.sellVolume),       cls: () => "" },
 ];
 
