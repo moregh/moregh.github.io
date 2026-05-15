@@ -909,15 +909,15 @@ tbody tr:hover {
 .build-grid {
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(330px, 0.92fr) minmax(360px, 1fr) minmax(360px, 1fr);
-  grid-template-areas:
-    "plan materials components"
-    "invention shopping shopping";
-  grid-template-rows: minmax(270px, auto) minmax(130px, auto);
-  grid-auto-rows: minmax(180px, auto);
+  grid-template-columns: minmax(480px, 1fr) minmax(420px, 1fr);
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
   gap: 12px;
-  overflow: auto;
+  overflow: hidden;
   padding: 14px 16px 16px;
+}
+
+.build-grid > .build-panel:not(.materials-panel):not(.plan-panel):not(.shopping-panel) {
+  display: none;
 }
 
 .build-panel {
@@ -941,36 +941,23 @@ tbody tr:hover {
 }
 
 .plan-panel {
-  grid-area: plan;
+  grid-column: 2;
+  grid-row: 1;
 }
 
 .materials-panel {
-  grid-area: materials;
-}
-
-.components-panel {
-  grid-area: components;
-}
-
-.invention-panel {
-  grid-area: invention;
+  grid-column: 1;
+  grid-row: 1 / span 2;
 }
 
 .shopping-panel {
-  grid-area: shopping;
+  grid-column: 2;
+  grid-row: 2;
 }
 
 .plan-panel::before,
 .materials-panel::before {
   background: var(--gold);
-}
-
-.components-panel::before {
-  background: var(--components);
-}
-
-.invention-panel::before {
-  background: var(--invention);
 }
 
 .shopping-panel::before {
@@ -1155,10 +1142,6 @@ tbody tr:hover {
 
   .build-grid {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-areas:
-      "plan invention"
-      "materials components"
-      "shopping shopping";
   }
 }
 
@@ -1196,6 +1179,23 @@ tbody tr:hover {
 
   .build-grid {
     grid-template-columns: 1fr;
+    grid-template-rows: minmax(300px, 1fr) minmax(220px, auto) minmax(240px, auto);
+    overflow: auto;
+  }
+
+  .materials-panel {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .plan-panel {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .shopping-panel {
+    grid-column: 1;
+    grid-row: 3;
   }
 
   .build-header {
@@ -1216,12 +1216,4 @@ tbody tr:hover {
     display: none;
   }
 
-  .build-grid {
-    grid-template-areas:
-      "plan"
-      "invention"
-      "materials"
-      "components"
-      "shopping";
-  }
 }

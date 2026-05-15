@@ -92,8 +92,6 @@ const stockpileStatus = document.querySelector("#stockpileStatus");
 const clearStockpile = document.querySelector("#clearStockpile");
 const buildPlan    = document.querySelector("#buildPlan");
 const directMaterials = document.querySelector("#directMaterials");
-const componentBuilds = document.querySelector("#componentBuilds");
-const inventionMaterials = document.querySelector("#inventionMaterials");
 const shoppingList = document.querySelector("#shoppingList");
 const shoppingTotal = document.querySelector("#shoppingTotal");
 const shoppingVolume = document.querySelector("#shoppingVolume");
@@ -241,6 +239,14 @@ async function apiFetch(path, options = {}) {
     }
   }
   throw lastError || new Error("API unavailable");
+}
+
+function removeLegacyBuildPanels() {
+  for (const selector of [".components-panel", ".invention-panel", "#componentBuilds", "#inventionMaterials"]) {
+    const node = document.querySelector(selector);
+    const panel = node?.closest?.(".build-panel") || node;
+    panel?.remove();
+  }
 }
 
 function postWorker(type, payload = {}) {
@@ -1616,8 +1622,6 @@ function renderBuildPlan(detail) {
     `<div class="plan-card"><span class="plan-label">${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`
   )).join("")}</div>`;
   directMaterials.innerHTML = buildInputRowsHtml(detail.directMaterials);
-  componentBuilds.innerHTML = buildInputRowsHtml(detail.componentBuilds, "No intermediate components");
-  inventionMaterials.innerHTML = materialRowsHtml(detail.inventionMaterials);
   shoppingList.innerHTML = materialRowsHtml(detail.shoppingList, "Nothing to buy", { includeVolume: true });
   if (shoppingVolume) shoppingVolume.textContent = formatM3(shoppingVolumeValue(detail.shoppingList));
   shoppingTotal.textContent = `${isk(shoppingTotalValue(detail.shoppingList))} ISK`;
@@ -1628,6 +1632,8 @@ async function refreshBuildDetail() {
   if (!activeBuildItem) return;
   const seq = ++buildDetailSeq;
   buildPlan.innerHTML = `<p class="empty-small">Calculating build plan...</p>`;
+  directMaterials.innerHTML = `<p class="empty-small">Calculating inputs...</p>`;
+  shoppingList.innerHTML = `<p class="empty-small">Calculating shopping list...</p>`;
   if (shoppingTotal) shoppingTotal.textContent = "- ISK";
   if (shoppingVolume) shoppingVolume.textContent = "- m3";
   try {
@@ -2095,6 +2101,7 @@ excludeBpcOnly?.addEventListener("change", () => {
 // Startup
 // ---------------------------------------------------------------------------
 
+removeLegacyBuildPanels();
 activateFilterTab(localStorage.getItem("tradefind.activeFilterTab") || "scope");
 setSidebarCollapsed(localStorage.getItem("tradefind.sidebarCollapsed") === "1");
 updateSortHeaders();
