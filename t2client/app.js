@@ -43,7 +43,7 @@ const CLIENT_RETRY_MS          = 5 * 60 * 1000;
 const CLIENT_RECHECK_JITTER_MS = 2 * 60 * 1000;
 const MARKET_BITSET_BITS       = 4096;
 const MARKET_BITSET_BYTES      = MARKET_BITSET_BITS / 8;
-const STATIC_DATA_CACHE_VERSION = 5;
+const STATIC_DATA_CACHE_VERSION = 6;
 // Distinct from CLIENT_RETRY_MS: TTL for a "we tried but got nothing" cache
 // entry.  Currently the same value but kept separate so they can diverge.
 const NEGATIVE_CACHE_MS        = 5 * 60 * 1000;
@@ -1443,7 +1443,11 @@ function shoppingTotalValue(items) {
 }
 
 function itemVolumeTotal(item) {
-  return (staticTypes.get(String(item.typeId))?.volume || 0) * Math.ceil(item.quantity || 0);
+  const typeId = String(item.typeId);
+  const volume = staticTypes.get(typeId)?.volume
+    ?? staticData?.analysis?.typeVolumes?.[typeId]
+    ?? 0;
+  return volume * Math.ceil(item.quantity || 0);
 }
 
 function shoppingVolumeValue(items) {
