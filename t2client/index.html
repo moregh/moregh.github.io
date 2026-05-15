@@ -234,16 +234,15 @@
               <p id="buildSubtitle"></p>
             </div>
           </div>
-          <button id="buildClose" class="icon-button" type="button" aria-label="Close">×</button>
+          <div class="build-header-actions">
+            <label class="build-units">
+              Units to build
+              <input id="buildUnits" type="number" min="1" step="1" value="1">
+            </label>
+            <p class="stockpile-note">Uses main stockpile</p>
+            <button id="buildClose" class="icon-button" type="button" aria-label="Close">×</button>
+          </div>
         </header>
-
-        <section class="build-controls">
-          <label>
-            Units to build
-            <input id="buildUnits" type="number" min="1" step="1" value="1">
-          </label>
-          <p class="stockpile-note">Shopping list uses the stockpile from the main screen.</p>
-        </section>
 
         <section class="build-grid">
           <div class="build-panel plan-panel">
