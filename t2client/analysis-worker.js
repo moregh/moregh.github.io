@@ -175,20 +175,48 @@ function inventionProbability(baseProbability, decryptor) {
   return clamp((baseProbability || 0) * 1.05 * 1.20 * (decryptor?.probability || 1), 0, 1);
 }
 
-function manufacturingCostForProduct(productTypeId, sourcePrices, adjusted, options, context, finalT2, stack, cache) {
-  const cacheKey = `${productTypeId}:${finalT2 ? 1 : 0}`;
+function addQuantity(map, typeId, quantity) {
+  if (!quantity || quantity <= 0) return;
+  map.set(typeId, (map.get(typeId) || 0) + quantity);
+}
+
+function inventedRunsPerBpc(productTypeId, options) {
+  const candidate = (candidateMap.get(productTypeId) || [])[0];
+  const decryptor = decryptors.get(options.decryptor) || decryptors.get("none");
+  return Math.max((candidate?.[4] || 1) + (decryptor?.runs || 0), 1);
+}
+
+function quantityForMaterial(baseQuantity, me, options, finalT2, runs, productTypeId) {
+  if (!finalT2) {
+    return materialQuantity(baseQuantity * runs, me, options, finalT2, productTypeId);
+  }
+  const runsPerBpc = inventedRunsPerBpc(productTypeId, options);
+  let remainingRuns = runs;
+  let total = 0;
+  while (remainingRuns > 0) {
+    const batchRuns = Math.min(remainingRuns, runsPerBpc);
+    total += materialQuantity(baseQuantity * batchRuns, me, options, finalT2, productTypeId);
+    remainingRuns -= batchRuns;
+  }
+  return total;
+}
+
+function manufacturingCostForQuantity(productTypeId, quantity, sourcePrices, adjusted, options, context, finalT2, stack, cache) {
+  const neededQuantity = Math.max(1, Math.ceil(quantity || 1));
+  const cacheKey = `${productTypeId}:${neededQuantity}:${finalT2 ? 1 : 0}`;
   if (cache.has(cacheKey)) {
     const cached = cache.get(cacheKey);
     return { ...cached, missing: new Set(cached.missing) };
   }
-  if (stack.has(productTypeId)) return { cost: null, eiv: 0, missing: new Set() };
+  if (stack.has(productTypeId)) return { cost: null, eiv: 0, jobCost: 0, missing: new Set() };
 
-  const recipe = manufacturing.get(productTypeId);
-  if (!recipe) {
+  const plan = recipePlan(productTypeId, neededQuantity, options, finalT2);
+  if (!plan) {
     const price = sourcePrices.get(productTypeId)?.sell ?? null;
     const result = {
-      cost: price,
-      eiv: adjustedPrice(productTypeId, adjusted),
+      cost: price === null ? null : price * neededQuantity,
+      eiv: adjustedPrice(productTypeId, adjusted) * neededQuantity,
+      jobCost: 0,
       missing: price === null ? new Set([productTypeId]) : new Set(),
     };
     cache.set(cacheKey, { ...result, missing: Array.from(result.missing) });
@@ -196,24 +224,16 @@ function manufacturingCostForProduct(productTypeId, sourcePrices, adjusted, opti
   }
 
   stack.add(productTypeId);
-  const blueprintTypeId = recipe[0];
-  const outputQuantity = Math.max(recipe[1] || 1, 1);
-  const constants = staticGraph.constants || {};
-  const decryptor = decryptors.get(options.decryptor) || decryptors.get("none");
-  let me = finalT2 ? (constants.baseT2InventedMe || 2) + (decryptor?.me || 0) : (constants.baseT1BpoMe || 10);
-  me = clamp(me, 0, 20);
-
   let total = 0;
   let eiv = 0;
+  let nestedJobCost = 0;
   const missing = new Set();
-  for (const [materialTypeId, baseQuantity] of manufacturingMaterials.get(blueprintTypeId) || []) {
-    const quantity = materialQuantity(baseQuantity, me, options, finalT2, productTypeId);
+  for (const [materialTypeId, materialQuantityNeeded] of plan.materials) {
     const nested = manufacturing.get(materialTypeId);
-    let unitCost = null;
-    let unitEiv = 0;
     if (nested && !boughtCompleted.has(materialTypeId)) {
-      const nestedCost = manufacturingCostForProduct(
+      const nestedCost = manufacturingCostForQuantity(
         materialTypeId,
+        materialQuantityNeeded,
         sourcePrices,
         adjusted,
         options,
@@ -222,36 +242,28 @@ function manufacturingCostForProduct(productTypeId, sourcePrices, adjusted, opti
         stack,
         cache,
       );
-      unitCost = nestedCost.cost;
-      unitEiv = nestedCost.eiv;
+      if (nestedCost.cost !== null) total += nestedCost.cost;
+      eiv += nestedCost.eiv;
+      nestedJobCost += nestedCost.jobCost || 0;
       for (const typeId of nestedCost.missing) missing.add(typeId);
     } else {
-      unitCost = sourcePrices.get(materialTypeId)?.sell ?? null;
-      unitEiv = adjustedPrice(materialTypeId, adjusted);
-      if (unitCost === null) missing.add(materialTypeId);
+      const unitCost = sourcePrices.get(materialTypeId)?.sell ?? null;
+      if (unitCost !== null) total += unitCost * materialQuantityNeeded;
+      else missing.add(materialTypeId);
+      eiv += adjustedPrice(materialTypeId, adjusted) * materialQuantityNeeded;
     }
-    if (unitCost !== null) total += unitCost * quantity;
-    eiv += unitEiv * quantity;
   }
   stack.delete(productTypeId);
 
-  total += jobCost(eiv, "manufacturing", context);
+  const ownJobCost = jobCost(eiv, "manufacturing", context);
   const result = {
-    cost: total / outputQuantity,
-    eiv: eiv / outputQuantity,
+    cost: total + ownJobCost,
+    eiv,
+    jobCost: nestedJobCost + ownJobCost,
     missing,
   };
   cache.set(cacheKey, { ...result, missing: Array.from(missing) });
   return result;
-}
-
-function addQuantity(map, typeId, quantity) {
-  if (!quantity || quantity <= 0) return;
-  map.set(typeId, (map.get(typeId) || 0) + quantity);
-}
-
-function quantityForMaterial(baseQuantity, me, options, finalT2, runs, productTypeId) {
-  return materialQuantity(baseQuantity * runs, me, options, finalT2, productTypeId);
 }
 
 function recipePlan(typeId, quantity, options, finalT2) {
@@ -549,16 +561,6 @@ function detail(payload) {
     fulfillBuildNeed(materialTypeId, quantity, options, false, inventory, shopping);
   }
 
-  const manufacture = manufacturingCostForProduct(
-    productTypeId,
-    sourcePrices,
-    adjusted,
-    options,
-    context,
-    true,
-    new Set(),
-    new Map(),
-  );
   const manufacturingFees = manufacturingFeesForProduct(
     productTypeId,
     units,
@@ -648,8 +650,12 @@ function analyze(payload) {
         baseInventionProbability,
       ] = candidate;
 
-      const manufacture = manufacturingCostForProduct(
+      const manufacturedQuantity = Math.max(manufacturingQuantity || 1, 1);
+      const outputUnits = manufacturedQuantity * analysisRuns;
+      const inventionRuns = Math.max((baseInventionRuns || 1) + (decryptor?.runs || 0), 1);
+      const manufacture = manufacturingCostForQuantity(
         productTypeId,
+        outputUnits,
         sourcePrices,
         adjusted,
         options,
@@ -681,24 +687,20 @@ function analyze(payload) {
         inventionEiv += adjustedPrice(decryptor.typeId, adjusted);
       }
 
-      const manufacturedQuantity = Math.max(manufacturingQuantity || 1, 1);
-      const outputUnits = manufacturedQuantity * analysisRuns;
-      const inventionRuns = Math.max((baseInventionRuns || 1) + (decryptor?.runs || 0), 1);
       const probability = inventionProbability(baseInventionProbability, decryptor);
+      const requiredBpcs = Math.ceil(analysisRuns / inventionRuns);
+      const expectedAttempts = probability > 0 ? requiredBpcs / probability : null;
       const inventionJobCost = jobCost(inventionEiv, "invention", context);
       inventionAttemptCost += inventionJobCost;
-      const inventionCost = probability > 0
-        ? inventionAttemptCost / probability / inventionRuns / manufacturedQuantity
-        : null;
-      const manufacturingCost = missing.size ? null : manufacture.cost;
-      const totalCost = manufacturingCost === null ? null : manufacturingCost + (inventionCost || 0);
+      const scaledInventionCost = expectedAttempts === null ? null : inventionAttemptCost * expectedAttempts;
+      const scaledManufacturingCost = missing.size ? null : manufacture.cost;
+      const scaledCost = scaledManufacturingCost === null || scaledInventionCost === null
+        ? null
+        : scaledManufacturingCost + scaledInventionCost;
       const sale = sellPrices.get(productTypeId) || {};
       const history = histories.get(productTypeId) || {};
       const sellPrice = sale.sell ?? null;
       const buyPrice = sale.buy ?? null;
-      const scaledCost = totalCost === null ? null : totalCost * outputUnits;
-      const scaledManufacturingCost = manufacturingCost === null ? null : manufacturingCost * outputUnits;
-      const scaledInventionCost = inventionCost === null ? null : inventionCost * outputUnits;
       const scaledSellPrice = sellPrice === null ? null : sellPrice * outputUnits;
       const scaledBuyPrice = buyPrice === null ? null : buyPrice * outputUnits;
       const profit = scaledSellPrice === null || scaledCost === null ? null : scaledSellPrice - scaledCost;
@@ -726,8 +728,8 @@ function analyze(payload) {
         buildCost: missing.size ? null : scaledCost,
         manufacturingCost: scaledManufacturingCost,
         inventionCost: missing.size ? null : scaledInventionCost,
-        manufacturingJobCost: missing.size ? null : jobCost(manufacture.eiv * manufacturedQuantity, "manufacturing", context) * analysisRuns,
-        inventionJobCost: missing.size ? null : inventionJobCost,
+        manufacturingJobCost: missing.size ? null : manufacture.jobCost,
+        inventionJobCost: missing.size || expectedAttempts === null ? null : inventionJobCost * expectedAttempts,
         sellPrice: scaledSellPrice,
         buyPrice: scaledBuyPrice,
         profit,
