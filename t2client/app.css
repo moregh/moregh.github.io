@@ -910,7 +910,7 @@ tbody tr:hover {
   min-height: 0;
   display: grid;
   grid-template-columns: minmax(480px, 1fr) minmax(420px, 1fr);
-  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 12px;
   overflow: hidden;
   padding: 14px 16px 16px;
@@ -1197,7 +1197,7 @@ tbody tr:hover {
 
   .build-grid {
     grid-template-columns: 1fr;
-    grid-template-rows: minmax(300px, 1fr) minmax(220px, auto) minmax(240px, auto);
+    grid-template-rows: minmax(300px, 1fr) auto minmax(240px, auto);
     overflow: auto;
   }
 
