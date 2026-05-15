@@ -536,6 +536,7 @@ function detail(payload) {
 
   const finalPlan = recipePlan(productTypeId, units, options, true);
   const directMaterials = new Map(finalPlan?.materials || []);
+  const directAndInventionMaterials = new Map(directMaterials);
   const rawRequirements = new Map();
   const componentBuilds = new Map();
   collectBuildRequirements(productTypeId, units, options, true, rawRequirements, componentBuilds, true);
@@ -545,10 +546,12 @@ function detail(payload) {
   for (const [materialTypeId, quantity] of inventionMaterials.get(inventionBlueprintTypeId) || []) {
     const needed = quantity * plannedAttempts;
     addQuantity(inventionMaterialsNeeded, materialTypeId, needed);
+    addQuantity(directAndInventionMaterials, materialTypeId, needed);
     inventionEiv += adjustedPrice(materialTypeId, adjusted) * quantity * plannedAttempts;
   }
   if (decryptor?.typeId) {
     addQuantity(inventionMaterialsNeeded, decryptor.typeId, plannedAttempts);
+    addQuantity(directAndInventionMaterials, decryptor.typeId, plannedAttempts);
     inventionEiv += adjustedPrice(decryptor.typeId, adjusted) * plannedAttempts;
   }
 
@@ -595,10 +598,8 @@ function detail(payload) {
     componentManufacturingSccSurchargeTotal: manufacturingFees.componentBreakdown.sccSurcharge,
     componentManufacturingFacilityTaxTotal: manufacturingFees.componentBreakdown.facilityTax,
     inventionJobCostTotal: jobCost(inventionEiv, "invention", context),
-    directMaterials: buildInputRows(directMaterials, inventoryTemplate, options),
-    componentBuilds: buildInputRows(componentBuilds, inventoryTemplate, options),
+    directMaterials: buildInputRows(directAndInventionMaterials, inventoryTemplate, options),
     rawRequirements: mapRows(rawRequirements, sourcePrices),
-    inventionMaterials: mapRows(inventionMaterialsNeeded, sourcePrices),
     shoppingList: mapRows(shopping, sourcePrices),
   };
 }
