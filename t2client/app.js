@@ -44,6 +44,9 @@ const CLIENT_RECHECK_JITTER_MS = 2 * 60 * 1000;
 const MARKET_BITSET_BITS       = 4096;
 const MARKET_BITSET_BYTES      = MARKET_BITSET_BITS / 8;
 const STATIC_DATA_CACHE_VERSION = 6;
+const USER_SETTINGS_KEY        = "t2builder.userSettings.v1";
+const STOCKPILE_TEXT_KEY       = "t2builder.stockpileText.v1";
+const LEGACY_STOCKPILE_KEY     = "tradefind.stockpileText";
 // Distinct from CLIENT_RETRY_MS: TTL for a "we tried but got nothing" cache
 // entry.  Currently the same value but kept separate so they can diverge.
 const NEGATIVE_CACHE_MS        = 5 * 60 * 1000;
@@ -608,6 +611,132 @@ function filterState() {
     stockpile:      stockpileFilter?.value || "all",
     excludeBpcOnly: Boolean(excludeBpcOnly?.checked),
   };
+}
+
+// ---------------------------------------------------------------------------
+// User settings persistence
+// ---------------------------------------------------------------------------
+
+function readStoredSettings() {
+  try {
+    const stored = localStorage.getItem(USER_SETTINGS_KEY);
+    if (!stored) return {};
+    const parsed = JSON.parse(stored);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function storedStockpileText() {
+  try {
+    return localStorage.getItem(STOCKPILE_TEXT_KEY) || localStorage.getItem(LEGACY_STOCKPILE_KEY) || "";
+  } catch {
+    return "";
+  }
+}
+
+function selectHasValue(select, value) {
+  if (!select || value === null || value === undefined) return false;
+  return Array.from(select.options).some((option) => option.value === String(value));
+}
+
+function setSelectIfAvailable(select, value) {
+  if (!selectHasValue(select, value)) return false;
+  select.value = String(value);
+  return true;
+}
+
+function currentUserSettings() {
+  const fieldValues = {};
+  for (const [id, field] of fieldElements) {
+    if (field) fieldValues[id] = field.value;
+  }
+  return {
+    version: 1,
+    sourceHub: sourceHub?.value || "jita",
+    sellHub: sellHub?.value || "jita",
+    buildSystem: buildSystem?.value || "",
+    buildSystemId: buildSystemId?.value || "",
+    structureType: structureType?.value || "npc",
+    productRig: productRig?.value || "none",
+    componentRig: componentRig?.value || "none",
+    decryptor: decryptor?.value || "none",
+    fields: fieldValues,
+    typeFilters: Object.fromEntries(typeFilters.map((input) => [input.value, input.checked])),
+    excludeBpcOnly: Boolean(excludeBpcOnly?.checked),
+    stockpileFilter: stockpileFilter?.value || "all",
+    sort: { ...sortState },
+  };
+}
+
+function persistUserSettings() {
+  try {
+    localStorage.setItem(USER_SETTINGS_KEY, JSON.stringify(currentUserSettings()));
+  } catch {
+    // Storage can be unavailable in private modes or full profiles; the app
+    // should remain usable even when persistence is denied.
+  }
+}
+
+function restoreUserSettings() {
+  const settings = readStoredSettings();
+  const storedFields = settings.fields || {};
+
+  for (const [id, value] of Object.entries(storedFields)) {
+    const field = fieldElement(id);
+    if (field && value !== null && value !== undefined) field.value = String(value);
+  }
+
+  setSelectIfAvailable(sourceHub, settings.sourceHub);
+  setSelectIfAvailable(sellHub, settings.sellHub);
+  setSelectIfAvailable(structureType, settings.structureType);
+
+  refreshRigOptions();
+  setSelectIfAvailable(productRig, settings.productRig);
+  setSelectIfAvailable(componentRig, settings.componentRig);
+  syncRigControls();
+
+  setSelectIfAvailable(decryptor, settings.decryptor);
+  setSelectIfAvailable(stockpileFilter, settings.stockpileFilter);
+
+  if (settings.typeFilters && typeof settings.typeFilters === "object") {
+    for (const input of typeFilters) {
+      if (Object.prototype.hasOwnProperty.call(settings.typeFilters, input.value)) {
+        input.checked = Boolean(settings.typeFilters[input.value]);
+      }
+    }
+  }
+  if (excludeBpcOnly && typeof settings.excludeBpcOnly === "boolean") {
+    excludeBpcOnly.checked = settings.excludeBpcOnly;
+  }
+
+  if (settings.buildSystem) {
+    buildSystem.value = String(settings.buildSystem);
+    const match = staticSystems.get(buildSystem.value.trim().toLowerCase());
+    buildSystemId.value = match ? String(match.id) : String(settings.buildSystemId || buildSystemId.value || "");
+  } else if (settings.buildSystemId) {
+    buildSystemId.value = String(settings.buildSystemId);
+  }
+
+  if (
+    settings.sort
+    && typeof settings.sort === "object"
+    && settings.sort.key
+    && sortButtons.some((button) => button.dataset.sort === settings.sort.key)
+    && ["asc", "desc"].includes(settings.sort.direction)
+  ) {
+    sortState = { key: String(settings.sort.key), direction: settings.sort.direction };
+    updateSortHeaders();
+  }
+
+  if (stockpilePaste) {
+    const stockpileText = settings.stockpileText ?? storedStockpileText();
+    stockpilePaste.value = stockpileText;
+    applyStockpileText(stockpileText, { persist: false, refresh: false });
+  }
+
+  persistUserSettings();
 }
 
 function filteredItems(items, state = filterState()) {
@@ -1370,20 +1499,21 @@ function updateStockpileStatus() {
 
 function applyStockpileText(text, options = {}) {
   const { persist = true, refresh = true } = options;
-  if (persist) localStorage.setItem("tradefind.stockpileText", text);
+  if (persist) {
+    try {
+      localStorage.setItem(STOCKPILE_TEXT_KEY, text);
+      localStorage.setItem(LEGACY_STOCKPILE_KEY, text);
+    } catch {
+      // Ignore storage failures; the pasted stockpile still applies in memory.
+    }
+  }
   stockpileEntriesList = staticData ? parseInventoryText(text) : [];
   stockpileVersion += 1;
   itemCache.clear();
   updateStockpileStatus();
+  if (persist) persistUserSettings();
   if (refresh && staticData) scheduleRefresh(0);
   if (refresh && activeBuildItem) refreshBuildDetail();
-}
-
-function loadStoredStockpile() {
-  if (!stockpilePaste) return;
-  const stored = localStorage.getItem("tradefind.stockpileText") || "";
-  stockpilePaste.value = stored;
-  applyStockpileText(stored, { persist: false, refresh: false });
 }
 
 function materialRowsHtml(items, emptyText = "None", options = {}) {
@@ -1623,8 +1753,7 @@ async function loadStaticData() {
     );
   }
 
-  syncRigControls();
-  loadStoredStockpile();
+  restoreUserSettings();
   await ensureAnalysisWorker();
   return staticData;
 }
@@ -1846,16 +1975,21 @@ for (const tab of filterTabs) {
   });
 }
 
-sourceHub.addEventListener("change",   () => scheduleRefresh(0));
-sellHub.addEventListener("change",     () => scheduleRefresh(0));
-structureType.addEventListener("change", () => { syncRigControls(); scheduleRefresh(0); });
-productRig.addEventListener("change",  () => scheduleRefresh(0));
-componentRig.addEventListener("change",() => scheduleRefresh(0));
-decryptor.addEventListener("change",   () => scheduleRefresh(0));
+sourceHub.addEventListener("change", () => { persistUserSettings(); scheduleRefresh(0); });
+sellHub.addEventListener("change", () => { persistUserSettings(); scheduleRefresh(0); });
+structureType.addEventListener("change", () => {
+  syncRigControls();
+  persistUserSettings();
+  scheduleRefresh(0);
+});
+productRig.addEventListener("change", () => { persistUserSettings(); scheduleRefresh(0); });
+componentRig.addEventListener("change", () => { persistUserSettings(); scheduleRefresh(0); });
+decryptor.addEventListener("change", () => { persistUserSettings(); scheduleRefresh(0); });
 
 buildSystem.addEventListener("change", () => {
   const match = staticSystems.get(buildSystem.value.trim().toLowerCase());
   if (match) buildSystemId.value = match.id;
+  persistUserSettings();
   scheduleRefresh(0);
 });
 
@@ -1883,6 +2017,7 @@ stockpilePaste.addEventListener("input", () => {
   }, 300);
 });
 stockpileFilter.addEventListener("change", () => {
+  persistUserSettings();
   if (currentData) queueRender(currentData);
 });
 clearStockpile.addEventListener("click", () => {
@@ -1910,6 +2045,7 @@ for (const button of sortButtons) {
     } else {
       sortState = { key, direction: "desc" };
     }
+    persistUserSettings();
     if (currentData) queueRender(currentData);
     else updateSortHeaders();
   });
@@ -1919,6 +2055,7 @@ for (const id of fields) {
   const field = fieldElement(id);
   if (!field) continue;
   field.addEventListener("input", () => {
+    persistUserSettings();
     if (id === "search") scheduleRefresh();
     else if (id === "analysisQuantity") scheduleRefresh(0);
     else if (id === "facilityTaxRate") scheduleRefresh(0);
@@ -1943,10 +2080,16 @@ for (const id of fields) {
 }
 
 for (const field of typeFilters) {
-  field.addEventListener("change", () => scheduleRefresh(0));
+  field.addEventListener("change", () => {
+    persistUserSettings();
+    scheduleRefresh(0);
+  });
 }
 
-excludeBpcOnly?.addEventListener("change", () => scheduleRefresh(0));
+excludeBpcOnly?.addEventListener("change", () => {
+  persistUserSettings();
+  scheduleRefresh(0);
+});
 
 // ---------------------------------------------------------------------------
 // Startup
