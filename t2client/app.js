@@ -93,6 +93,7 @@ const componentBuilds = document.querySelector("#componentBuilds");
 const inventionMaterials = document.querySelector("#inventionMaterials");
 const shoppingList = document.querySelector("#shoppingList");
 const shoppingTotal = document.querySelector("#shoppingTotal");
+const shoppingVolume = document.querySelector("#shoppingVolume");
 const copyShopping = document.querySelector("#copyShopping");
 const sortButtons  = Array.from(document.querySelectorAll(".sort"));
 const typeFilters  = Array.from(document.querySelectorAll(".type-filter"));
@@ -1385,16 +1386,19 @@ function loadStoredStockpile() {
   applyStockpileText(stored, { persist: false, refresh: false });
 }
 
-function materialRowsHtml(items, emptyText = "None") {
+function materialRowsHtml(items, emptyText = "None", options = {}) {
+  const { includeVolume = false } = options;
   if (!items?.length) return `<p class="empty-small">${emptyText}</p>`;
-  return `<table class="mini-table">
-    <thead><tr><th>Item</th><th>Qty</th><th>Est. cost</th></tr></thead>
+  return `<table class="mini-table${includeVolume ? " shopping-table" : ""}">
+    <thead><tr><th>Item</th><th>Qty</th>${includeVolume ? "<th>m3</th>" : ""}<th>Est. cost</th></tr></thead>
     <tbody>
       ${items.map((item) => {
         const name = typeName(item.typeId);
+        const totalVolume = itemVolumeTotal(item);
         return `<tr>
         <td><span class="mini-item"><img class="mini-icon" src="${typeIconUrl(item.typeId, 32)}" alt=""><span title="${escapeHtml(name)}">${escapeHtml(name)}</span></span></td>
         <td>${isk(Math.ceil(item.quantity))}</td>
+        ${includeVolume ? `<td>${formatM3(totalVolume)}</td>` : ""}
         <td>${item.totalPrice === null ? "-" : `${isk(item.totalPrice)} ISK`}</td>
       </tr>`;
       }).join("")}
@@ -1438,6 +1442,20 @@ function shoppingTotalValue(items) {
   return total;
 }
 
+function itemVolumeTotal(item) {
+  return (staticTypes.get(String(item.typeId))?.volume || 0) * Math.ceil(item.quantity || 0);
+}
+
+function shoppingVolumeValue(items) {
+  let total = 0;
+  for (const item of items || []) total += itemVolumeTotal(item);
+  return total;
+}
+
+function formatM3(value) {
+  return `${decimal(value || 0, value >= 100 ? 0 : 2)} m3`;
+}
+
 function renderBuildPlan(detail) {
   const cards = [
     ["Output", `${isk(detail.outputUnits)} units`],
@@ -1466,7 +1484,8 @@ function renderBuildPlan(detail) {
   directMaterials.innerHTML = buildInputRowsHtml(detail.directMaterials);
   componentBuilds.innerHTML = buildInputRowsHtml(detail.componentBuilds, "No intermediate components");
   inventionMaterials.innerHTML = materialRowsHtml(detail.inventionMaterials);
-  shoppingList.innerHTML = materialRowsHtml(detail.shoppingList, "Nothing to buy");
+  shoppingList.innerHTML = materialRowsHtml(detail.shoppingList, "Nothing to buy", { includeVolume: true });
+  if (shoppingVolume) shoppingVolume.textContent = formatM3(shoppingVolumeValue(detail.shoppingList));
   shoppingTotal.textContent = `${isk(shoppingTotalValue(detail.shoppingList))} ISK`;
   lastShoppingText = shoppingText(detail.shoppingList);
 }
@@ -1476,6 +1495,7 @@ async function refreshBuildDetail() {
   const seq = ++buildDetailSeq;
   buildPlan.innerHTML = `<p class="empty-small">Calculating build plan...</p>`;
   if (shoppingTotal) shoppingTotal.textContent = "- ISK";
+  if (shoppingVolume) shoppingVolume.textContent = "- m3";
   try {
     const units = Math.max(1, Math.ceil(Number(buildUnits.value) || 1));
     const detail = await calculateBuildDetail(activeBuildItem.typeId, units);

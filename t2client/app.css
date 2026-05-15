@@ -984,8 +984,14 @@ tbody tr:hover {
   gap: 12px;
 }
 
-.shopping-total {
+.shopping-summary {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.shopping-total {
   color: var(--gold);
   font-family: var(--mono);
   font-size: 12px;
@@ -1058,6 +1064,11 @@ tbody tr:hover {
 .build-input-table th:first-child,
 .build-input-table td:first-child {
   width: 40%;
+}
+
+.shopping-table th:first-child,
+.shopping-table td:first-child {
+  width: 46%;
 }
 
 .build-input-table .required {
