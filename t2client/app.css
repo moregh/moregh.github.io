@@ -460,7 +460,7 @@ textarea:focus {
 }
 
 table {
-  width: max(100%, 1140px);
+  width: max(100%, 1180px);
   table-layout: fixed;
   border-collapse: collapse;
 }
@@ -474,7 +474,7 @@ table {
 }
 
 .col-profit-m3 {
-  width: 64px;
+  width: 58px;
 }
 
 .col-profit {
@@ -487,13 +487,13 @@ table {
 
 .col-margin,
 .col-buy-margin {
-  width: 60px;
+  width: 64px;
 }
 
 .col-cost,
 .col-sell,
 .col-buy {
-  width: 72px;
+  width: 76px;
 }
 
 .col-daily,
@@ -503,7 +503,7 @@ table {
 
 .col-orders,
 .col-volume {
-  width: 60px;
+  width: 64px;
 }
 
 th,
@@ -543,11 +543,11 @@ th {
   background: #080d13;
   color: var(--cyan);
   font-size: 10px;
-  text-align: center;
+  text-align: center !important;
 }
 
 .column-groups th:first-child {
-  text-align: center;
+  text-align: center !important;
 }
 
 thead tr:not(.column-groups) th:nth-child(3),
@@ -559,10 +559,10 @@ tbody td:nth-child(11) {
   border-left: 1px solid rgba(213, 166, 55, 0.25);
 }
 
-th:first-child,
-td:first-child,
-th:nth-child(2),
-td:nth-child(2) {
+thead tr:not(.column-groups) th:first-child,
+tbody td:first-child,
+thead tr:not(.column-groups) th:nth-child(2),
+tbody td:nth-child(2) {
   text-align: left;
 }
 
@@ -572,13 +572,18 @@ tbody td:nth-child(n + 3) {
   padding-left: 4px;
 }
 
-thead tr:not(.column-groups) th:nth-child(2),
-thead tr:not(.column-groups) th:nth-child(7),
-thead tr:not(.column-groups) th:nth-child(10),
-tbody td:nth-child(2),
-tbody td:nth-child(7),
-tbody td:nth-child(10) {
-  padding-right: 12px;
+thead tr:not(.column-groups) th:nth-child(3),
+tbody td:nth-child(3) {
+  padding-left: 0;
+}
+
+thead tr:not(.column-groups) th:nth-child(n + 3) {
+  text-align: center;
+}
+
+thead tr:not(.column-groups) th:nth-child(n + 3) .sort {
+  padding-right: 0;
+  text-align: center;
 }
 
 .sort {
@@ -737,11 +742,6 @@ tbody tr:hover {
 .metric-cell {
   position: relative;
   padding-right: 17px;
-}
-
-tbody td:nth-child(7).metric-cell,
-tbody td:nth-child(10).metric-cell {
-  padding-right: 24px;
 }
 
 .metric-cell::after {
