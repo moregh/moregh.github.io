@@ -460,7 +460,7 @@ textarea:focus {
 }
 
 table {
-  width: max(100%, 1220px);
+  width: max(100%, 1140px);
   table-layout: fixed;
   border-collapse: collapse;
 }
@@ -473,34 +473,37 @@ table {
   width: 72px;
 }
 
-.col-profit-m3,
+.col-profit-m3 {
+  width: 64px;
+}
+
 .col-profit {
-  width: 78px;
+  width: 72px;
 }
 
 .col-buy-profit {
-  width: 78px;
+  width: 72px;
 }
 
 .col-margin,
 .col-buy-margin {
-  width: 64px;
+  width: 60px;
 }
 
 .col-cost,
 .col-sell,
 .col-buy {
-  width: 78px;
+  width: 72px;
 }
 
 .col-daily,
 .col-listed {
-  width: 70px;
+  width: 64px;
 }
 
 .col-orders,
 .col-volume {
-  width: 64px;
+  width: 60px;
 }
 
 th,
@@ -544,7 +547,7 @@ th {
 }
 
 .column-groups th:first-child {
-  text-align: left;
+  text-align: center;
 }
 
 thead tr:not(.column-groups) th:nth-child(3),
@@ -569,11 +572,13 @@ tbody td:nth-child(n + 3) {
   padding-left: 4px;
 }
 
-thead tr:not(.column-groups) th:nth-child(3),
-thead tr:not(.column-groups) th:nth-child(4),
-tbody td:nth-child(3),
-tbody td:nth-child(4) {
-  padding-left: 2px;
+thead tr:not(.column-groups) th:nth-child(2),
+thead tr:not(.column-groups) th:nth-child(7),
+thead tr:not(.column-groups) th:nth-child(10),
+tbody td:nth-child(2),
+tbody td:nth-child(7),
+tbody td:nth-child(10) {
+  padding-right: 12px;
 }
 
 .sort {
@@ -732,6 +737,11 @@ tbody tr:hover {
 .metric-cell {
   position: relative;
   padding-right: 17px;
+}
+
+tbody td:nth-child(7).metric-cell,
+tbody td:nth-child(10).metric-cell {
+  padding-right: 24px;
 }
 
 .metric-cell::after {
