@@ -1259,8 +1259,13 @@ function metricCellHtml(item, def) {
   const { field, fmt, cls } = def;
   const direction = item._changes?.[field] || "same";
   const updated   = direction !== "same" ? " cell-updated" : "";
-  const className = [cls(item), "metric-cell", `change-cell-${direction}`, updated].filter(Boolean).join(" ");
-  return `<td data-field="${field}" class="${className}" title="${fullValue(field, item[field])}">${fmt(item)}</td>`;
+  const className = [cls(item), "metric-cell", updated].filter(Boolean).join(" ");
+  return `<td data-field="${field}" class="${className}" title="${fullValue(field, item[field])}">
+      <span class="metric-value-wrap">
+        <span class="metric-value">${escapeHtml(fmt(item))}</span>
+        <span class="cell-change cell-change-${direction}" aria-hidden="true"></span>
+      </span>
+    </td>`;
 }
 
 function stockpileBadge(item) {
@@ -1287,7 +1292,11 @@ function rowHtml(item) {
     </td>
     <td>${meta.kind}</td>
     ${metricCells}
-    <td data-field="volume" class="metric-cell change-cell-same" title="${fullValue("volume", meta.volume)}">${compact(meta.volume)}</td>
+    <td data-field="volume" class="metric-cell" title="${fullValue("volume", meta.volume)}">
+      <span class="metric-value-wrap metric-value-wrap-static">
+        <span class="metric-value">${escapeHtml(compact(meta.volume))}</span>
+      </span>
+    </td>
   </tr>`;
 }
 
@@ -1296,11 +1305,20 @@ function updateMetricCell(row, item, def) {
   const cell = row.querySelector(`[data-field="${field}"]`);
   if (!cell) return;
   const direction = item._changes?.[field] || "same";
-  cell.className = [cls(item), "metric-cell", `change-cell-${direction}`, direction !== "same" ? "cell-updated" : ""]
+  cell.className = [cls(item), "metric-cell", direction !== "same" ? "cell-updated" : ""]
     .filter(Boolean)
     .join(" ");
   cell.title       = fullValue(field, item[field]);
-  cell.textContent = fmt(item);
+  let value = cell.querySelector(".metric-value");
+  if (!value) {
+    cell.innerHTML = `<span class="metric-value-wrap"><span class="metric-value"></span><span class="cell-change" aria-hidden="true"></span></span>`;
+    value = cell.querySelector(".metric-value");
+  }
+  value.textContent = fmt(item);
+  const indicator = cell.querySelector(".cell-change");
+  if (indicator) {
+    indicator.className = `cell-change cell-change-${direction}`;
+  }
 }
 
 function updateRow(row, item) {

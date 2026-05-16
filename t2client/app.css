@@ -740,20 +740,40 @@ tbody tr:hover {
 }
 
 .metric-cell {
-  position: relative;
-  padding-right: 17px;
+  padding-right: 5px;
 }
 
-.metric-cell::after {
-  position: absolute;
-  right: 5px;
-  top: 50%;
-  transform: translateY(-50%);
-  content: "";
+.metric-value-wrap {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 10px;
+  align-items: center;
+  gap: 3px;
 }
 
-.change-cell-up::after,
-.change-cell-down::after {
+.metric-value-wrap-static {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.metric-value {
+  min-width: 0;
+  overflow: hidden;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cell-change {
+  width: 10px;
+  height: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cell-change-up,
+.cell-change-down {
   width: 0;
   height: 0;
   border-right-width: 4px;
@@ -764,15 +784,15 @@ tbody tr:hover {
   border-left-color: transparent;
 }
 
-.change-cell-up::after {
+.cell-change-up {
   border-bottom: 7px solid var(--profit);
 }
 
-.change-cell-down::after {
+.cell-change-down {
   border-top: 7px solid var(--loss);
 }
 
-.change-cell-same::after {
+.cell-change-same {
   width: 8px;
   height: 2px;
   border-radius: 2px;
