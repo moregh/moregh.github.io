@@ -5,7 +5,7 @@
     Licensed under AGPL License.
 */
 
-import { KILLMAIL_BATCH_SIZE, KILLMAIL_FETCH_DELAY_MS, ZKILL_CONFIG } from './config.js';
+import { KILLMAIL_BATCH_SIZE, KILLMAIL_CACHE_BATCH_SIZE, KILLMAIL_FETCH_DELAY_MS, ZKILL_CONFIG } from './config.js';
 import { getRuntimeMaxKillmails } from './user-settings.js';
 import { showWarning } from './ui.js';
 import { getShipClassification, SHIP_TYPE_TO_GROUP } from './eve-ship-data.js';
@@ -359,7 +359,7 @@ class ZKillboardClient {
                         continue;
                     }
 
-                    const batchSize = Math.min(KILLMAIL_BATCH_SIZE * 2, pendingESIKills.length);
+                    const batchSize = Math.min(KILLMAIL_CACHE_BATCH_SIZE, pendingESIKills.length);
                     const killsToProcess = pendingESIKills.splice(0, batchSize);
 
                     if (killsToProcess.length > 0) {

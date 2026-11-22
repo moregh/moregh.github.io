@@ -80,7 +80,7 @@ export function isExpired(timestamp, expiryHours = CACHE_EXPIRY_HOURS) {
     return now > expiryTime;
 }
 
-async function getCachedData(storeName, key, processResult) {
+async function getCachedData(storeName, key, processResult, expiryHours = CACHE_EXPIRY_HOURS) {
     try {
         const db = await initDB();
         const transaction = db.transaction([storeName], 'readonly');
@@ -91,7 +91,7 @@ async function getCachedData(storeName, key, processResult) {
 
             request.onsuccess = () => {
                 const result = request.result;
-                if (!result || isExpired(result.timestamp)) {
+                if (!result || isExpired(result.timestamp, expiryHours)) {
                     resolve(null);
                     return;
                 }
@@ -364,14 +364,11 @@ export async function getCachedKills(entityType, entityId) {
     const cacheKey = `${entityType}:${entityId}`;
     try {
         return await getCachedData('zkill_kills', cacheKey, result => {
-            if (isExpired(result.timestamp, ZKILL_KILLS_CACHE_HOURS)) {
-                return null;
-            }
             return {
                 kills: result.kills,
                 fetchedAt: result.timestamp
             };
-        });
+        }, ZKILL_KILLS_CACHE_HOURS);
     } catch (e) {
         return null;
     }
@@ -390,9 +387,6 @@ export async function setCachedKills(entityType, entityId, kills) {
 export async function getCachedKillmail(killmailId) {
     try {
         return await getCachedData('esi_killmails', parseInt(killmailId), result => {
-            if (isExpired(result.timestamp, ESI_KILLMAILS_CACHE_HOURS)) {
-                return null;
-            }
             return {
                 killmailId: result.killmail_id,
                 hash: result.hash,
@@ -400,7 +394,7 @@ export async function getCachedKillmail(killmailId) {
                 killmail: result.killmail_data,
                 fetchedAt: result.timestamp
             };
-        });
+        }, ESI_KILLMAILS_CACHE_HOURS);
     } catch (e) {
         return null;
     }

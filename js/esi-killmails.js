@@ -6,7 +6,7 @@
 */
 
 import { esiClient } from './esi-client.js';
-import { getCachedKillmail, setCachedKillmail, getCachedKillmailsBatch, setCachedKillmailsBatch } from './database.js';
+import { getCachedKillmailsBatch, setCachedKillmailsBatch } from './database.js';
 
 class ESIKillmailError extends Error {
     constructor(message, killmailId, hash) {
@@ -53,11 +53,14 @@ class ESIKillmailFetcher {
         );
 
         const results = [];
+        const fetchedResults = [];
         let successCount = cachedMap.size;
         let failedCount = 0;
 
-        cachedMap.forEach((cached, killmailId) => {
-            const originalKill = killsToFetch.find(k => k.killmail_id === killmailId);
+        for (const originalKill of killsToFetch) {
+            const cached = cachedMap.get(originalKill.killmail_id);
+            if (!cached) continue;
+
             const result = {
                 killmailId: cached.killmailId,
                 hash: cached.hash,
@@ -68,7 +71,7 @@ class ESIKillmailFetcher {
             if (streaming && onStreamResult) {
                 onStreamResult(result);
             }
-        });
+        }
 
         for (let i = 0; i < killsNeedingFetch.length; i += maxConcurrency) {
             const chunk = killsNeedingFetch.slice(i, i + maxConcurrency);
@@ -95,7 +98,6 @@ class ESIKillmailFetcher {
                             zkbData: kill.zkb,
                             killmail
                         };
-                        await setCachedKillmail(killmailId, hash, kill.zkb, killmail);
                         return result;
                     } else {
                         failedCount++;
@@ -115,6 +117,7 @@ class ESIKillmailFetcher {
             const chunkResults = await Promise.all(chunkPromises);
             const validResults = chunkResults.filter(r => r !== null);
             results.push(...validResults);
+            fetchedResults.push(...validResults);
 
             if (streaming && onStreamResult) {
                 validResults.forEach(result => onStreamResult(result));
@@ -129,6 +132,9 @@ class ESIKillmailFetcher {
                 await new Promise(resolve => setTimeout(resolve, batchDelay));
             }
         }
+
+        // Write fetched mail in one IndexedDB transaction for this batch.
+        await setCachedKillmailsBatch(fetchedResults);
 
         return results;
     }
