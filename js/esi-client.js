@@ -229,7 +229,7 @@ export class ESIClient {
     }
 
     async getKillmail(killmailId, hash, options = {}) {
-        const endpoint = `/killmails/${encodeURIComponent(killmailId)}/${encodeURIComponent(hash)}/?client=warfinder`;
+        const endpoint = `/killmails/${encodeURIComponent(killmailId)}/${encodeURIComponent(hash)}/`;
         const url = `${KILLMAIL_API_BASE}${endpoint}`;
 
         try {
