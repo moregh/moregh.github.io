@@ -152,11 +152,11 @@ export class ESIClient {
         }
     }
 
-    async executeRequest(url, options = {}, retryCount = 0, maxRetries = 3, defaultHeaders = ESI_HEADERS) {
+    async executeRequest(url, options = {}, retryCount = 0, maxRetries = 3, defaultHeaders = ESI_HEADERS, useEsiRateLimit = true) {
         const endpoint = url.replace(ESI_BASE, '').replace(KILLMAIL_API_BASE, '');
 
 
-        const rateLimitCheck = this.shouldWaitForRateLimit();
+        const rateLimitCheck = useEsiRateLimit ? this.shouldWaitForRateLimit() : { shouldWait: false };
         if (rateLimitCheck.shouldWait && retryCount === 0) {
             showWarning(`Rate limit approaching, waiting ${rateLimitCheck.waitTime}ms`);
             console.warn(`Rate limit approaching, waiting ${rateLimitCheck.waitTime}ms`);
@@ -187,7 +187,9 @@ export class ESIClient {
 
             if (error instanceof ESIRateLimitError || error instanceof ESIServerError) {
                 if (retryCount < maxRetries) {
-                    const retryAfterSeconds = Number(error.response?.headers?.get('retry-after'));
+                    const retryAfterSeconds = error.status === 503 ?
+                        Number(error.response?.headers?.get('retry-after')) :
+                        Number.NaN;
                     const baseDelay = error instanceof ESIRateLimitError ?
                         (error.retryAfter * 1000) :
                         (Number.isFinite(retryAfterSeconds) && retryAfterSeconds >= 0 ?
@@ -202,7 +204,7 @@ export class ESIClient {
                     console.warn(`ESI request failed, retrying in ${Math.round(delay)}ms (attempt ${retryCount + 1}/${maxRetries})`);
                     await new Promise(resolve => setTimeout(resolve, delay));
 
-                    return this.executeRequest(url, options, retryCount + 1, maxRetries, defaultHeaders);
+                    return this.executeRequest(url, options, retryCount + 1, maxRetries, defaultHeaders, useEsiRateLimit);
                 }
             }
 
@@ -234,7 +236,7 @@ export class ESIClient {
             return await this.executeRequest(url, {
                 method: 'GET',
                 ...options
-            }, 0, 3, { Accept: 'application/json' });
+            }, 0, 0, { Accept: 'application/json' }, false);
         } catch (error) {
             this.handleError(error, `GET killmail ${killmailId}`);
             throw error;
