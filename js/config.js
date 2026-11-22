@@ -55,6 +55,7 @@ export const PERFORMANCE_CONFIG = {
 
 export const ESI_BASE = "https://esi.evetech.net/latest";
 export const KILLMAIL_API_BASE = "https://kd.f1123.cc/latest";
+export const KILLMAIL_API_PENDING_MAX_WAIT_MS = 15 * 60 * 1000;
 export const USER_AGENT = `EVETargetIntel/${VERSION} (+https://github.com/moregh/moregh.github.io/)`;
 export const ALLOWED_IMAGE_URLS = ['images.evetech.net', 'imageserver.eveonline.com'];
 export const ESI_HEADERS = {

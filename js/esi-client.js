@@ -5,7 +5,7 @@
     Licensed under AGPL License.
 */
 
-import { ESI_BASE, ESI_HEADERS, KILLMAIL_API_BASE } from './config.js';
+import { ESI_BASE, ESI_HEADERS, KILLMAIL_API_BASE, KILLMAIL_API_PENDING_MAX_WAIT_MS } from './config.js';
 import { showError, showWarning, clearErrorMessage } from './ui.js';
 import { APIError, RateLimitError, ServerError } from './errors.js';
 
@@ -231,12 +231,30 @@ export class ESIClient {
     async getKillmail(killmailId, hash, options = {}) {
         const endpoint = `/killmails/${encodeURIComponent(killmailId)}/${encodeURIComponent(hash)}/`;
         const url = `${KILLMAIL_API_BASE}${endpoint}`;
+        const pendingDeadline = Date.now() + KILLMAIL_API_PENDING_MAX_WAIT_MS;
 
         try {
-            return await this.executeRequest(url, {
-                method: 'GET',
-                ...options
-            }, 0, 0, { Accept: 'application/json' }, false);
+            while (true) {
+                const result = await this.executeRequest(url, {
+                    method: 'GET',
+                    ...options
+                }, 0, 0, { Accept: 'application/json' }, false);
+
+                if (result?.status !== 'pending') {
+                    return result;
+                }
+
+                if (Date.now() >= pendingDeadline) {
+                    const error = new Error(`Killmail ${killmailId} was not ready within the configured wait period`);
+                    error.name = 'KillmailPendingTimeoutError';
+                    error.status = 503;
+                    throw error;
+                }
+
+                const retryAfter = Number(result.retry_after_seconds);
+                const delayMs = Number.isFinite(retryAfter) ? Math.max(250, retryAfter * 1000) : 1000;
+                await new Promise(resolve => setTimeout(resolve, Math.min(delayMs, pendingDeadline - Date.now())));
+            }
         } catch (error) {
             this.handleError(error, `GET killmail ${killmailId}`);
             throw error;
