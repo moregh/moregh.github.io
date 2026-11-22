@@ -5,7 +5,7 @@
     Licensed under AGPL License.
 */
 
-import { ESI_BASE, ESI_HEADERS } from './config.js';
+import { ESI_BASE, ESI_HEADERS, KILLMAIL_API_BASE } from './config.js';
 import { showError, showWarning, clearErrorMessage } from './ui.js';
 import { APIError, RateLimitError, ServerError } from './errors.js';
 
@@ -152,8 +152,8 @@ export class ESIClient {
         }
     }
 
-    async executeRequest(url, options = {}, retryCount = 0, maxRetries = 3) {
-        const endpoint = url.replace(ESI_BASE, '');
+    async executeRequest(url, options = {}, retryCount = 0, maxRetries = 3, defaultHeaders = ESI_HEADERS) {
+        const endpoint = url.replace(ESI_BASE, '').replace(KILLMAIL_API_BASE, '');
 
 
         const rateLimitCheck = this.shouldWaitForRateLimit();
@@ -169,7 +169,7 @@ export class ESIClient {
             const response = await fetch(url, {
                 ...options,
                 headers: {
-                    ...ESI_HEADERS,
+                    ...defaultHeaders,
                     ...options.headers
                 }
             });
@@ -187,9 +187,12 @@ export class ESIClient {
 
             if (error instanceof ESIRateLimitError || error instanceof ESIServerError) {
                 if (retryCount < maxRetries) {
+                    const retryAfterSeconds = Number(error.response?.headers?.get('retry-after'));
                     const baseDelay = error instanceof ESIRateLimitError ?
                         (error.retryAfter * 1000) :
-                        (1000 * Math.pow(2, retryCount));
+                        (Number.isFinite(retryAfterSeconds) && retryAfterSeconds >= 0 ?
+                            retryAfterSeconds * 1000 :
+                            1000 * Math.pow(2, retryCount));
 
                     const jitter = Math.random() * 1000;
                     const delay = baseDelay + jitter;
@@ -199,7 +202,7 @@ export class ESIClient {
                     console.warn(`ESI request failed, retrying in ${Math.round(delay)}ms (attempt ${retryCount + 1}/${maxRetries})`);
                     await new Promise(resolve => setTimeout(resolve, delay));
 
-                    return this.executeRequest(url, options, retryCount + 1, maxRetries);
+                    return this.executeRequest(url, options, retryCount + 1, maxRetries, defaultHeaders);
                 }
             }
 
@@ -219,6 +222,21 @@ export class ESIClient {
         } catch (error) {
             const contextMessage = `GET ${endpoint}`;
             this.handleError(error, contextMessage);
+            throw error;
+        }
+    }
+
+    async getKillmail(killmailId, hash, options = {}) {
+        const endpoint = `/killmails/${encodeURIComponent(killmailId)}/${encodeURIComponent(hash)}/?client=warfinder`;
+        const url = `${KILLMAIL_API_BASE}${endpoint}`;
+
+        try {
+            return await this.executeRequest(url, {
+                method: 'GET',
+                ...options
+            }, 0, 3, { Accept: 'application/json' });
+        } catch (error) {
+            this.handleError(error, `GET killmail ${killmailId}`);
             throw error;
         }
     }

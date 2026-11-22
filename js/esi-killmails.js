@@ -85,7 +85,7 @@ class ESIKillmailFetcher {
                     }
 
                     this.fetchCount++;
-                    const killmail = await esiClient.get(`/killmails/${killmailId}/${hash}/`);
+                    const killmail = await esiClient.getKillmail(killmailId, hash);
 
                     if (killmail) {
                         successCount++;

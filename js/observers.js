@@ -16,6 +16,7 @@ import {
     SCROLL_DETECTION_TIME_MS,
     CONCURRENT_IMAGE_LOAD_DIVISOR
 } from './config.js';
+import { chunkArray } from './array-utils.js';
 
 export class ManagedObservers {
     constructor() {
@@ -115,7 +116,7 @@ export class ManagedObservers {
 
     processBatches() {
         const batchSize = Math.max(1, Math.floor(Number(PERFORMANCE_CONFIG.BATCH_SIZE) || 1));
-        const imageBatches = this.chunkArray(this.pendingImageObservations, batchSize);
+        const imageBatches = chunkArray(this.pendingImageObservations, batchSize);
 
         imageBatches.forEach(batch => {
             batch.forEach(img => {
@@ -130,7 +131,7 @@ export class ManagedObservers {
             });
         });
 
-    const animationBatches = this.chunkArray(this.pendingAnimationObservations, batchSize);
+    const animationBatches = chunkArray(this.pendingAnimationObservations, batchSize);
         animationBatches.forEach(batch => {
             batch.forEach(element => {
                 if (document.contains(element) && !this.observedAnimations.has(element)) {
@@ -148,14 +149,7 @@ export class ManagedObservers {
         this.pendingAnimationObservations = [];
     }
 
-    chunkArray(array, chunkSize) {
-        const chunks = [];
-        const size = Math.max(1, Math.floor(Number(chunkSize) || 1));
-        for (let i = 0; i < array.length; i += size) {
-            chunks.push(array.slice(i, i + size));
-        }
-        return chunks;
-    }
+    // chunkArray now imported from shared utility (js/array-utils.js)
 
     cleanup() {
         if (this.batchTimeout) {

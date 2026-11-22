@@ -19,10 +19,10 @@ export class ThreatAssessment {
 
         const recencyScore = this.calculateRecencyScore(rawKillmails, now);
         const frequencyScore = this.calculateFrequencyScore(rawKillmails, zkillStats, now);
-        const hvtScore = this.calculateHVTScore(analysis, zkillStats);
-        const shipCapabilityScore = this.calculateShipCapabilityScore(analysis, zkillStats);
+        const hvtScore = this.calculateHVTScore(analysis);
+        const shipCapabilityScore = this.calculateShipCapabilityScore(analysis);
         const securityScore = this.calculateSecurityScore(zkillStats.securityPreference);
-        const soloScore = this.calculateSoloScore(zkillStats, analysis);
+        const soloScore = this.calculateSoloScore(zkillStats);
 
         let totalScore = Math.round(
             recencyScore * this.config.RISK_WEIGHTS.RECENCY +
@@ -34,19 +34,19 @@ export class ThreatAssessment {
         );
 
         if (zkillStats.combatStyle?.fleetRole === 'Blobber') {
-            totalScore = Math.max(0, totalScore - 15);
+            totalScore = Math.max(0, totalScore + THREAT_ASSESSMENT.SCORING.FLEET.BLOBBER); // use plus since BLOBBER score is negative
         }
         if (zkillStats.combatStyle?.fleetRole === 'Fleet Fighter') {
-            totalScore = Math.max(0, totalScore - 10);
+            totalScore = Math.max(0, totalScore + THREAT_ASSESSMENT.SCORING.FLEET.FLEET_FIGHTER); // same here
+        }
+        if (zkillStats.combatStyle?.fleetRole === 'Small Gang') {
+            totalScore = Math.min(100, totalScore + THREAT_ASSESSMENT.SCORING.FLEET.SMALL_GANG);
+        }
+        if (zkillStats.combatStyle?.fleetRole === 'Solo Hunter') {
+            totalScore = Math.min(100, totalScore + THREAT_ASSESSMENT.SCORING.FLEET.SOLO_HUNTER);
         }
 
-        // Bonus for active capital usage
-        if (analysis?.capitalAnalysis?.isCapitalPilot) {
-            const capBonus = this.config.RISK_SCORE?.CAPITAL_PILOT_BONUS || 10;
-            totalScore = totalScore + capBonus;
-        }
-
-        const tags = this.generateTags(zkillStats, killmailData, rawKillmails, now);
+        const tags = this.generateTags(killmailData, rawKillmails, now);
 
         return {
             totalScore,
@@ -166,7 +166,7 @@ export class ThreatAssessment {
         return score;
     }
 
-    calculateHVTScore(analysis, zkillStats) {
+    calculateHVTScore(analysis) {
         if (!analysis) return 0;
 
         const hvtData = analysis.hvtAnalysis;
@@ -188,7 +188,7 @@ export class ThreatAssessment {
         return 0;
     }
 
-    calculateShipCapabilityScore(analysis, zkillStats) {
+    calculateShipCapabilityScore(analysis) {
         const cfg = this.config.SCORING.SHIP_CAPABILITY;
         let score = 0;
 
@@ -204,6 +204,10 @@ export class ThreatAssessment {
             if (conf === 'very high') score += cfg.CYNO_VERY_HIGH_SCORE;
             else if (conf === 'high') score += cfg.CYNO_HIGH_SCORE;
             else score += cfg.CYNO_DEFAULT_SCORE;
+        }
+
+        if (analysis?.targetPreferences?.industrialHunter) {
+            score += cfg.INDUSTRIAL_HUNTER_SCORE;
         }
 
         if (analysis?.capitalAnalysis?.isCapitalPilot) {
@@ -233,7 +237,7 @@ export class ThreatAssessment {
         return Math.min(100, score);
     }
 
-    calculateSoloScore(zkillStats, analysis) {
+    calculateSoloScore(zkillStats) {
         const cfg = this.config.SCORING.SOLO;
 
         if (!zkillStats) return cfg.DEFAULT_SCORE;
@@ -267,7 +271,7 @@ export class ThreatAssessment {
         return Math.min(100, score);
     }
 
-    generateTags(zkillStats, killmailData, rawKillmails, now) {
+    generateTags(killmailData, rawKillmails, now) {
         const tags = [];
 
         const lastKillAge = this.getLastKillAge(rawKillmails, now);

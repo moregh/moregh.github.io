@@ -264,8 +264,8 @@ class ZKillKillsClient {
             }
 
             const [oldestKm, newestKm] = await Promise.all([
-                esiClient.get(`/killmails/${oldestKill.killmail_id}/${oldestHash}/`),
-                esiClient.get(`/killmails/${newestKill.killmail_id}/${newestHash}/`)
+                esiClient.getKillmail(oldestKill.killmail_id, oldestHash),
+                esiClient.getKillmail(newestKill.killmail_id, newestHash)
             ]);
 
             if (!oldestKm?.killmail_time || !newestKm?.killmail_time) {
