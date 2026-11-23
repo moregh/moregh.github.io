@@ -18,20 +18,13 @@ class ESIKillmailError extends Error {
 }
 
 class ESIKillmailFetcher {
-    constructor() {
-        this.fetchCount = 0;
-        this.errorCount = 0;
-        this.cacheHits = 0;
-    }
-
     async fetchKillmailsBatch(kills, {
         maxConcurrency = 10,
         batchDelay = 100,
         onProgress = null,
         maxKillmails = 100,
         streaming = false,
-        onStreamResult = null,
-        onCacheMetrics = null
+        onStreamResult = null
     } = {}) {
         if (!Array.isArray(kills) || kills.length === 0) {
             return [];
@@ -42,12 +35,9 @@ class ESIKillmailFetcher {
 
         const cachedKillmails = await getCachedKillmailsBatch(killmailIds);
         const cachedMap = new Map();
-        let apiRequests = 0;
-        let apiErrors = 0;
         cachedKillmails.forEach((cached, index) => {
             if (cached) {
                 cachedMap.set(killmailIds[index], cached);
-                this.cacheHits++;
             }
         });
 
@@ -90,8 +80,6 @@ class ESIKillmailFetcher {
                         return null;
                     }
 
-                    this.fetchCount++;
-                    apiRequests++;
                     const killmail = await esiClient.getKillmail(killmailId, hash);
 
                     if (killmail) {
@@ -109,8 +97,6 @@ class ESIKillmailFetcher {
                     }
 
                 } catch (error) {
-                    this.errorCount++;
-                    apiErrors++;
                     if (error.status !== 404 && error.status !== 422) {
                         console.error('Error fetching killmail in batch:', error);
                     }
@@ -140,18 +126,7 @@ class ESIKillmailFetcher {
 
         // Persist fetched mail in one IndexedDB transaction so the next load
         // can bypass the per-killmail HTTP requests entirely.
-        const cacheWrite = await setCachedKillmailsBatch(fetchedResults);
-        if (onCacheMetrics) {
-            onCacheMetrics({
-                requested: killsToFetch.length,
-                indexedDbHits: cachedMap.size,
-                indexedDbMisses: killsNeedingFetch.length,
-                apiRequests,
-                apiErrors,
-                cacheWriteAttempted: cacheWrite.attempted,
-                cacheWriteSucceeded: cacheWrite.written
-            });
-        }
+        await setCachedKillmailsBatch(fetchedResults);
 
         return results;
     }

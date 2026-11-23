@@ -876,19 +876,7 @@ class ZKillStatsCard {
             if (content) content.innerHTML = this.createEmptyStateHTML(entityName);
             return;
         }
-        if (content) {
-            const renderStartedAt = globalThis.performance?.now?.() ?? Date.now();
-            const html = await this.createStatsHTML(stats, entityType, entityId);
-            const htmlBuiltAt = globalThis.performance?.now?.() ?? Date.now();
-            content.innerHTML = html;
-            const domInsertedAt = globalThis.performance?.now?.() ?? Date.now();
-            console.info('Killmail render timings', {
-                entityType,
-                entityId,
-                htmlBuildMs: htmlBuiltAt - renderStartedAt,
-                domInsertMs: domInsertedAt - htmlBuiltAt
-            });
-        }
+        if (content) content.innerHTML = await this.createStatsHTML(stats, entityType, entityId);
 
         const memberCountEl = elems.memberCountEl || this.currentModal.querySelector('#zkill-header-member-count');
         if (memberCountEl && entityType !== 'character' && stats.memberCount) {
@@ -1693,9 +1681,7 @@ class ZKillStatsCard {
                 return;
             }
 
-            const renderStartedAt = globalThis.performance?.now?.() ?? Date.now();
             const content = await this.createStatsHTML(stats, entityType, entityId);
-            const htmlBuiltAt = globalThis.performance?.now?.() ?? Date.now();
 
             const logoSize = entityType === 'character' ? CHARACTER_PORTRAIT_SIZE_PX :
                 entityType === 'corporation' ? CORP_LOGO_SIZE_PX : ALLIANCE_LOGO_SIZE_PX;
@@ -1708,7 +1694,6 @@ class ZKillStatsCard {
             const memberText = (entityType !== 'character' && stats.memberCount) ?
                 `${this.formatNumber(stats.memberCount)} member${stats.memberCount !== 1 ? 's' : ''}` : '';
 
-            const affiliationStartedAt = globalThis.performance?.now?.() ?? Date.now();
             let affiliationBadges = '';
             if (entityType === 'character') {
                 let character = this.completeResults.find(char => char.character_id == entityId);
@@ -1752,14 +1737,12 @@ class ZKillStatsCard {
                 }
             }
 
-            const affiliationMs = (globalThis.performance?.now?.() ?? Date.now()) - affiliationStartedAt;
             let playstyleTags = '';
             if (stats.combatStyle?.playstyleDetails?.length > 0) {
                 const tags = stats.combatStyle.playstyleDetails;
                 playstyleTags = tags.map(tag => `<span class="tag tag-${tag.toLowerCase().replace(/[\/\s]/g, '-')}">${tag}</span>`).join('');
             }
 
-            const beforeDomInsertAt = globalThis.performance?.now?.() ?? Date.now();
             containerElement.innerHTML = `
                 <div class="detail-header">
                     <img src="https://images.evetech.net/${imageType}/${entityId}/${imagePath}?size=${logoSize}"
@@ -1778,22 +1761,6 @@ class ZKillStatsCard {
                 </div>
                 ${content}
             `;
-            const domInsertedAt = globalThis.performance?.now?.() ?? Date.now();
-            console.info('Killmail render timings', {
-                entityType,
-                entityId,
-                htmlBuildMs: htmlBuiltAt - renderStartedAt,
-                affiliationMs,
-                headerPreparationMs: beforeDomInsertAt - htmlBuiltAt,
-                domInsertMs: domInsertedAt - beforeDomInsertAt
-            });
-            requestAnimationFrame(() => requestAnimationFrame(() => {
-                console.info('Killmail render frame timing', {
-                    entityType,
-                    entityId,
-                    framesAfterInsertMs: (globalThis.performance?.now?.() ?? Date.now()) - domInsertedAt
-                });
-            }));
 
             this.setupSectionToggleHandlers(containerElement);
 

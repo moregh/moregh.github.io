@@ -42,7 +42,6 @@ async function pruneKillmailCache() {
     const timestampIndex = store.index('timestamp');
     const cutoff = Date.now() - ESI_KILLMAILS_CACHE_HOURS * 60 * 60 * 1000;
     let remainingCount = 0;
-    let deletedCount = 0;
 
     await new Promise((resolve, reject) => {
         transaction.oncomplete = resolve;
@@ -64,7 +63,6 @@ async function pruneKillmailCache() {
                 if (expired || remainingCount > ESI_KILLMAIL_CACHE_MAX_ITEMS) {
                     cursor.delete();
                     remainingCount--;
-                    deletedCount++;
                     cursor.continue();
                     return;
                 }
@@ -72,9 +70,6 @@ async function pruneKillmailCache() {
         };
     });
 
-    if (deletedCount > 0) {
-        console.info('Pruned expired/old killmail cache entries', { deletedCount, remainingCount });
-    }
 }
 
 export async function initDB() {
@@ -522,7 +517,7 @@ export async function getCachedKillmailsBatch(killmailIds) {
 
 export async function setCachedKillmailsBatch(killmails) {
     if (!Array.isArray(killmails) || killmails.length === 0) {
-        return { attempted: 0, written: 0 };
+        return;
     }
 
     const validKillmails = killmails.filter(km => km && km.killmailId && km.killmail);
@@ -543,7 +538,7 @@ export async function setCachedKillmailsBatch(killmails) {
             });
         });
 
-        await new Promise((resolve, reject) => {
+        return await new Promise((resolve, reject) => {
             transaction.oncomplete = resolve;
             transaction.onerror = () => {
                 console.warn('Error batch writing killmails:', transaction.error);
@@ -554,10 +549,8 @@ export async function setCachedKillmailsBatch(killmails) {
             };
         });
 
-        return { attempted: validKillmails.length, written: validKillmails.length };
     } catch (e) {
         console.warn('Error batch writing killmails:', e);
-        return { attempted: validKillmails.length, written: 0 };
     }
 }
 

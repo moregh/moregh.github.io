@@ -17,8 +17,6 @@ import { assessEntityThreat } from './threat-assessment.js';
 import { ZKillError, computePoW, getProxyParam, executeWithRetry } from './zkill-utils.js';
 import { calculateTimezoneFromHourlyData, calculateTimezoneFromKillmails } from './timezone-utils.js';
 
-const nowMs = () => globalThis.performance?.now?.() ?? Date.now();
-
 function distributePercentages(items, total, getCount) {
     if (total === 0) return items.map(item => ({ ...item, percentage: 0 }));
 
@@ -331,37 +329,25 @@ class ZKillboardClient {
                 if (this.pendingKillmailLoads.get(key) === entry) {
                     this.pendingKillmailLoads.delete(key);
                 }
-                if (entry.coalescedCallers > 0) {
-                    console.info('Coalesced duplicate killmail loads', {
-                        entityType,
-                        entityId,
-                        callers: entry.coalescedCallers + 1
-                    });
-                }
             });
         this.pendingKillmailLoads.set(key, entry);
         return entry.promise;
     }
 
     async runEntityStatsWithKillmails(entityType, entityId, options = {}) {
-        const totalStartedAt = nowMs();
-        const stageTimings = {};
         const {
             maxKillmails,
             fetchKillmails = true,
             onProgress = null
         } = options;
 
-        let stageStartedAt = nowMs();
         const stats = await this.getEntityStats(entityType, entityId);
-        stageTimings.baseStatsMs = nowMs() - stageStartedAt;
 
         if (!fetchKillmails || stats.totalKills === 0) {
             return stats;
         }
 
         const zkillRoleAnalysis = this.analyzeZkillStatsForSpecialRoles(stats);
-        const acquisitionStartedAt = nowMs();
 
         try {
             if (onProgress) {
@@ -374,15 +360,6 @@ class ZKillboardClient {
             let zkillComplete = false;
             let esiComplete = false;
             let totalZkillKills = 0;
-            const killmailCacheMetrics = {
-                requested: 0,
-                indexedDbHits: 0,
-                indexedDbMisses: 0,
-                apiRequests: 0,
-                apiErrors: 0,
-                cacheWriteAttempted: 0,
-                cacheWriteSucceeded: 0
-            };
 
             const zkillProgress = (page, totalKills, estimatedDays, status) => {
                 totalZkillKills = totalKills;
@@ -444,11 +421,6 @@ class ZKillboardClient {
                             onStreamResult: (result) => {
                                 allKillmails.push(result);
                             },
-                            onCacheMetrics: (metrics) => {
-                                for (const key of Object.keys(killmailCacheMetrics)) {
-                                    killmailCacheMetrics[key] += metrics[key] || 0;
-                                }
-                            },
                             onProgress: (processed, total, successCount, failedCount) => {
                                 if (onProgress) {
                                     const totalExpected = zkillComplete ? allKills.length : Math.max(allKills.length, totalZkillKills);
@@ -466,33 +438,18 @@ class ZKillboardClient {
             })();
 
             await Promise.all([zkillPromise, esiPromise]);
-            stageTimings.killmailAcquisitionMs = nowMs() - acquisitionStartedAt;
-
-            console.info('Killmail cache summary', {
-                entityType,
-                entityId,
-                ...killmailCacheMetrics,
-                cacheWriteFailed: killmailCacheMetrics.cacheWriteAttempted - killmailCacheMetrics.cacheWriteSucceeded
-            });
 
             if (!allKills || allKills.length === 0) {
-                console.info('Killmail stage timings', {
-                    entityType, entityId, ...stageTimings, totalMs: nowMs() - totalStartedAt
-                });
                 return stats;
             }
 
             const killmails = allKillmails;
 
             if (killmails && killmails.length > 0) {
-                stageStartedAt = nowMs();
                 const detailedAnalysis = analyzeKillmails(killmails, entityType, entityId);
-                stageTimings.analysisMs = nowMs() - stageStartedAt;
 
-                stageStartedAt = nowMs();
                 const recentKills = await getRecentKills(killmails, 10);
                 const topValueKills = getTopValueKills(killmails, 5);
-                stageTimings.recentAndTopKillsMs = nowMs() - stageStartedAt;
 
                 const mergedAnalysis = this.mergeAnalyses(detailedAnalysis, zkillRoleAnalysis);
 
@@ -506,9 +463,7 @@ class ZKillboardClient {
                 };
 
                 stats.combatStyle = this.enrichCombatStyleWithKillmails(stats.combatStyle, mergedAnalysis, stats);
-                stageStartedAt = nowMs();
                 stats.securityPreference = await this.analyzeSecurityPreferenceFromKillmails(killmails, stats._rawData);
-                stageTimings.securityAnalysisMs = nowMs() - stageStartedAt;
 
                 if (!stats.activityData.hasData) {
                     stats.activityData = this.extractActivityDataFromKillmails(killmails);
@@ -525,9 +480,7 @@ class ZKillboardClient {
                     }
                 }
 
-                stageStartedAt = nowMs();
                 stats.threatAssessment = assessEntityThreat(stats, stats.killmailData);
-                stageTimings.threatAssessmentMs = nowMs() - stageStartedAt;
                 // Rendering only needs the compact analysis and selected kills.
                 // Release the full ESI payloads before returning the report.
                 delete stats.killmailData.rawKillmails;
@@ -543,9 +496,6 @@ class ZKillboardClient {
             console.error('Error fetching killmail data:', error);
         }
 
-        console.info('Killmail stage timings', {
-            entityType, entityId, ...stageTimings, totalMs: nowMs() - totalStartedAt
-        });
         return stats;
     }
 
