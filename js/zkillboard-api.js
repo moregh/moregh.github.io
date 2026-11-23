@@ -310,6 +310,15 @@ class ZKillboardClient {
             let zkillComplete = false;
             let esiComplete = false;
             let totalZkillKills = 0;
+            const killmailCacheMetrics = {
+                requested: 0,
+                indexedDbHits: 0,
+                indexedDbMisses: 0,
+                apiRequests: 0,
+                apiErrors: 0,
+                cacheWriteAttempted: 0,
+                cacheWriteSucceeded: 0
+            };
 
             const zkillProgress = (page, totalKills, estimatedDays, status) => {
                 totalZkillKills = totalKills;
@@ -371,6 +380,11 @@ class ZKillboardClient {
                             onStreamResult: (result) => {
                                 allKillmails.push(result);
                             },
+                            onCacheMetrics: (metrics) => {
+                                for (const key of Object.keys(killmailCacheMetrics)) {
+                                    killmailCacheMetrics[key] += metrics[key] || 0;
+                                }
+                            },
                             onProgress: (processed, total, successCount, failedCount) => {
                                 if (onProgress) {
                                     const totalExpected = zkillComplete ? allKills.length : Math.max(allKills.length, totalZkillKills);
@@ -388,6 +402,13 @@ class ZKillboardClient {
             })();
 
             await Promise.all([zkillPromise, esiPromise]);
+
+            console.info('Killmail cache summary', {
+                entityType,
+                entityId,
+                ...killmailCacheMetrics,
+                cacheWriteFailed: killmailCacheMetrics.cacheWriteAttempted - killmailCacheMetrics.cacheWriteSucceeded
+            });
 
             if (!allKills || allKills.length === 0) {
                 return stats;

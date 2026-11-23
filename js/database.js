@@ -454,9 +454,10 @@ export async function getCachedKillmailsBatch(killmailIds) {
 
 export async function setCachedKillmailsBatch(killmails) {
     if (!Array.isArray(killmails) || killmails.length === 0) {
-        return;
+        return { attempted: 0, written: 0 };
     }
 
+    const validKillmails = killmails.filter(km => km && km.killmailId && km.killmail);
     try {
         const db = await initDB();
         const transaction = db.transaction(['esi_killmails'], 'readwrite');
@@ -464,27 +465,31 @@ export async function setCachedKillmailsBatch(killmails) {
 
         const timestamp = Date.now();
 
-        killmails.forEach(km => {
-            if (km && km.killmailId && km.killmail) {
-                store.put({
-                    killmail_id: parseInt(km.killmailId),
-                    hash: km.hash,
-                    zkb_data: km.zkbData,
-                    killmail_data: km.killmail,
-                    timestamp: timestamp
-                });
-            }
+        validKillmails.forEach(km => {
+            store.put({
+                killmail_id: parseInt(km.killmailId),
+                hash: km.hash,
+                zkb_data: km.zkbData,
+                killmail_data: km.killmail,
+                timestamp: timestamp
+            });
         });
 
-        return new Promise((resolve, reject) => {
-            transaction.oncomplete = () => resolve();
+        await new Promise((resolve, reject) => {
+            transaction.oncomplete = resolve;
             transaction.onerror = () => {
                 console.warn('Error batch writing killmails:', transaction.error);
                 reject(transaction.error);
             };
+            transaction.onabort = () => {
+                reject(transaction.error || new Error('Killmail cache transaction aborted'));
+            };
         });
+
+        return { attempted: validKillmails.length, written: validKillmails.length };
     } catch (e) {
         console.warn('Error batch writing killmails:', e);
+        return { attempted: validKillmails.length, written: 0 };
     }
 }
 

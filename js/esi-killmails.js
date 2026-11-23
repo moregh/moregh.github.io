@@ -30,7 +30,8 @@ class ESIKillmailFetcher {
         onProgress = null,
         maxKillmails = 100,
         streaming = false,
-        onStreamResult = null
+        onStreamResult = null,
+        onCacheMetrics = null
     } = {}) {
         if (!Array.isArray(kills) || kills.length === 0) {
             return [];
@@ -41,6 +42,8 @@ class ESIKillmailFetcher {
 
         const cachedKillmails = await getCachedKillmailsBatch(killmailIds);
         const cachedMap = new Map();
+        let apiRequests = 0;
+        let apiErrors = 0;
         cachedKillmails.forEach((cached, index) => {
             if (cached) {
                 cachedMap.set(killmailIds[index], cached);
@@ -88,6 +91,7 @@ class ESIKillmailFetcher {
                     }
 
                     this.fetchCount++;
+                    apiRequests++;
                     const killmail = await esiClient.getKillmail(killmailId, hash);
 
                     if (killmail) {
@@ -106,6 +110,7 @@ class ESIKillmailFetcher {
 
                 } catch (error) {
                     this.errorCount++;
+                    apiErrors++;
                     if (error.status !== 404 && error.status !== 422) {
                         console.error('Error fetching killmail in batch:', error);
                     }
@@ -133,8 +138,20 @@ class ESIKillmailFetcher {
             }
         }
 
-        // Write fetched mail in one IndexedDB transaction for this batch.
-        await setCachedKillmailsBatch(fetchedResults);
+        // Persist fetched mail in one IndexedDB transaction so the next load
+        // can bypass the per-killmail HTTP requests entirely.
+        const cacheWrite = await setCachedKillmailsBatch(fetchedResults);
+        if (onCacheMetrics) {
+            onCacheMetrics({
+                requested: killsToFetch.length,
+                indexedDbHits: cachedMap.size,
+                indexedDbMisses: killsNeedingFetch.length,
+                apiRequests,
+                apiErrors,
+                cacheWriteAttempted: cacheWrite.attempted,
+                cacheWriteSucceeded: cacheWrite.written
+            });
+        }
 
         return results;
     }
