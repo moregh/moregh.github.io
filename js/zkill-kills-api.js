@@ -250,38 +250,46 @@ class ZKillKillsClient {
         }
 
         try {
-            const { esiClient } = await import('./esi-client.js');
-
             const oldestKill = kills[kills.length - 1];
             const newestKill = kills[0];
 
-            const oldestHash = oldestKill.zkb?.hash;
-            const newestHash = newestKill.zkb?.hash;
+            let oldestTimeValue = oldestKill.killmail_time;
+            let newestTimeValue = newestKill.killmail_time;
 
-            if (!oldestHash || !newestHash) {
-                console.warn('Missing hash for verification, using estimation');
-                return { meetsRequirement: false, actualDays: 0 };
+            // The zKill worker often already provides complete ESI killmails.
+            // Only ask the API for timestamps absent from that payload.
+            const missingTimes = [];
+            if (!oldestTimeValue) missingTimes.push({ kill: oldestKill, index: 'oldest' });
+            if (!newestTimeValue) missingTimes.push({ kill: newestKill, index: 'newest' });
+
+            if (missingTimes.length > 0) {
+                const { esiClient } = await import('./esi-client.js');
+                const responses = await Promise.all(missingTimes.map(({ kill }) => {
+                    const hash = kill.zkb?.hash;
+                    return kill.killmail_id && hash
+                        ? esiClient.getKillmail(kill.killmail_id, hash)
+                        : Promise.resolve(null);
+                }));
+                missingTimes.forEach(({ index }, i) => {
+                    if (index === 'oldest') oldestTimeValue = responses[i]?.killmail_time;
+                    else newestTimeValue = responses[i]?.killmail_time;
+                });
             }
 
-            const [oldestKm, newestKm] = await Promise.all([
-                esiClient.getKillmail(oldestKill.killmail_id, oldestHash),
-                esiClient.getKillmail(newestKill.killmail_id, newestHash)
-            ]);
-
-            if (!oldestKm?.killmail_time || !newestKm?.killmail_time) {
+            if (!oldestTimeValue || !newestTimeValue) {
                 console.warn('Missing killmail_time in ESI response');
                 return { meetsRequirement: false, actualDays: 0 };
             }
 
-            const oldestTime = new Date(oldestKm.killmail_time).getTime();
-            const newestTime = new Date(newestKm.killmail_time).getTime();
+            const oldestTime = new Date(oldestTimeValue).getTime();
+            const newestTime = new Date(newestTimeValue).getTime();
             const actualDays = (newestTime - oldestTime) / (1000 * 60 * 60 * 24);
 
             return {
                 meetsRequirement: actualDays >= targetDays,
                 actualDays,
-                oldestTime: oldestKm.killmail_time,
-                newestTime: newestKm.killmail_time
+                oldestTime: oldestTimeValue,
+                newestTime: newestTimeValue
             };
 
         } catch (error) {

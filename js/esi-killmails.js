@@ -17,6 +17,35 @@ class ESIKillmailError extends Error {
     }
 }
 
+function getEmbeddedKillmail(kill) {
+    const mail = kill?.killmail && typeof kill.killmail === 'object' ? kill.killmail : kill;
+    if (!mail ||
+        !Number.isInteger(mail.killmail_id) || mail.killmail_id <= 0 ||
+        typeof mail.killmail_time !== 'string' ||
+        !Number.isInteger(mail.solar_system_id) || mail.solar_system_id <= 0 ||
+        !mail.victim || typeof mail.victim !== 'object' ||
+        !Array.isArray(mail.attackers)) {
+        return null;
+    }
+
+    // zKill worker records contain the ESI killmail fields plus `zkb` metadata.
+    // Keep only the ESI shape so consumers get the same object as the API.
+    const killmail = {
+        killmail_id: mail.killmail_id,
+        killmail_time: mail.killmail_time,
+        solar_system_id: mail.solar_system_id,
+        victim: mail.victim,
+        attackers: mail.attackers
+    };
+
+    return {
+        killmailId: mail.killmail_id,
+        hash: kill?.zkb?.hash || null,
+        zkbData: kill?.zkb || null,
+        killmail
+    };
+}
+
 class ESIKillmailFetcher {
     async fetchKillmailsBatch(kills, {
         maxConcurrency = 10,
@@ -41,7 +70,7 @@ class ESIKillmailFetcher {
             }
         });
 
-        const killsNeedingFetch = killsToFetch.filter(kill =>
+        const killsMissingFromCache = killsToFetch.filter(kill =>
             !cachedMap.has(kill.killmail_id)
         );
 
@@ -49,6 +78,7 @@ class ESIKillmailFetcher {
         const fetchedResults = [];
         let successCount = cachedMap.size;
         let failedCount = 0;
+        const killsNeedingApiFetch = [];
 
         for (const originalKill of killsToFetch) {
             const cached = cachedMap.get(originalKill.killmail_id);
@@ -66,8 +96,26 @@ class ESIKillmailFetcher {
             }
         }
 
-        for (let i = 0; i < killsNeedingFetch.length; i += maxConcurrency) {
-            const chunk = killsNeedingFetch.slice(i, i + maxConcurrency);
+        for (const kill of killsMissingFromCache) {
+            const embedded = getEmbeddedKillmail(kill);
+            if (!embedded) {
+                killsNeedingApiFetch.push(kill);
+                continue;
+            }
+
+            successCount++;
+            results.push(embedded);
+            fetchedResults.push(embedded);
+            if (streaming && onStreamResult) onStreamResult(embedded);
+        }
+
+        const cachedAndEmbeddedCount = cachedMap.size + fetchedResults.length;
+        if (onProgress && fetchedResults.length > 0) {
+            onProgress(cachedAndEmbeddedCount, killsToFetch.length, successCount, failedCount);
+        }
+
+        for (let i = 0; i < killsNeedingApiFetch.length; i += maxConcurrency) {
+            const chunk = killsNeedingApiFetch.slice(i, i + maxConcurrency);
 
             const chunkPromises = chunk.map(async (kill) => {
                 try {
@@ -115,11 +163,11 @@ class ESIKillmailFetcher {
             }
 
             if (onProgress) {
-                const processed = Math.min(i + maxConcurrency, killsNeedingFetch.length) + cachedMap.size;
+                const processed = Math.min(i + maxConcurrency, killsNeedingApiFetch.length) + cachedAndEmbeddedCount;
                 onProgress(processed, killsToFetch.length, successCount, failedCount);
             }
 
-            if (i + maxConcurrency < killsNeedingFetch.length && batchDelay > 0) {
+            if (i + maxConcurrency < killsNeedingApiFetch.length && batchDelay > 0) {
                 await new Promise(resolve => setTimeout(resolve, batchDelay));
             }
         }
