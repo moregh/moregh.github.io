@@ -998,8 +998,40 @@ class ZKillStatsCard {
             }
         }));
 
-        // Don't block report rendering on extra ESI metadata requests. Display
-        // IDs for names that are not already in the local universe cache.
+        // Only enrich the ten visible kills, and batch missing metadata through
+        // the normal ESI rate limiter. The full security analysis stays cache-only.
+        const requests = [];
+        const requestMetadata = [];
+        for (const id of uniqueShipIds) {
+            if (shipNameMap[id]) continue;
+            requests.push({ endpoint: `/universe/types/${id}/`, method: 'GET' });
+            requestMetadata.push({ kind: 'ship', id });
+        }
+        for (const id of uniqueSystemIds) {
+            if (systemMap[id]) continue;
+            requests.push({ endpoint: `/universe/systems/${id}/`, method: 'GET' });
+            requestMetadata.push({ kind: 'system', id });
+        }
+
+        if (requests.length > 0) {
+            const results = await esiClient.batchRequests(requests, { maxConcurrency: 6, chunkDelay: 25 });
+            await Promise.all(results.map(async (result, index) => {
+                const metadata = requestMetadata[index];
+                if (!metadata || !result) return;
+
+                if (metadata.kind === 'ship' && result.name) {
+                    shipNameMap[metadata.id] = result.name;
+                    await setCachedUniverseName(Number.parseInt(metadata.id, 10), result.name);
+                } else if (metadata.kind === 'system' && result.name) {
+                    systemMap[metadata.id] = {
+                        name: result.name,
+                        security: result.security_status ?? null
+                    };
+                    await setCachedUniverseName(Number.parseInt(metadata.id, 10), result.name, result.security_status);
+                }
+            }));
+        }
+
         for (const id of uniqueShipIds) {
             if (!shipNameMap[id]) shipNameMap[id] = `Ship ${id}`;
         }
