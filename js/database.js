@@ -5,10 +5,77 @@
     Licensed under AGPL License.
 */
 
-import { DB_NAME, DB_VERSION, CACHE_EXPIRY_HOURS, LONG_CACHE_EXPIRY_HOURS, ZKILL_KILLS_CACHE_HOURS, ESI_KILLMAILS_CACHE_HOURS } from './config.js';
+import { DB_NAME, DB_VERSION, CACHE_EXPIRY_HOURS, LONG_CACHE_EXPIRY_HOURS, ZKILL_KILLS_CACHE_HOURS, ESI_KILLMAILS_CACHE_HOURS, ESI_KILLMAIL_CACHE_MAX_ITEMS } from './config.js';
 import { showError } from './ui.js';
 
 let dbInstance = null;
+let killmailPruneScheduled = false;
+let lastKillmailPruneAt = 0;
+const KILLMAIL_PRUNE_INTERVAL_MS = 6 * 60 * 60 * 1000;
+
+function scheduleKillmailCachePrune() {
+    if (killmailPruneScheduled || Date.now() - lastKillmailPruneAt < KILLMAIL_PRUNE_INTERVAL_MS) return;
+    killmailPruneScheduled = true;
+
+    const prune = () => {
+        lastKillmailPruneAt = Date.now();
+        pruneKillmailCache().catch(error => {
+            console.warn('Killmail cache cleanup failed:', error);
+        }).finally(() => {
+            killmailPruneScheduled = false;
+        });
+    };
+
+    if (typeof requestIdleCallback === 'function') {
+        requestIdleCallback(prune, { timeout: 15000 });
+    } else {
+        setTimeout(prune, 5000);
+    }
+}
+
+async function pruneKillmailCache() {
+    const db = await initDB();
+    if (!db.objectStoreNames.contains('esi_killmails')) return;
+
+    const transaction = db.transaction(['esi_killmails'], 'readwrite');
+    const store = transaction.objectStore('esi_killmails');
+    const timestampIndex = store.index('timestamp');
+    const cutoff = Date.now() - ESI_KILLMAILS_CACHE_HOURS * 60 * 60 * 1000;
+    let remainingCount = 0;
+    let deletedCount = 0;
+
+    await new Promise((resolve, reject) => {
+        transaction.oncomplete = resolve;
+        transaction.onerror = () => reject(transaction.error);
+        transaction.onabort = () => reject(transaction.error || new Error('Killmail cache cleanup aborted'));
+
+        const countRequest = store.count();
+        countRequest.onerror = () => reject(countRequest.error);
+        countRequest.onsuccess = () => {
+            remainingCount = countRequest.result;
+            const cursorRequest = timestampIndex.openCursor();
+            cursorRequest.onerror = () => reject(cursorRequest.error);
+            cursorRequest.onsuccess = () => {
+                const cursor = cursorRequest.result;
+                if (!cursor) return;
+
+                const timestamp = cursor.value.timestamp;
+                const expired = !Number.isFinite(timestamp) || timestamp < cutoff;
+                if (expired || remainingCount > ESI_KILLMAIL_CACHE_MAX_ITEMS) {
+                    cursor.delete();
+                    remainingCount--;
+                    deletedCount++;
+                    cursor.continue();
+                    return;
+                }
+            };
+        };
+    });
+
+    if (deletedCount > 0) {
+        console.info('Pruned expired/old killmail cache entries', { deletedCount, remainingCount });
+    }
+}
 
 export async function initDB() {
     if (dbInstance) return dbInstance;
@@ -416,6 +483,7 @@ export async function getCachedKillmailsBatch(killmailIds) {
 
     try {
         const db = await initDB();
+        scheduleKillmailCachePrune();
         const transaction = db.transaction(['esi_killmails'], 'readonly');
         const store = transaction.objectStore('esi_killmails');
 

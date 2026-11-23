@@ -239,16 +239,16 @@ export async function getRecentKills(killmails, limit = 5) {
         return [];
     }
 
-    const { getCachedUniverseName, setCachedUniverseName } = await import('./database.js');
-    const { esiClient } = await import('./esi-client.js');
+    const { getCachedUniverseName } = await import('./database.js');
 
     const sorted = killmails
-        .sort((a, b) => {
-            const timeA = new Date(a.killmail?.killmail_time || 0);
-            const timeB = new Date(b.killmail?.killmail_time || 0);
-            return timeB - timeA;
-        })
-        .slice(0, limit);
+        .map(kill => ({
+            kill,
+            time: Date.parse(kill.killmail?.killmail_time || '') || 0
+        }))
+        .sort((a, b) => b.time - a.time)
+        .slice(0, limit)
+        .map(entry => entry.kill);
 
     const uniqueSystemIds = [...new Set(sorted.map(km => km.killmail?.solar_system_id).filter(id => id))];
     const systemDataMap = new Map();
@@ -259,23 +259,14 @@ export async function getRecentKills(killmails, limit = 5) {
             try {
                 let cached = await getCachedUniverseName(systemId);
 
-                if (!cached) {
-                    const data = await esiClient.get(`/universe/systems/${systemId}/`);
-                    if (data) {
-                        systemDataMap.set(systemId, {
-                            name: data.name,
-                            security: data.security_status
-                        });
-                        await setCachedUniverseName(systemId, data.name, data.security_status);
-                    }
-                } else {
+                if (cached) {
                     systemDataMap.set(systemId, {
                         name: cached.name,
                         security: cached.security
                     });
                 }
             } catch (e) {
-                console.error(`Error fetching system ${systemId}:`, e);
+                console.warn(`Could not read cached system ${systemId}:`, e);
             }
         }));
     }
@@ -304,10 +295,18 @@ export function getTopValueKills(killmails, limit = 5) {
         return [];
     }
 
-    return killmails
-        .sort((a, b) => (b.zkbData?.totalValue || 0) - (a.zkbData?.totalValue || 0))
-        .slice(0, limit)
-        .map(km => ({
+    const topKills = [];
+    for (const kill of killmails) {
+        const value = kill.zkbData?.totalValue || 0;
+        let index = topKills.findIndex(existing => value > (existing.zkbData?.totalValue || 0));
+        if (index === -1 && topKills.length < limit) index = topKills.length;
+        if (index !== -1) {
+            topKills.splice(index, 0, kill);
+            if (topKills.length > limit) topKills.pop();
+        }
+    }
+
+    return topKills.map(km => ({
             killmailId: km.killmailId,
             value: km.zkbData?.totalValue || 0,
             victimShipTypeId: km.killmail?.victim?.ship_type_id,

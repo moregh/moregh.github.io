@@ -9,6 +9,7 @@ export const CACHE_EXPIRY_HOURS = 12;
 export const LONG_CACHE_EXPIRY_HOURS = 168;
 export const ZKILL_KILLS_CACHE_HOURS = 3;
 export const ESI_KILLMAILS_CACHE_HOURS = 168;
+export const ESI_KILLMAIL_CACHE_MAX_ITEMS = 100000;
 export const MAX_ESI_CALL_SIZE = 100;
 export const MAX_CONCURRENT_IMAGES = 4;
 export const CHUNK_SIZE = 50;

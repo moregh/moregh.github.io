@@ -17,6 +17,8 @@ import { assessEntityThreat } from './threat-assessment.js';
 import { ZKillError, computePoW, getProxyParam, executeWithRetry } from './zkill-utils.js';
 import { calculateTimezoneFromHourlyData, calculateTimezoneFromKillmails } from './timezone-utils.js';
 
+const nowMs = () => globalThis.performance?.now?.() ?? Date.now();
+
 function distributePercentages(items, total, getCount) {
     if (total === 0) return items.map(item => ({ ...item, percentage: 0 }));
 
@@ -342,19 +344,24 @@ class ZKillboardClient {
     }
 
     async runEntityStatsWithKillmails(entityType, entityId, options = {}) {
+        const totalStartedAt = nowMs();
+        const stageTimings = {};
         const {
             maxKillmails,
             fetchKillmails = true,
             onProgress = null
         } = options;
 
+        let stageStartedAt = nowMs();
         const stats = await this.getEntityStats(entityType, entityId);
+        stageTimings.baseStatsMs = nowMs() - stageStartedAt;
 
         if (!fetchKillmails || stats.totalKills === 0) {
             return stats;
         }
 
         const zkillRoleAnalysis = this.analyzeZkillStatsForSpecialRoles(stats);
+        const acquisitionStartedAt = nowMs();
 
         try {
             if (onProgress) {
@@ -459,6 +466,7 @@ class ZKillboardClient {
             })();
 
             await Promise.all([zkillPromise, esiPromise]);
+            stageTimings.killmailAcquisitionMs = nowMs() - acquisitionStartedAt;
 
             console.info('Killmail cache summary', {
                 entityType,
@@ -468,15 +476,23 @@ class ZKillboardClient {
             });
 
             if (!allKills || allKills.length === 0) {
+                console.info('Killmail stage timings', {
+                    entityType, entityId, ...stageTimings, totalMs: nowMs() - totalStartedAt
+                });
                 return stats;
             }
 
             const killmails = allKillmails;
 
             if (killmails && killmails.length > 0) {
+                stageStartedAt = nowMs();
                 const detailedAnalysis = analyzeKillmails(killmails, entityType, entityId);
+                stageTimings.analysisMs = nowMs() - stageStartedAt;
+
+                stageStartedAt = nowMs();
                 const recentKills = await getRecentKills(killmails, 10);
                 const topValueKills = getTopValueKills(killmails, 5);
+                stageTimings.recentAndTopKillsMs = nowMs() - stageStartedAt;
 
                 const mergedAnalysis = this.mergeAnalyses(detailedAnalysis, zkillRoleAnalysis);
 
@@ -490,7 +506,9 @@ class ZKillboardClient {
                 };
 
                 stats.combatStyle = this.enrichCombatStyleWithKillmails(stats.combatStyle, mergedAnalysis, stats);
+                stageStartedAt = nowMs();
                 stats.securityPreference = await this.analyzeSecurityPreferenceFromKillmails(killmails, stats._rawData);
+                stageTimings.securityAnalysisMs = nowMs() - stageStartedAt;
 
                 if (!stats.activityData.hasData) {
                     stats.activityData = this.extractActivityDataFromKillmails(killmails);
@@ -507,7 +525,12 @@ class ZKillboardClient {
                     }
                 }
 
+                stageStartedAt = nowMs();
                 stats.threatAssessment = assessEntityThreat(stats, stats.killmailData);
+                stageTimings.threatAssessmentMs = nowMs() - stageStartedAt;
+                // Rendering only needs the compact analysis and selected kills.
+                // Release the full ESI payloads before returning the report.
+                delete stats.killmailData.rawKillmails;
             } else {
                 const mergedAnalysis = {
                     blopsAnalysis: zkillRoleAnalysis.blopsAnalysis,
@@ -520,6 +543,9 @@ class ZKillboardClient {
             console.error('Error fetching killmail data:', error);
         }
 
+        console.info('Killmail stage timings', {
+            entityType, entityId, ...stageTimings, totalMs: nowMs() - totalStartedAt
+        });
         return stats;
     }
 
@@ -1308,8 +1334,7 @@ class ZKillboardClient {
     }
 
     async analyzeSecurityPreferenceFromKillmails(killmails, fallbackData) {
-        const { getCachedUniverseName, setCachedUniverseName } = await import('./database.js');
-        const { esiClient } = await import('./esi-client.js');
+        const { getCachedUniverseName } = await import('./database.js');
 
         const uniqueSystemIds = [...new Set(killmails.map(km => km.killmail?.solar_system_id).filter(id => id))];
         const systemInfoMap = new Map();
@@ -1318,27 +1343,25 @@ class ZKillboardClient {
             const batch = uniqueSystemIds.slice(i, i + 20);
             await Promise.all(batch.map(async (systemId) => {
                 try {
-                    let cached = await getCachedUniverseName(systemId);
-
+                    const cached = await getCachedUniverseName(systemId);
                     if (cached && cached.name && cached.security !== undefined && cached.security !== null) {
                         systemInfoMap.set(systemId, {
                             name: cached.name,
                             security: cached.security
                         });
-                    } else {
-                        const data = await esiClient.get(`/universe/systems/${systemId}/`);
-                        if (data && data.name && data.security_status !== undefined) {
-                            systemInfoMap.set(systemId, {
-                                name: data.name,
-                                security: data.security_status
-                            });
-                            await setCachedUniverseName(systemId, data.name, data.security_status);
-                        }
                     }
                 } catch (e) {
-                    console.error(`Error fetching system ${systemId}:`, e);
+                    console.warn(`Could not read cached system ${systemId}:`, e);
                 }
             }));
+        }
+
+        const killmailsWithSystems = killmails.filter(km => km.killmail?.solar_system_id).length;
+        const classifiedKillmails = killmails.filter(km =>
+            systemInfoMap.has(km.killmail?.solar_system_id)
+        ).length;
+        if (classifiedKillmails < killmailsWithSystems) {
+            return this.analyzeSecurityPreference(fallbackData, null);
         }
 
         let highsecKills = 0;

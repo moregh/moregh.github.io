@@ -874,7 +874,19 @@ class ZKillStatsCard {
             if (content) content.innerHTML = this.createEmptyStateHTML(entityName);
             return;
         }
-        if (content) content.innerHTML = await this.createStatsHTML(stats, entityType, entityId);
+        if (content) {
+            const renderStartedAt = globalThis.performance?.now?.() ?? Date.now();
+            const html = await this.createStatsHTML(stats, entityType, entityId);
+            const htmlBuiltAt = globalThis.performance?.now?.() ?? Date.now();
+            content.innerHTML = html;
+            const domInsertedAt = globalThis.performance?.now?.() ?? Date.now();
+            console.info('Killmail render timings', {
+                entityType,
+                entityId,
+                htmlBuildMs: htmlBuiltAt - renderStartedAt,
+                domInsertMs: domInsertedAt - htmlBuiltAt
+            });
+        }
 
         const memberCountEl = elems.memberCountEl || this.currentModal.querySelector('#zkill-header-member-count');
         if (memberCountEl && entityType !== 'character' && stats.memberCount) {
@@ -984,62 +996,14 @@ class ZKillStatsCard {
             }
         }));
 
-        // Build batch requests only for IDs not found in cache
-        const shipIdsToFetch = uniqueShipIds.filter(id => !(id in shipNameMap));
-        const systemIdsToFetch = uniqueSystemIds.filter(id => !(id in systemMap));
-
-        const requests = [];
-        const idForRequestIndex = [];
-
-        for (const id of shipIdsToFetch) {
-            requests.push({ endpoint: `/universe/types/${id}/`, method: 'GET' });
-            idForRequestIndex.push({ type: 'ship', id });
+        // Don't block report rendering on extra ESI metadata requests. Display
+        // IDs for names that are not already in the local universe cache.
+        for (const id of uniqueShipIds) {
+            if (!shipNameMap[id]) shipNameMap[id] = `Ship ${id}`;
         }
-        for (const id of systemIdsToFetch) {
-            requests.push({ endpoint: `/universe/systems/${id}/`, method: 'GET' });
-            idForRequestIndex.push({ type: 'system', id });
+        for (const id of uniqueSystemIds) {
+            if (!systemMap[id]) systemMap[id] = { name: `System ${id}`, security: null };
         }
-
-        if (requests.length > 0) {
-            try {
-                const results = await esiClient.batchRequests(requests, { maxConcurrency: 10, chunkDelay: 25 });
-                for (let i = 0; i < results.length; i++) {
-                    const res = results[i];
-                    const info = idForRequestIndex[i];
-                    if (!info) continue;
-                    if (info.type === 'ship') {
-                        const id = info.id;
-                        if (res && res.name) {
-                            shipNameMap[id] = res.name;
-                            // cache it
-                            try { await setCachedUniverseName(parseInt(id), res.name); } catch (e) {}
-                        } else {
-                            shipNameMap[id] = 'Unknown Ship';
-                        }
-                    } else if (info.type === 'system') {
-                        const id = info.id;
-                        if (res && res.name) {
-                            systemMap[id] = { name: res.name, security: res.security_status ?? null };
-                            try { await setCachedUniverseName(parseInt(id), res.name, res.security_status); } catch (e) {}
-                        } else {
-                            systemMap[id] = { name: 'Unknown System', security: null };
-                        }
-                    }
-                }
-            } catch (e) {
-                console.warn('Batch ESI lookup failed:', e);
-            }
-        }
-
-        // Fallback any missing entries by calling individual helpers (they handle errors)
-        await Promise.all(recentKills.map(async kill => {
-            if (!shipNameMap[kill.victimShipTypeId]) {
-                try { shipNameMap[kill.victimShipTypeId] = await this.getShipName(kill.victimShipTypeId); } catch (e) { shipNameMap[kill.victimShipTypeId] = 'Unknown Ship'; }
-            }
-            if (!systemMap[kill.systemId]) {
-                try { const s = await this.getSystemName(kill.systemId); systemMap[kill.systemId] = { name: s.name, security: s.security }; } catch (e) { systemMap[kill.systemId] = { name: 'Unknown System', security: null }; }
-            }
-        }));
 
         const killsWithNames = recentKills.map(kill => {
             const shipName = shipNameMap[kill.victimShipTypeId] || 'Unknown Ship';
@@ -1695,7 +1659,9 @@ class ZKillStatsCard {
                 return;
             }
 
+            const renderStartedAt = globalThis.performance?.now?.() ?? Date.now();
             const content = await this.createStatsHTML(stats, entityType, entityId);
+            const htmlBuiltAt = globalThis.performance?.now?.() ?? Date.now();
 
             const logoSize = entityType === 'character' ? CHARACTER_PORTRAIT_SIZE_PX :
                 entityType === 'corporation' ? CORP_LOGO_SIZE_PX : ALLIANCE_LOGO_SIZE_PX;
@@ -1775,6 +1741,12 @@ class ZKillStatsCard {
                 </div>
                 ${content}
             `;
+            console.info('Killmail render timings', {
+                entityType,
+                entityId,
+                htmlBuildMs: htmlBuiltAt - renderStartedAt,
+                domInsertMs: (globalThis.performance?.now?.() ?? Date.now()) - htmlBuiltAt
+            });
 
             this.setupSectionToggleHandlers(containerElement);
 

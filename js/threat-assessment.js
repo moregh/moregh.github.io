@@ -16,9 +16,10 @@ export class ThreatAssessment {
         const now = Date.now();
         const rawKillmails = killmailData?.rawKillmails || [];
         const analysis = killmailData?.analysis || {};
+        const killTimeSummary = this.summarizeKillmailTimes(rawKillmails, now);
 
-        const recencyScore = this.calculateRecencyScore(rawKillmails, now);
-        const frequencyScore = this.calculateFrequencyScore(rawKillmails, zkillStats, now);
+        const recencyScore = this.calculateRecencyScoreFromTime(killTimeSummary.latestTime, now);
+        const frequencyScore = this.calculateFrequencyScore(rawKillmails, zkillStats, now, killTimeSummary.recentCount);
         const hvtScore = this.calculateHVTScore(analysis);
         const shipCapabilityScore = this.calculateShipCapabilityScore(analysis);
         const securityScore = this.calculateSecurityScore(zkillStats.securityPreference);
@@ -46,7 +47,8 @@ export class ThreatAssessment {
             totalScore = Math.min(100, totalScore + THREAT_ASSESSMENT.SCORING.FLEET.SOLO_HUNTER);
         }
 
-        const tags = this.generateTags(killmailData, rawKillmails, now);
+        const lastKillAge = this.getLastKillAgeFromTime(killTimeSummary.latestTime, now);
+        const tags = this.generateTags(killmailData, rawKillmails, now, lastKillAge);
 
         return {
             totalScore,
@@ -60,21 +62,16 @@ export class ThreatAssessment {
             },
             riskLevel: this.getRiskLevel(totalScore),
             tags,
-            lastKillAge: this.getLastKillAge(rawKillmails, now)
+            lastKillAge
         };
     }
 
     calculateRecencyScore(killmails, now) {
-        if (!killmails || killmails.length === 0) return 0;
+        return this.calculateRecencyScoreFromTime(this.summarizeKillmailTimes(killmails, now).latestTime, now);
+    }
 
-        const killTimes = killmails
-            .map(km => new Date(km.killmail?.killmail_time).getTime())
-            .filter(t => !isNaN(t))
-            .sort((a, b) => b - a);
-
-        if (killTimes.length === 0) return 0;
-
-        const lastKillTime = killTimes[0];
+    calculateRecencyScoreFromTime(lastKillTime, now) {
+        if (lastKillTime === null) return 0;
         const ageMinutes = (now - lastKillTime) / (1000 * 60);
         const ageHours = ageMinutes / 60;
         const ageDays = ageHours / 24;
@@ -116,7 +113,7 @@ export class ThreatAssessment {
         return cfg.OLD_SCORE;
     }
 
-    calculateFrequencyScore(killmails, zkillStats, now) {
+    calculateFrequencyScore(killmails, zkillStats, now, recentKillCount = null) {
         if (!zkillStats || zkillStats.totalKills === 0) return 0;
 
         const totalKills = zkillStats.totalKills;
@@ -145,16 +142,18 @@ export class ThreatAssessment {
             score = totalKills * cfg.SCORE_MULTIPLIER_LOW;
         }
 
-        if (killmails && killmails.length > 0) {
+        if (recentKillCount === null && killmails && killmails.length > 0) {
             const windowMs = this.config.FREQUENCY.FREQUENCY_WINDOW_DAYS * 24 * 60 * 60 * 1000;
             const cutoffTime = now - windowMs;
 
-            const recentKills = killmails.filter(km => {
+            recentKillCount = killmails.filter(km => {
                 const killTime = new Date(km.killmail?.killmail_time).getTime();
                 return !isNaN(killTime) && killTime >= cutoffTime;
-            });
+            }).length;
+        }
 
-            const killsPerDay = recentKills.length / this.config.FREQUENCY.FREQUENCY_WINDOW_DAYS;
+        if (recentKillCount > 0) {
+            const killsPerDay = recentKillCount / this.config.FREQUENCY.FREQUENCY_WINDOW_DAYS;
 
             if (killsPerDay >= cfg.KILLS_PER_DAY_HIGH) {
                 score = Math.min(100, score + cfg.RECENT_ACTIVITY_BONUS_HIGH);
@@ -271,10 +270,10 @@ export class ThreatAssessment {
         return Math.min(100, score);
     }
 
-    generateTags(killmailData, rawKillmails, now) {
+    generateTags(killmailData, rawKillmails, now, precomputedLastKillAge = null) {
         const tags = [];
 
-        const lastKillAge = this.getLastKillAge(rawKillmails, now);
+        const lastKillAge = precomputedLastKillAge || this.getLastKillAge(rawKillmails, now);
         if (lastKillAge.minutes !== null) {
             if (lastKillAge.minutes < this.config.TAGS.ACTIVE_NOW_MINUTES) {
                 tags.push('ACTIVE NOW');
@@ -323,20 +322,24 @@ export class ThreatAssessment {
     }
 
     getLastKillAge(killmails, now) {
-        if (!killmails || killmails.length === 0) {
-            return { minutes: null, hours: null, days: null };
+        return this.getLastKillAgeFromTime(this.summarizeKillmailTimes(killmails, now).latestTime, now);
+    }
+
+    summarizeKillmailTimes(killmails, now) {
+        let latestTime = null;
+        let recentCount = 0;
+        const cutoffTime = now - this.config.FREQUENCY.FREQUENCY_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+        for (const km of killmails || []) {
+            const timestamp = new Date(km.killmail?.killmail_time).getTime();
+            if (!Number.isFinite(timestamp)) continue;
+            if (latestTime === null || timestamp > latestTime) latestTime = timestamp;
+            if (timestamp >= cutoffTime) recentCount++;
         }
+        return { latestTime, recentCount };
+    }
 
-        const killTimes = killmails
-            .map(km => new Date(km.killmail?.killmail_time).getTime())
-            .filter(t => !isNaN(t))
-            .sort((a, b) => b - a);
-
-        if (killTimes.length === 0) {
-            return { minutes: null, hours: null, days: null };
-        }
-
-        const lastKillTime = killTimes[0];
+    getLastKillAgeFromTime(lastKillTime, now) {
+        if (lastKillTime === null) return { minutes: null, hours: null, days: null };
         const ageMs = now - lastKillTime;
         const ageMinutes = Math.floor(ageMs / (1000 * 60));
         const ageHours = Math.floor(ageMs / (1000 * 60 * 60));
