@@ -152,6 +152,7 @@ class ZKillboardClient {
         this.cache = new ZKillStatsCache();
         this.requestCount = 0;
         this.pendingRequests = new Map();
+        this.pendingKillmailLoads = new Map();
     }
 
     async executeRequest(entityType, entityId) {
@@ -285,8 +286,64 @@ class ZKillboardClient {
 
     async getEntityStatsWithKillmails(entityType, entityId, options = {}) {
         const defaultMaxKillmails = await getRuntimeMaxKillmails();
+        const maxKillmails = options.maxKillmails ?? defaultMaxKillmails;
+        const fetchKillmails = options.fetchKillmails !== false;
+        if (!fetchKillmails) {
+            return this.runEntityStatsWithKillmails(entityType, entityId, {
+                ...options,
+                maxKillmails,
+                fetchKillmails
+            });
+        }
+
+        const key = `${entityType}:${entityId}:${maxKillmails}`;
+        const existing = this.pendingKillmailLoads.get(key);
+        if (existing) {
+            existing.coalescedCallers++;
+            if (options.onProgress) existing.progressCallbacks.add(options.onProgress);
+            return existing.promise;
+        }
+
+        const entry = {
+            coalescedCallers: 0,
+            progressCallbacks: new Set(options.onProgress ? [options.onProgress] : []),
+            promise: null
+        };
+        const sharedOptions = {
+            ...options,
+            maxKillmails,
+            fetchKillmails,
+            onProgress: (...args) => {
+                for (const callback of entry.progressCallbacks) {
+                    try {
+                        callback(...args);
+                    } catch (error) {
+                        console.warn('Killmail progress callback failed:', error);
+                    }
+                }
+            }
+        };
+
+        entry.promise = this.runEntityStatsWithKillmails(entityType, entityId, sharedOptions)
+            .finally(() => {
+                if (this.pendingKillmailLoads.get(key) === entry) {
+                    this.pendingKillmailLoads.delete(key);
+                }
+                if (entry.coalescedCallers > 0) {
+                    console.info('Coalesced duplicate killmail loads', {
+                        entityType,
+                        entityId,
+                        callers: entry.coalescedCallers + 1
+                    });
+                }
+            });
+        this.pendingKillmailLoads.set(key, entry);
+        return entry.promise;
+    }
+
+    async runEntityStatsWithKillmails(entityType, entityId, options = {}) {
         const {
-            maxKillmails = defaultMaxKillmails,
+            maxKillmails,
             fetchKillmails = true,
             onProgress = null
         } = options;
