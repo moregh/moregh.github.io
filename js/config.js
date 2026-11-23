@@ -68,9 +68,11 @@ export const ESI_HEADERS = {
 export const ZKILL_CARD_ANIMATION_DURATION_MS = 300;
 export const ZKILL_DATA_CACHE_DURATION_MS = 180 * 60 * 1000;
 export const MAX_KILLMAILS_TO_FETCH = 1000;
-export const KILLMAIL_BATCH_SIZE = 10;
+// The killmail API has immutable browser-cacheable responses. Keep enough
+// requests in flight to drain large cached sets without serial wave latency.
+export const KILLMAIL_BATCH_SIZE = 64;
 export const KILLMAIL_CACHE_BATCH_SIZE = 200;
-export const KILLMAIL_FETCH_DELAY_MS = 10;
+export const KILLMAIL_FETCH_DELAY_MS = 0;
 
 export const ZKILL_PAGINATION_CONFIG = {
     MIN_KILLMAILS: 100,

@@ -237,6 +237,9 @@ export class ESIClient {
             while (true) {
                 const result = await this.executeRequest(url, {
                     method: 'GET',
+                    // Killmail responses are immutable. Reuse Firefox's local
+                    // HTTP cache when IndexedDB does not already have the mail.
+                    cache: 'force-cache',
                     ...options
                 }, 0, 0, { Accept: 'application/json' }, false);
 
