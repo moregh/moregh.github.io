@@ -21,6 +21,8 @@ import { esiClient } from './esi-client.js';
 import { sanitizeCharacterName, sanitizeCorporationName, sanitizeAllianceName, sanitizeId, sanitizeAttribute, escapeHtml } from './xss-protection.js';
 import { getCachedUniverseName, setCachedUniverseName, getCachedAffiliation, setCachedAffiliation } from './database.js';
 
+const HANDLED_ZKILL_CARD_CLICK = Symbol('handledZkillCardClick');
+
 const POCHVEN_SYSTEMS = [
     'Skarkon', 'Archee', 'Kino', 'Konola', 'Krirald', 'Nalvula', 'Nani',
     'Ala', 'Angymonne', 'Arvasaras', 'Harva', 'Ignebaener', 'Kuharah',
@@ -1674,6 +1676,7 @@ class ZKillStatsCard {
             const memberText = (entityType !== 'character' && stats.memberCount) ?
                 `${this.formatNumber(stats.memberCount)} member${stats.memberCount !== 1 ? 's' : ''}` : '';
 
+            const affiliationStartedAt = globalThis.performance?.now?.() ?? Date.now();
             let affiliationBadges = '';
             if (entityType === 'character') {
                 let character = this.completeResults.find(char => char.character_id == entityId);
@@ -1717,12 +1720,14 @@ class ZKillStatsCard {
                 }
             }
 
+            const affiliationMs = (globalThis.performance?.now?.() ?? Date.now()) - affiliationStartedAt;
             let playstyleTags = '';
             if (stats.combatStyle?.playstyleDetails?.length > 0) {
                 const tags = stats.combatStyle.playstyleDetails;
                 playstyleTags = tags.map(tag => `<span class="tag tag-${tag.toLowerCase().replace(/[\/\s]/g, '-')}">${tag}</span>`).join('');
             }
 
+            const beforeDomInsertAt = globalThis.performance?.now?.() ?? Date.now();
             containerElement.innerHTML = `
                 <div class="detail-header">
                     <img src="https://images.evetech.net/${imageType}/${entityId}/${imagePath}?size=${logoSize}"
@@ -1741,12 +1746,22 @@ class ZKillStatsCard {
                 </div>
                 ${content}
             `;
+            const domInsertedAt = globalThis.performance?.now?.() ?? Date.now();
             console.info('Killmail render timings', {
                 entityType,
                 entityId,
                 htmlBuildMs: htmlBuiltAt - renderStartedAt,
-                domInsertMs: (globalThis.performance?.now?.() ?? Date.now()) - htmlBuiltAt
+                affiliationMs,
+                headerPreparationMs: beforeDomInsertAt - htmlBuiltAt,
+                domInsertMs: domInsertedAt - beforeDomInsertAt
             });
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+                console.info('Killmail render frame timing', {
+                    entityType,
+                    entityId,
+                    framesAfterInsertMs: (globalThis.performance?.now?.() ?? Date.now()) - domInsertedAt
+                });
+            }));
 
             this.setupSectionToggleHandlers(containerElement);
 
@@ -1763,6 +1778,9 @@ class ZKillStatsCard {
     }
 
     setupSectionToggleHandlers(containerElement) {
+        if (!containerElement || containerElement._zkillSectionHandlersInstalled) return;
+        containerElement._zkillSectionHandlersInstalled = true;
+
         const sectionHeaders = containerElement.querySelectorAll('.section-header, .zkill-section-header');
         sectionHeaders.forEach(header => {
             header.addEventListener('click', function () {
@@ -1778,7 +1796,9 @@ class ZKillStatsCard {
         const containerElems = containerElement?._zkill || {};
 
         containerElement.addEventListener('click', (e) => {
+            if (e[HANDLED_ZKILL_CARD_CLICK]) return;
             if (e.target.closest('[data-action="toggle-members"]')) {
+                e[HANDLED_ZKILL_CARD_CLICK] = true;
                 e.preventDefault();
                 e.stopPropagation();
                 const dropdown = containerElems.membersDropdown || containerElement.querySelector('#zkill-members-dropdown');
@@ -1790,6 +1810,7 @@ class ZKillStatsCard {
 
             const clickableItem = e.target.closest('[data-click-action]');
             if (clickableItem) {
+                e[HANDLED_ZKILL_CARD_CLICK] = true;
                 e.preventDefault();
                 e.stopPropagation();
 
